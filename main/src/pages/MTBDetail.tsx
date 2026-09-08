@@ -533,7 +533,7 @@ export function MTBDetail() {
                 if (!mtb) return;
 
                 const roomName = mtb.name.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
-                const serverLoaderUrl = import.meta.env.VITE_SERVER_LOADER_URL || 'https://server.vmtb.in';
+                const serverLoaderUrl = import.meta.env.VITE_SERVER_LOADER_URL || 'https://meeting-vmtb-v2.3billionpairs.com';
 
                 const params = new URLSearchParams({
                   room: roomName,

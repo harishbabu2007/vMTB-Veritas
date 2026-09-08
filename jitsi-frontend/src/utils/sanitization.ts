@@ -37,14 +37,14 @@ export function getMeetingParamsFromUrl(): MeetingUrlParams {
     roomName: room ? sanitizeRoomName(room) : null,
     mtbId: mtbId || null,
     mtbName: mtbName ? decodeURIComponent(mtbName) : null,
-    returnUrl: returnUrl || import.meta.env.VITE_MAIN_APP_URL || 'https://vmtb.in',
+    returnUrl: returnUrl || import.meta.env.VITE_MAIN_APP_URL || 'https://vmtb-v2.3billionpairs.com',
   }
 }
 
 export function getReturnUrl(): string {
   const params = new URLSearchParams(window.location.search)
   const returnUrl = params.get('returnUrl')
-  return returnUrl || import.meta.env.VITE_MAIN_APP_URL || 'https://vmtb.in'
+  return returnUrl || import.meta.env.VITE_MAIN_APP_URL || 'https://vmtb-v2.3billionpairs.com'
 }
 
 export function debugLog(message: string, data?: unknown): void {

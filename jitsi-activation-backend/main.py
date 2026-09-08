@@ -59,6 +59,9 @@ _DEFAULT_CORS_ORIGINS = ",".join(
         "https://www.vmtb.in",
         "https://server.vmtb.in",
         "https://meet.vmtb.in",
+        "https://vmtb-v2.3billionpairs.com",
+        "https://server-vmtb-v2.3billionpairs.com",
+        "https://meeting-vmtb-v2.3billionpairs.com",
     ]
 )
 

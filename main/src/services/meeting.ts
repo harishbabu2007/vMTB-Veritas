@@ -1,6 +1,6 @@
 // Render-hosted FastAPI backend URL (configured via environment variable)
 const API_BASE_URL = import.meta.env.VITE_JITSI_BACKEND_URL;
-const JITSI_MEET_URL = 'https://meet.vmtb.in';
+const JITSI_MEET_URL = 'https://server-vmtb-v2.3billionpairs.com';
 const POLL_INTERVAL = 5000; // 5 seconds
 const MAX_POLL_TIME = 90000; // 90 seconds
 
