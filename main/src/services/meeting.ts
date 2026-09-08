@@ -1,6 +1,6 @@
 // Render-hosted FastAPI backend URL (configured via environment variable)
 const API_BASE_URL = import.meta.env.VITE_JITSI_BACKEND_URL;
-const JITSI_MEET_URL = 'https://meet.vmtb.in';
+const JITSI_MEET_URL = 'https://server-vmtb-v2.3billionpairs.com';
 const POLL_INTERVAL = 5000; // 5 seconds
 const MAX_POLL_TIME = 90000; // 90 seconds
 
@@ -167,7 +167,7 @@ export class MeetingService {
 
   /**
    * Construct the meeting loader URL with sanitized room name
-   * This URL points to server.vmtb.in which handles the full meeting flow
+   * This URL points to the Vercel frontend which handles the full meeting flow
    */
   getMeetingUrl(roomName: string): string {
     const sanitizedRoom = this.sanitizeMeetingName(roomName);
