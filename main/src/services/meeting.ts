@@ -167,7 +167,7 @@ export class MeetingService {
 
   /**
    * Construct the meeting loader URL with sanitized room name
-   * This URL points to server.vmtb.in which handles the full meeting flow
+   * This URL points to the Vercel frontend which handles the full meeting flow
    */
   getMeetingUrl(roomName: string): string {
     const sanitizedRoom = this.sanitizeMeetingName(roomName);
