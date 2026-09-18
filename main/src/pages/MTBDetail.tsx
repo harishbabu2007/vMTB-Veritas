@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Plus, Copy, Check, LogOut, Video, Pencil, Bell, BellOff, CalendarDays, ClipboardList, Users, FileText } from 'lucide-react';
+import { Plus, Copy, Check, LogOut, Video, Pencil, Users, FileText } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { Modal } from '../components/Modal';
-import { MeetingLoadingModal } from '../components/MeetingLoadingModal';
+import { MeetingsList } from '../components/MeetingsList';
 import { useCases, Case } from '../context/CasesContext';
 import { supabase } from '../Supabase/client';
 import { useAuth } from '../context/AuthContext';
 import { showToast } from '../utils/toast';
-import { MeetingService } from '../services/meeting';
 import { useIsMobile } from '../hooks/useMobile';
+import { useActiveMeeting } from '../hooks/useActiveMeeting';
+import { buildMeetingUrl } from '../utils/roomName';
+
+type MTBDetailTab = 'cases' | 'meetings';
 
 export function MTBDetail() {
   const { id } = useParams();
@@ -17,6 +20,7 @@ export function MTBDetail() {
   const { cases, mtbs, addCaseToMTB, leaveMTB, updateMTBName, updateMTBNotification } = useCases();
   const { user } = useAuth();
   const isMobile = useIsMobile();
+  const [activeTab, setActiveTab] = useState<MTBDetailTab>('cases');
   const [showAddCaseModal, setShowAddCaseModal] = useState(false);
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
   const [mtbCases, setMtbCases] = useState<Case[]>([]);
@@ -29,16 +33,11 @@ export function MTBDetail() {
   const [showRenameModal, setShowRenameModal] = useState(false);
   const [newMtbName, setNewMtbName] = useState('');
   const [renamingMTB, setRenamingMTB] = useState(false);
-  const [showMeetingLoading, setShowMeetingLoading] = useState(false);
-  const [startingMeeting, setStartingMeeting] = useState(false);
   const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState(false);
   const [togglingNotification, setTogglingNotification] = useState(false);
-  const [showMeetingModal, setShowMeetingModal] = useState(false);
-  const [showMomModal, setShowMomModal] = useState(false);
 
   // Drag-to-scroll state
   const tableContainerRef = useRef<HTMLDivElement>(null);
-  const meetingServiceRef = useRef<MeetingService>(new MeetingService());
   const [isDragging, setIsDragging] = useState(false);
   const [startX, setStartX] = useState(0);
   const [scrollLeft, setScrollLeft] = useState(0);
@@ -48,12 +47,7 @@ export function MTBDetail() {
   // Only allow adding verified cases to MTBs
   const availableCases = cases.filter((c) => !mtb?.cases.includes(c.id) && c.summaryStatus === 'verified');
 
-  // Cleanup meeting service on unmount
-  useEffect(() => {
-    return () => {
-      meetingServiceRef.current.cleanup();
-    };
-  }, []);
+  const { activeMeeting } = useActiveMeeting(id);
 
   const handleCopyCode = () => {
     if (mtb?.joinCode) {
@@ -274,14 +268,16 @@ export function MTBDetail() {
               )}
               <button
                 onClick={() => {
-                  setShowMeetingModal(true);
+                  if (!mtb) return;
+                  const url = buildMeetingUrl(mtb);
+                  window.open(url, '_blank');
                 }}
                 className={`flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2.5'
                 }`}
               >
                 <Video className="w-4 h-4" />
-                <span>{startingMeeting ? 'Starting...' : 'Meeting'}</span>
+                <span>{activeMeeting ? 'Join Meeting' : 'Start Meeting'}</span>
               </button>
               <button
                 onClick={() => setShowAddCaseModal(true)}
@@ -297,7 +293,29 @@ export function MTBDetail() {
           </div>
         </div>
 
-        {loading ? (
+        {/* Tab Navigation */}
+        <div className="border-b border-gray-200">
+          <nav className="-mb-px flex items-center gap-6">
+            {(['cases', 'meetings'] as MTBDetailTab[]).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`border-b-2 font-medium transition-colors whitespace-nowrap py-3 px-0.5 text-sm ${
+                  activeTab === tab
+                    ? 'text-blue-600 border-blue-500'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                }`}
+              >
+                {tab === 'cases' ? 'Cases' : 'Meetings'}
+              </button>
+            ))}
+          </nav>
+        </div>
+
+        {/* Tab Content */}
+        {activeTab === 'cases' && (
+          <>
+            {loading ? (
           <div className="bg-white rounded-lg shadow p-12 text-center">
             <p className="text-gray-600">Loading cases...</p>
           </div>
@@ -446,6 +464,29 @@ export function MTBDetail() {
             </div>
           </div>
         )}
+          </>
+        )}
+
+        {activeTab === 'meetings' && mtb && (
+          <MeetingsList
+            mtbId={mtb.id}
+            mtb={mtb}
+            onToggleNotification={async (enabled) => {
+              if (!mtb || togglingNotification) return;
+              setTogglingNotification(true);
+              try {
+                await updateMTBNotification(mtb.id, enabled);
+                showToast.success(enabled ? 'Notifications enabled' : 'Notifications disabled');
+              } catch (err: any) {
+                console.error('Failed to toggle notification:', err);
+                showToast.error('Failed to update notification setting');
+              } finally {
+                setTogglingNotification(false);
+              }
+            }}
+            togglingNotification={togglingNotification}
+          />
+        )}
       </div>
 
       <Modal
@@ -519,148 +560,6 @@ export function MTBDetail() {
             </div>
           </div>
         )}
-      </Modal>
-
-      <Modal
-        isOpen={showMeetingModal}
-        onClose={() => setShowMeetingModal(false)}
-        title="Meeting"
-      >
-        <div className="space-y-5">
-          <div className="bg-white rounded-xl border border-gray-100 p-4 space-y-4">
-            <button
-              onClick={() => {
-                if (!mtb) return;
-
-                const roomName = mtb.name.toLowerCase().replace(/[^a-z0-9-]/g, '').replace(/^-+|-+$/g, '');
-                const serverLoaderUrl = import.meta.env.VITE_SERVER_LOADER_URL || 'https://meeting-vmtb-v2.3billionpairs.com';
-
-                const params = new URLSearchParams({
-                  room: roomName,
-                  mtb_id: mtb.id,
-                  mtb_name: mtb.name,
-                });
-
-                const serverUrl = `${serverLoaderUrl}?${params.toString()}`;
-                window.open(serverUrl, '_blank');
-                setShowMeetingModal(false);
-              }}
-              className="w-full flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg py-2.5 hover:bg-green-700 transition-colors"
-            >
-              <Video className="w-4 h-4" />
-              <span className="font-medium">Start Meeting</span>
-            </button>
-
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2 min-w-0">
-                {mtb?.notificationEnabled !== false ? (
-                  <Bell className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                ) : (
-                  <BellOff className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                )}
-                <span className="text-sm text-gray-700">Notify all MTB members about this meeting</span>
-              </div>
-              <button
-                onClick={async () => {
-                  if (!mtb || togglingNotification) return;
-                  setTogglingNotification(true);
-                  try {
-                    const newValue = !mtb.notificationEnabled;
-                    await updateMTBNotification(mtb.id, newValue);
-                    showToast.success(newValue ? 'Notifications enabled' : 'Notifications disabled');
-                  } catch (err: any) {
-                    console.error('Failed to toggle notification:', err);
-                    showToast.error('Failed to update notification setting');
-                  } finally {
-                    setTogglingNotification(false);
-                  }
-                }}
-                disabled={togglingNotification}
-                className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full transition-colors duration-200 disabled:opacity-50 ${
-                  mtb?.notificationEnabled !== false ? 'bg-blue-600' : 'bg-gray-300'
-                }`}
-                role="switch"
-                aria-checked={mtb?.notificationEnabled !== false}
-                aria-label="Toggle meeting notifications"
-              >
-                <span
-                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition duration-200 mt-0.5 ${
-                    mtb?.notificationEnabled !== false ? 'translate-x-5' : 'translate-x-0.5'
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 space-y-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4" style={{ color: '#4A90E2' }} />
-              <h4 className="text-sm font-semibold" style={{ color: '#4A5565' }}>Meeting History</h4>
-            </div>
-            
-            {/* Placeholder for future meeting history entries */}
-            {/* Each entry will have: Date, Time, Duration, Experts attended, "View MoM" button */}
-            <div className="space-y-2">
-              <p className="text-sm text-gray-600">
-                We're working on this feature. Meeting history will be available soon.
-              </p>
-              
-              {/* Future structure for meeting entries (hidden for now) */}
-              {/* 
-              <div className="bg-white rounded-lg border border-gray-200 p-3 space-y-2">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2 text-sm font-medium" style={{ color: '#4A5565' }}>
-                      <span>Date: DD/MM/YYYY</span>
-                      <span>•</span>
-                      <span>Time: HH:MM AM/PM</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      <span>Duration: XX minutes</span>
-                      <span className="mx-2">•</span>
-                      <span>Experts: X</span>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setShowMomModal(true)}
-                    className="text-xs font-medium px-3 py-1.5 rounded-md hover:opacity-90 transition-opacity text-white"
-                    style={{ backgroundColor: '#4A90E2' }}
-                  >
-                    View MoM
-                  </button>
-                </div>
-              </div>
-              */}
-            </div>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        isOpen={showMomModal}
-        onClose={() => setShowMomModal(false)}
-        title="Minutes of Meeting"
-      >
-        <div className="space-y-4">
-          <div className="bg-gray-50 rounded-xl border border-gray-200 p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <ClipboardList className="w-4 h-4" style={{ color: '#4A90E2' }} />
-              <h4 className="text-sm font-semibold" style={{ color: '#4A5565' }}>MoM Preview</h4>
-            </div>
-            <p className="text-sm text-gray-600">
-              Meeting notes will appear here once meeting history is connected.
-            </p>
-          </div>
-          <div className="flex justify-end">
-            <button
-              onClick={() => setShowMomModal(false)}
-              className="px-4 py-2.5 text-white rounded-lg hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: '#4A90E2' }}
-            >
-              Close
-            </button>
-          </div>
-        </div>
       </Modal>
 
       <Modal
@@ -756,15 +655,6 @@ export function MTBDetail() {
           </div>
         </div>
       </Modal>
-
-      <MeetingLoadingModal
-        isOpen={showMeetingLoading}
-        onClose={() => {
-          setShowMeetingLoading(false);
-          setStartingMeeting(false);
-          meetingServiceRef.current.cleanup();
-        }}
-      />
     </Layout>
   );
 }
