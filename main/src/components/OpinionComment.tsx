@@ -101,13 +101,16 @@ export function OpinionComment({
 
   return (
     <div style={{ marginLeft: `${marginLeft}px` }}>
-      <div className={`${compact ? 'py-2' : depth === 0 ? 'bg-white rounded-xl shadow-sm border border-gray-100 p-4' : 'pl-4 py-3 border-l-2 border-blue-100'}`}>
+      <div className={`${compact ? 'py-2' : depth === 0 ? 'bg-surface rounded-xl shadow-sm border border-border p-4' : 'pl-4 py-3 border-l-2 border-blue-100'}`}>
         {/* Author and timestamp */}
         <div className="flex items-center gap-2 mb-1.5">
+          {/* Intentionally NOT a real-photo Avatar: authorLabel is anonymized
+              ("You"/"Case Owner"/"Anonymous XX"), and showing the real profile
+              photo here would deanonymize case discussions. */}
           <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
             <span className="text-[10px] font-bold text-blue-600">{authorLabel.charAt(0).toUpperCase()}</span>
           </div>
-          <span className="text-sm font-semibold text-gray-900">{authorLabel}</span>
+          <span className="text-sm font-semibold text-text">{authorLabel}</span>
           {isCaseOwner && !isOwnOpinion && (
             <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-50 text-blue-600">Owner</span>
           )}
@@ -115,7 +118,7 @@ export function OpinionComment({
         </div>
 
         {/* Content */}
-        <p className={`text-gray-700 whitespace-pre-wrap leading-relaxed ${compact ? 'text-xs' : 'text-sm'} ml-8`}>{opinion.content}</p>
+        <p className={`text-text whitespace-pre-wrap leading-relaxed ${compact ? 'text-xs' : 'text-sm'} ml-8`}>{opinion.content}</p>
 
         {/* Actions */}
         <div className="flex items-center gap-4 mt-2 ml-8">
@@ -151,7 +154,7 @@ export function OpinionComment({
                 value={replyText}
                 onChange={(e) => setReplyText(e.target.value)}
                 rows={2}
-                className="w-full px-3 py-2 pr-10 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-gray-50 transition-all duration-150"
+                className="w-full px-3 py-2 pr-10 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none bg-bg transition-all duration-150"
                 placeholder="Write your reply..."
                 autoFocus
               />
@@ -167,14 +170,13 @@ export function OpinionComment({
               <button
                 onClick={handleSubmitReply}
                 disabled={submitting || !replyText.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#4A90E2' }}
+                className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
               >
                 {submitting ? 'Posting...' : 'Reply'}
               </button>
               <button
                 onClick={() => { setShowReplyInput(false); setReplyText(''); }}
-                className="px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
               >
                 Cancel
               </button>

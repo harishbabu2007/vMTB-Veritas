@@ -8,13 +8,13 @@ export interface PendingFile {
   size: string;
   mimeType?: string;
   rawText?: string;
+  // The walkthrough's sample report: never uploaded or processed.
+  isSample?: boolean;
 }
 
 export interface Step1Data {
   caseName: string;
   patientName: string;
-  age: string;
-  sex: string;
   cancerType: string;
 }
 
@@ -23,6 +23,16 @@ export interface S3UploadCredentials {
   requestId: string;
   uploadUrl: string;
   formFields: Record<string, string>;
+}
+
+// A sample case "created" from the walkthrough. Held in memory only and shown
+// by /sample-case; nothing is uploaded or saved.
+export interface SampleDemo {
+  caseName: string;
+  patientName: string;
+  cancerType: string;
+  explanation: string;
+  questions: string[];
 }
 
 interface CaseCreationContextType {
@@ -38,6 +48,8 @@ interface CaseCreationContextType {
   // S3 upload state
   s3Credentials: S3UploadCredentials | null;
   setS3Credentials: (creds: S3UploadCredentials | null) => void;
+  sampleDemo: SampleDemo | null;
+  setSampleDemo: (demo: SampleDemo | null) => void;
 }
 
 const CaseCreationContext = createContext<CaseCreationContextType | undefined>(undefined);
@@ -47,6 +59,7 @@ export function CaseCreationProvider({ children }: { children: ReactNode }) {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [caseExplanation, setCaseExplanation] = useState<string>('');
   const [s3Credentials, setS3Credentials] = useState<S3UploadCredentials | null>(null);
+  const [sampleDemo, setSampleDemo] = useState<SampleDemo | null>(null);
 
   const addFiles = useCallback((newFiles: PendingFile[]): { success: boolean; duplicates: string[] } => {
     const existingNames = new Set(pendingFiles.map(f => f.name.toLowerCase()));
@@ -98,6 +111,8 @@ export function CaseCreationProvider({ children }: { children: ReactNode }) {
         clearAll,
         s3Credentials,
         setS3Credentials,
+        sampleDemo,
+        setSampleDemo,
       }}
     >
       {children}

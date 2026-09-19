@@ -96,3 +96,5 @@ desktop.ini
 *.njsproj
 *.sln
 *.swp
+
+.claude/

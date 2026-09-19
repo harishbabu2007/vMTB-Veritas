@@ -5,11 +5,13 @@ import { useCaseCreation } from '../context/CaseCreationContext';
 import { useIsMobile } from '../hooks/useMobile';
 import { AlertCircle, FileText } from 'lucide-react';
 import { VoiceRecorder } from '../components/VoiceRecorder';
+import { useTourGroup } from '../hooks/useTourGroup';
 
 export default function NewCaseStep2() {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const { step1Data, caseExplanation, setCaseExplanation } = useCaseCreation();
+  useTourGroup('step2', Boolean(step1Data));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   
   const [explanation, setExplanation] = useState(caseExplanation || '');
@@ -65,18 +67,18 @@ export default function NewCaseStep2() {
     <Layout>
       <div className="max-w-4xl mx-auto">
         <div className={isMobile ? 'mb-4' : 'mb-6'}>
-          <h1 className={`font-bold ${isMobile ? 'text-xl' : 'text-2xl'}`} style={{ color: '#4A5565' }}>
+          <h1 className={`font-bold text-text-muted ${isMobile ? 'text-xl' : 'text-2xl'}`}>
             Explain Your Case
           </h1>
-          <p className={`text-gray-600 mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
+          <p className={`text-text-muted mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
             Step 2 of 3: Case Explanation (Optional)
           </p>
         </div>
 
         {/* Info Banner */}
-        <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 ${isMobile ? 'text-xs p-3' : 'text-sm'}`} style={{ backgroundColor: '#E8F4FD', borderColor: '#4A90E2', borderWidth: '1px' }}>
-          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: '#4A90E2' }} />
-          <div style={{ color: '#4A5565' }}>
+        <div className={`mb-6 p-4 rounded-lg flex items-start gap-3 border border-primary bg-status-processing-bg ${isMobile ? 'text-xs p-3' : 'text-sm'}`}>
+          <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5 text-primary" />
+          <div className="text-text-muted">
             <p className="font-medium mb-1">Explain your case in full detail</p>
             <p className="text-xs opacity-90">
               Type exactly as you would explain the case in a boardroom or a clinical meeting. Include all details you feel are relevant for understanding the case, patient history, test results, treatment timeline, and any specific questions you have.
@@ -85,36 +87,38 @@ export default function NewCaseStep2() {
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="bg-white rounded-2xl shadow-sm p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-surface rounded-xl shadow-sm border border-border p-6">
+            {/* Label on the left, Dictate at the right end. While recording,
+                the recorder's bar takes its own full-width line. */}
+            <div className="flex items-center justify-between gap-x-3 gap-y-2 flex-wrap mb-4">
               <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5" style={{ color: '#4A90E2' }} />
-                <label htmlFor="explanation" className="text-sm font-medium" style={{ color: '#4A5565' }}>
+                <FileText className="w-5 h-5 text-primary" />
+                <label htmlFor="explanation" className="text-sm font-medium text-text-muted">
                   Case Explanation
                 </label>
+              </div>
+              <div data-tour="dictate" className="dictate-control">
                 <VoiceRecorder
                   onTranscriptionComplete={handleVoiceTranscription}
                   variant="explanation"
                   source="step2"
-                  iconSize={18}
+                  iconSize={16}
                 />
+                <span className="dictate-label" aria-hidden="true">Dictate</span>
               </div>
-              <p className="text-xs text-gray-500">
-                {explanation.length} characters
-              </p>
             </div>
 
             <textarea
               ref={textareaRef}
               id="explanation"
+              data-tour="explanation"
               value={explanation}
               onChange={(e) => setExplanation(e.target.value)}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 resize-none transition-all duration-150"
-              style={{ 
-                '--tw-ring-color': '#4A90E2',
+              className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all duration-150"
+              style={{
                 minHeight: isMobile ? '300px' : '400px',
                 fontSize: '15px'
-              } as React.CSSProperties}
+              }}
               placeholder="Start typing your case explanation here...
 
 Example:
@@ -133,10 +137,15 @@ Questions for the board:
 - What are the options for surgical intervention?"
             />
 
-            <div className="mt-3 flex items-start gap-2 text-xs text-gray-500">
-              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-              <p>
-                This explanation will be used by the AI to understand your case better and will be shared with the MTB members.
+            <div className="mt-3 flex items-start justify-between gap-4 text-xs text-text-muted">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <p>
+                  This explanation will be used by the AI to understand your case better and will be shared with the MTB members.
+                </p>
+              </div>
+              <p className="flex-shrink-0 tabular-nums">
+                {explanation.length} characters
               </p>
             </div>
           </div>
@@ -146,15 +155,14 @@ Questions for the board:
             <button
               type="button"
               onClick={handleBack}
-              className={`px-6 py-2.5 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors ${isMobile ? 'w-full' : ''}`}
-              style={{ color: '#4A5565' }}
+              className={`px-4 py-2 border border-border rounded-lg hover:bg-bg transition-colors text-text-muted ${isMobile ? 'w-full' : ''}`}
             >
               Back
             </button>
             <button
               type="submit"
-              className={`px-8 py-2.5 text-white rounded-lg hover:opacity-90 transition-opacity ${isMobile ? 'w-full' : ''}`}
-              style={{ backgroundColor: '#4A90E2' }}
+              data-tour="step2-continue"
+              className={`px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity bg-primary ${isMobile ? 'w-full' : ''}`}
             >
               Continue to Review
             </button>

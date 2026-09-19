@@ -8,6 +8,19 @@
     <meta property="og:image" content="https://i.ibb.co/vxP6Cs3c/logo.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://i.ibb.co/vxP6Cs3c/logo.png" />
+    <script>
+      (function () {
+        try {
+          var cached = localStorage.getItem('vmtb-theme-last');
+          var dark =
+            cached === 'dark' ||
+            (cached !== 'light' &&
+              window.matchMedia &&
+              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

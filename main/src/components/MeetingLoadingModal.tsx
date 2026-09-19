@@ -46,20 +46,20 @@ export function MeetingLoadingModal({ isOpen, onClose }: MeetingLoadingModalProp
         </div>
 
         {/* Heading */}
-        <h3 className="text-2xl font-semibold text-gray-900 mb-3 text-center">
+        <h3 className="text-2xl font-semibold text-text mb-3 text-center">
           Starting Meeting Server
         </h3>
 
         {/* Status Message */}
         <div className="flex items-center space-x-3 mb-6">
           <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
-          <span className="text-gray-700 font-medium">
+          <span className="text-text font-medium">
             Please wait{dots}
           </span>
         </div>
 
         {/* Elapsed Time */}
-        <div className="flex items-center space-x-2 mb-6 text-sm text-gray-600">
+        <div className="flex items-center space-x-2 mb-6 text-sm text-text-muted">
           <Clock className="w-4 h-4" />
           <span>{elapsed} seconds elapsed</span>
         </div>
@@ -83,7 +83,7 @@ export function MeetingLoadingModal({ isOpen, onClose }: MeetingLoadingModalProp
         </div>
 
         {/* Additional Info */}
-        <p className="text-sm text-gray-500 mt-6 text-center max-w-md">
+        <p className="text-sm text-text-muted mt-6 text-center max-w-md">
           <span className="font-medium">Please do not close or refresh this page.</span>
           <br />
           The meeting will open automatically when the server is ready.

@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "https://mcp.supabase.com/mcp"
+    },
+    "gcp-cloud": {
+      "type": "http",
+      "url": "https://cloudcli.googleapis.com/mcp",
+      "oauth": {
+        "clientId": "670475652201-mj3uprv11kk0gru66gle22q36ddnqf6q.apps.googleusercontent.com",
+        "callbackPort": 8080
+      }
+    }
+  }
+}

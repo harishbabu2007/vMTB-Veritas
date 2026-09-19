@@ -1,0 +1,11 @@
+You are an expert transcription model.
+
+Merge the following transcription chunks.
+
+Remove duplicate words caused by overlapping chunks.
+
+Preserve punctuation.
+
+Do not summarize.
+
+Return only the final transcript.

@@ -27,16 +27,16 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
       />
 
       {/* Dialog - Mobile responsive */}
-      <div className={`relative z-[100000] bg-white rounded-lg shadow-xl w-full max-h-[90vh] flex flex-col
+      <div className={`relative z-[100000] bg-surface rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col
         ${sizeClasses}
         max-[640px]:mx-2 max-[640px]:max-w-[calc(100%-1rem)] max-[640px]:rounded-lg
       `}>
         {/* Header */}
-        <div className="flex justify-between items-center px-6 pt-6 pb-4 border-b border-gray-200 flex-shrink-0 max-[640px]:px-4 max-[640px]:pt-4 max-[640px]:pb-3">
-          <h3 id="modal-title" className="text-lg font-medium text-gray-900 max-[640px]:text-base">{title}</h3>
+        <div className="flex justify-between items-center px-6 py-4 border-b border-border flex-shrink-0 max-[640px]:px-4 max-[640px]:py-3">
+          <h3 id="modal-title" className="text-lg font-medium text-text max-[640px]:text-base">{title}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-500 transition-colors p-1"
+            className="text-text-muted hover:text-text transition-colors p-1"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -44,7 +44,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
         </div>
 
         {/* Body - Scrollable */}
-        <div className={`bg-white flex-1 overflow-y-auto`}>
+        <div className={`bg-surface flex-1 overflow-y-auto`}>
           <div className="px-6 py-4 max-[640px]:px-4 max-[640px]:py-3">
             {children}
           </div>

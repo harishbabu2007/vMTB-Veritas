@@ -86,7 +86,7 @@ export function InlineOpinionInput({
 
   if (variant === 'card') {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+      <div className="bg-surface rounded-xl shadow-sm border border-border p-4">
         <div className="relative">
           <textarea
             ref={textareaRef}
@@ -94,7 +94,7 @@ export function InlineOpinionInput({
             onChange={(e) => setContent(e.target.value)}
             onKeyDown={handleKeyDown}
             rows={isMobile ? 3 : 4}
-            className="w-full px-3 py-2.5 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm bg-gray-50 transition-all duration-150"
+            className="w-full px-3 py-2 pr-10 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-sm bg-bg transition-all duration-150"
             placeholder={placeholder}
           />
           <div className="absolute right-3 top-3">
@@ -106,12 +106,11 @@ export function InlineOpinionInput({
           </div>
         </div>
         <div className={`flex items-center justify-between mt-2.5`}>
-          {!isMobile && <span className="text-[11px] text-gray-400">Ctrl + Enter to submit</span>}
+          {!isMobile && <span className="text-[11px] text-text-muted">Ctrl + Enter to submit</span>}
           <button
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
-            className="px-4 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
-            style={{ backgroundColor: '#4A90E2' }}
+            className="px-4 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ml-auto bg-primary"
           >
             {submitting ? 'Posting...' : submitLabel}
           </button>
@@ -130,7 +129,7 @@ export function InlineOpinionInput({
           onChange={(e) => setContent(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={2}
-          className="w-full px-3 py-2 pr-10 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none text-sm bg-gray-50 transition-all duration-150"
+          className="w-full px-3 py-2 pr-10 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none text-sm bg-bg transition-all duration-150"
           placeholder={placeholder}
         />
         <div className="absolute right-3 top-2.5">
@@ -145,8 +144,7 @@ export function InlineOpinionInput({
         <button
           onClick={handleSubmit}
           disabled={submitting || !content.trim()}
-          className="px-3 py-1 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
-          style={{ backgroundColor: '#4A90E2' }}
+          className="px-3 py-1 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
         >
           {submitting ? 'Posting...' : submitLabel}
         </button>

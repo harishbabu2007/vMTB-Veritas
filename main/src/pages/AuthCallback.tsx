@@ -124,23 +124,23 @@ export function AuthCallback() {
   }, [navigate, location.search]);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm p-8">
+        <div className="bg-surface rounded-2xl shadow-sm p-8">
           <div className="flex items-center justify-center space-x-3 mb-8">
             <img src="https://i.ibb.co/vxP6Cs3c/logo.png" alt="VMTB" className="h-12 w-auto" />
-            <h1 className="text-3xl font-bold text-gray-900">vMTB</h1>
+            <h1 className="text-3xl font-bold text-text">vMTB</h1>
           </div>
 
           <div className="text-center">
             {/* Loading spinner */}
             <div className="inline-flex items-center justify-center mb-6">
               <div
-                className="w-10 h-10 border-4 border-gray-200 rounded-full animate-spin"
-                style={{ borderTopColor: '#4A90E2' }}
+                className="w-10 h-10 border-4 border-border rounded-full animate-spin"
+                style={{ borderTopColor: 'var(--color-primary)' }}
               />
             </div>
-            <p className="text-gray-600">{status}</p>
+            <p className="text-text-muted">{status}</p>
           </div>
         </div>
       </div>

@@ -84,6 +84,35 @@ const defaultFollowUpForm = {
   additional_clinical_notes: '',
 };
 
+// Form state for a saved plan. 'other' reasons are stored as 'other:<text>'.
+const planToFormData = (plan: TreatmentPlan) => {
+  let reason = plan.non_implementation_reason || '';
+  let otherText = '';
+  if (reason.startsWith('other:')) {
+    otherText = reason.substring(6);
+    reason = 'other';
+  }
+  return {
+    vmtb_discussion_date: plan.vmtb_discussion_date || '',
+    participants: plan.participants || [],
+    consensus_predominant_pathway: plan.consensus_predominant_pathway || '',
+    consensus_therapy_recommendation: plan.consensus_therapy_recommendation || '',
+    amp_level_of_evidence: plan.amp_level_of_evidence || '',
+    escat_level: plan.escat_level || '',
+    overall_evidence_strength: plan.overall_evidence_strength || '',
+    is_treatment_implemented: plan.is_treatment_implemented,
+    treatment_initiation_date: plan.treatment_initiation_date || '',
+    treatment_discontinuation_date: plan.treatment_discontinuation_date || '',
+    treatment_administered: plan.treatment_administered || '',
+    non_implementation_reason: reason,
+    non_implementation_other_text: otherText,
+    alternative_treatment_plan: plan.alternative_treatment_plan || '',
+  };
+};
+
+const sortFollowUps = (items: TreatmentFollowUp[]) =>
+  [...items].sort((a, b) => a.followup_date.localeCompare(b.followup_date));
+
 export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUpProps) {
   const [loading, setLoading] = useState(true);
   const [treatmentPlan, setTreatmentPlan] = useState<TreatmentPlan | null>(null);
@@ -116,30 +145,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
       setTreatmentPlan(planData);
 
       if (planData) {
-        // Populate form with existing data
-        // Check if reason is 'other' (stored as 'other:actual text')
-        let reason = planData.non_implementation_reason || '';
-        let otherText = '';
-        if (reason.startsWith('other:')) {
-          otherText = reason.substring(6);
-          reason = 'other';
-        }
-        setFormData({
-          vmtb_discussion_date: planData.vmtb_discussion_date || '',
-          participants: planData.participants || [],
-          consensus_predominant_pathway: planData.consensus_predominant_pathway || '',
-          consensus_therapy_recommendation: planData.consensus_therapy_recommendation || '',
-          amp_level_of_evidence: planData.amp_level_of_evidence || '',
-          escat_level: planData.escat_level || '',
-          overall_evidence_strength: planData.overall_evidence_strength || '',
-          is_treatment_implemented: planData.is_treatment_implemented,
-          treatment_initiation_date: planData.treatment_initiation_date || '',
-          treatment_discontinuation_date: planData.treatment_discontinuation_date || '',
-          treatment_administered: planData.treatment_administered || '',
-          non_implementation_reason: reason,
-          non_implementation_other_text: otherText,
-          alternative_treatment_plan: planData.alternative_treatment_plan || '',
-        });
+        setFormData(planToFormData(planData));
 
         // Fetch follow-ups
         console.log('Fetching follow-ups for treatment_plan_id:', planData.id);
@@ -223,27 +229,36 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         alternative_treatment_plan: !formData.is_treatment_implemented ? (formData.alternative_treatment_plan || null) : null,
       };
 
+      // The saved row comes back from the write, so the tab updates in place
+      // instead of refetching and flashing its loading state.
       if (treatmentPlan) {
         // Update existing
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('case_treatment_plans')
           .update(payload)
-          .eq('id', treatmentPlan.id);
+          .eq('id', treatmentPlan.id)
+          .select()
+          .single();
 
         if (error) throw error;
+        setTreatmentPlan(data);
+        setFormData(planToFormData(data));
         showToast.success('Treatment plan updated');
       } else {
         // Insert new
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('case_treatment_plans')
-          .insert(payload);
+          .insert(payload)
+          .select()
+          .single();
 
         if (error) throw error;
+        setTreatmentPlan(data);
+        setFormData(planToFormData(data));
         showToast.success('Treatment plan created');
       }
 
       setEditing(false);
-      await fetchData();
     } catch (err) {
       console.error('Failed to save treatment plan:', err);
       showToast.error('Failed to save treatment plan');
@@ -326,6 +341,10 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
         console.log('Update result:', { data, error });
         if (error) throw error;
+        const updated = data?.[0];
+        if (updated) {
+          setFollowUps(prev => sortFollowUps(prev.map(f => (f.id === updated.id ? updated : f))));
+        }
         showToast.success('Follow-up updated');
       } else {
         const { data, error } = await supabase
@@ -335,13 +354,16 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
         console.log('Insert result:', { data, error });
         if (error) throw error;
+        const inserted = data?.[0];
+        if (inserted) {
+          setFollowUps(prev => sortFollowUps([...prev, inserted]));
+        }
         showToast.success('Follow-up added');
       }
 
       setShowFollowUpModal(false);
       setFollowUpForm(defaultFollowUpForm);
       setEditingFollowUpId(null);
-      await fetchData();
     } catch (err: any) {
       console.error('Failed to save follow-up:', err);
       showToast.error(err?.message || 'Failed to save follow-up');
@@ -361,9 +383,9 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         .eq('id', deleteFollowUpId);
 
       if (error) throw error;
+      setFollowUps(prev => prev.filter(f => f.id !== deleteFollowUpId));
       showToast.success('Follow-up deleted');
       setDeleteFollowUpId(null);
-      await fetchData();
     } catch (err) {
       console.error('Failed to delete follow-up:', err);
       showToast.error('Failed to delete follow-up');
@@ -374,8 +396,8 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
   if (loading) {
     return (
-      <div className="text-center py-12">
-        <p className="text-[#4A5565]">Loading treatment plan...</p>
+      <div className="text-center py-8">
+        <p className="text-text-muted">Loading treatment plan...</p>
       </div>
     );
   }
@@ -383,8 +405,8 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
   // Non-owner and no treatment plan
   if (!isOwner && !treatmentPlan) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-8 text-center">
-        <p className="text-[#4A5565]">Treatment plan not yet created.</p>
+      <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
+        <p className="text-text-muted">Treatment plan not yet created.</p>
       </div>
     );
   }
@@ -395,13 +417,13 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
   return (
     <div className="space-y-6">
       {/* Treatment Plan Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-[#4A5565]">Treatment Plan</h3>
+      <div className="bg-surface rounded-xl shadow-sm border border-border">
+        <div data-tour="treatment-plan" className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-muted">Treatment Plan</h3>
           {isOwner && treatmentPlan && !editing && (
             <button
               onClick={() => setEditing(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-[#4A5565] hover:bg-gray-50 transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-lg text-text-muted hover:bg-bg transition-colors"
             >
               <Edit2 className="w-4 h-4" />
               Edit
@@ -414,32 +436,9 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                   onClick={() => {
                     setEditing(false);
                     // Reset form to saved data
-                    if (treatmentPlan) {
-                      let reason = treatmentPlan.non_implementation_reason || '';
-                      let otherText = '';
-                      if (reason.startsWith('other:')) {
-                        otherText = reason.substring(6);
-                        reason = 'other';
-                      }
-                      setFormData({
-                        vmtb_discussion_date: treatmentPlan.vmtb_discussion_date || '',
-                        participants: treatmentPlan.participants || [],
-                        consensus_predominant_pathway: treatmentPlan.consensus_predominant_pathway || '',
-                        consensus_therapy_recommendation: treatmentPlan.consensus_therapy_recommendation || '',
-                        amp_level_of_evidence: treatmentPlan.amp_level_of_evidence || '',
-                        escat_level: treatmentPlan.escat_level || '',
-                        overall_evidence_strength: treatmentPlan.overall_evidence_strength || '',
-                        is_treatment_implemented: treatmentPlan.is_treatment_implemented,
-                        treatment_initiation_date: treatmentPlan.treatment_initiation_date || '',
-                        treatment_discontinuation_date: treatmentPlan.treatment_discontinuation_date || '',
-                        treatment_administered: treatmentPlan.treatment_administered || '',
-                        non_implementation_reason: reason,
-                        non_implementation_other_text: otherText,
-                        alternative_treatment_plan: treatmentPlan.alternative_treatment_plan || '',
-                      });
-                    }
+                    setFormData(planToFormData(treatmentPlan));
                   }}
-                  className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg text-[#4A5565] hover:bg-gray-50 transition-colors"
+                  className="px-3 py-1.5 text-sm border border-border rounded-lg text-text-muted hover:bg-bg transition-colors"
                 >
                   Cancel
                 </button>
@@ -447,7 +446,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#4A90E2] text-white rounded-lg hover:bg-[#3A7BC8] disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
               >
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : 'Save'}
@@ -456,16 +455,16 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           )}
         </div>
 
-        <div className="px-6 py-6 space-y-8">
+        <div className="p-6 space-y-6">
           {/* Section 1: vMTB Discussion Details */}
           <div className="space-y-4">
-            <h4 className="text-base font-semibold text-[#4A5565] border-b border-gray-100 pb-2">
+            <h4 className="text-base font-semibold text-text-muted border-b border-border pb-2">
               Section 1: vMTB Discussion Details
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-[#4A5565] mb-1">
+                <label className="block text-sm font-medium text-text-muted mb-1">
                   vMTB Discussion Date <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -473,12 +472,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                   value={formData.vmtb_discussion_date}
                   onChange={(e) => setFormData(prev => ({ ...prev, vmtb_discussion_date: e.target.value }))}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4A5565] mb-1">Participants</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">Participants</label>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -487,13 +486,13 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                     onKeyDown={handleParticipantKeyDown}
                     disabled={isReadOnly}
                     placeholder="Add participant and press Enter"
-                    className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                    className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                   />
                   {!isReadOnly && (
                     <button
                       type="button"
                       onClick={handleAddParticipant}
-                      className="px-3 py-2 bg-gray-100 border border-gray-200 rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                      className="px-3 py-2 bg-gray-100 border border-border rounded-lg text-sm hover:bg-gray-200 transition-colors"
                     >
                       Add
                     </button>
@@ -521,7 +520,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#4A5565] mb-1">Consensus Predominant Pathway</label>
+              <label className="block text-sm font-medium text-text-muted mb-1">Consensus Predominant Pathway</label>
               <textarea
                 value={formData.consensus_predominant_pathway}
                 onChange={(e) => {
@@ -530,12 +529,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                 }}
                 disabled={isReadOnly}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500 resize-y min-h-[60px]"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted resize-y min-h-[60px]"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-[#4A5565] mb-1">Consensus Therapy Recommendation</label>
+              <label className="block text-sm font-medium text-text-muted mb-1">Consensus Therapy Recommendation</label>
               <textarea
                 value={formData.consensus_therapy_recommendation}
                 onChange={(e) => {
@@ -544,25 +543,25 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                 }}
                 disabled={isReadOnly}
                 rows={2}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500 resize-y min-h-[60px]"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted resize-y min-h-[60px]"
               />
             </div>
           </div>
 
           {/* Section 2: Evidence Evaluation */}
           <div className="space-y-4">
-            <h4 className="text-base font-semibold text-[#4A5565] border-b border-gray-100 pb-2">
+            <h4 className="text-base font-semibold text-text-muted border-b border-border pb-2">
               Section 2: Evidence Evaluation
             </h4>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-[#4A5565] mb-1">AMP Level of Evidence</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">AMP Level of Evidence</label>
                 <select
                   value={formData.amp_level_of_evidence}
                   onChange={(e) => setFormData(prev => ({ ...prev, amp_level_of_evidence: e.target.value }))}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                 >
                   <option value="">Select...</option>
                   <option value="Tier I - Level A">Tier I - Level A</option>
@@ -575,12 +574,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4A5565] mb-1">ESCAT Level</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">ESCAT Level</label>
                 <select
                   value={formData.escat_level}
                   onChange={(e) => setFormData(prev => ({ ...prev, escat_level: e.target.value }))}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                 >
                   <option value="">Select...</option>
                   <option value="ESCAT I">ESCAT I</option>
@@ -592,12 +591,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[#4A5565] mb-1">Overall Evidence Strength</label>
+                <label className="block text-sm font-medium text-text-muted mb-1">Overall Evidence Strength</label>
                 <select
                   value={formData.overall_evidence_strength}
                   onChange={(e) => setFormData(prev => ({ ...prev, overall_evidence_strength: e.target.value }))}
                   disabled={isReadOnly}
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                 >
                   <option value="">Select...</option>
                   <option value="Strong">Strong</option>
@@ -611,12 +610,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
           {/* Section 3: Treatment Implementation */}
           <div className="space-y-4">
-            <h4 className="text-base font-semibold text-[#4A5565] border-b border-gray-100 pb-2">
+            <h4 className="text-base font-semibold text-text-muted border-b border-border pb-2">
               Section 3: Treatment Implementation
             </h4>
             
             <div>
-              <label className="block text-sm font-medium text-[#4A5565] mb-2">
+              <label className="block text-sm font-medium text-text-muted mb-2">
                 Was the vMTB-Recommended Treatment Plan Implemented? <span className="text-red-500">*</span>
               </label>
               <div className="flex items-center gap-6">
@@ -634,9 +633,9 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                       alternative_treatment_plan: '',
                     }))}
                     disabled={isReadOnly}
-                    className="w-4 h-4 text-[#4A90E2] border-gray-300 focus:ring-[#4A90E2]"
+                    className="w-4 h-4 text-primary border-border focus:ring-primary"
                   />
-                  <span className="text-sm text-[#4A5565]">Yes</span>
+                  <span className="text-sm text-text-muted">Yes</span>
                 </label>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input
@@ -652,9 +651,9 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                       treatment_administered: '',
                     }))}
                     disabled={isReadOnly}
-                    className="w-4 h-4 text-[#4A90E2] border-gray-300 focus:ring-[#4A90E2]"
+                    className="w-4 h-4 text-primary border-border focus:ring-primary"
                   />
-                  <span className="text-sm text-[#4A5565]">No</span>
+                  <span className="text-sm text-text-muted">No</span>
                 </label>
               </div>
             </div>
@@ -664,28 +663,28 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
               <div className="pl-4 border-l-2 border-green-200 space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#4A5565] mb-1">Date of Treatment Initiation</label>
+                    <label className="block text-sm font-medium text-text-muted mb-1">Date of Treatment Initiation</label>
                     <input
                       type="date"
                       value={formData.treatment_initiation_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, treatment_initiation_date: e.target.value }))}
                       disabled={isReadOnly}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#4A5565] mb-1">Date of Treatment Discontinuation (optional)</label>
+                    <label className="block text-sm font-medium text-text-muted mb-1">Date of Treatment Discontinuation (optional)</label>
                     <input
                       type="date"
                       value={formData.treatment_discontinuation_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, treatment_discontinuation_date: e.target.value }))}
                       disabled={isReadOnly}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                     />
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#4A5565] mb-1">Treatment Administered</label>
+                  <label className="block text-sm font-medium text-text-muted mb-1">Treatment Administered</label>
                   <textarea
                     value={formData.treatment_administered}
                     onChange={(e) => {
@@ -695,7 +694,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                     disabled={isReadOnly}
                     rows={3}
                     placeholder="Describe the treatment administered..."
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500 resize-y min-h-[80px]"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted resize-y min-h-[80px]"
                   />
                 </div>
               </div>
@@ -705,7 +704,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             {formData.is_treatment_implemented === false && (
               <div className="pl-4 border-l-2 border-red-200 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-[#4A5565] mb-2">Reason for Non-Implementation</label>
+                  <label className="block text-sm font-medium text-text-muted mb-2">Reason for Non-Implementation</label>
                   <div className="space-y-2">
                     {NON_IMPLEMENTATION_REASONS.map((option) => (
                       <div key={option.value} className="flex items-start gap-2">
@@ -721,9 +720,9 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                               non_implementation_other_text: option.value !== 'other' ? '' : prev.non_implementation_other_text,
                             }))}
                             disabled={isReadOnly}
-                            className="w-4 h-4 text-[#4A90E2] border-gray-300 focus:ring-[#4A90E2] mt-0.5"
+                            className="w-4 h-4 text-primary border-border focus:ring-primary mt-0.5"
                           />
-                          <span className="text-sm text-[#4A5565]">{option.label}</span>
+                          <span className="text-sm text-text-muted">{option.label}</span>
                         </label>
                         {/* Inline text input for Other */}
                         {option.value === 'other' && formData.non_implementation_reason === 'other' && (
@@ -733,7 +732,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                             onChange={(e) => setFormData(prev => ({ ...prev, non_implementation_other_text: e.target.value }))}
                             disabled={isReadOnly}
                             placeholder="Please specify..."
-                            className="flex-1 ml-2 px-2 py-1 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                            className="flex-1 ml-2 px-2 py-1 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                             required
                           />
                         )}
@@ -742,7 +741,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#4A5565] mb-1">Alternative Treatment Plan Used</label>
+                  <label className="block text-sm font-medium text-text-muted mb-1">Alternative Treatment Plan Used</label>
                   <textarea
                     value={formData.alternative_treatment_plan}
                     onChange={(e) => {
@@ -752,29 +751,29 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                     disabled={isReadOnly}
                     rows={3}
                     placeholder="Describe alternative treatment..."
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500 resize-y min-h-[80px]"
+                    className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted resize-y min-h-[80px]"
                   />
                 </div>
                 {/* Date fields for NO path */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-[#4A5565] mb-1">Date of Treatment Initiation in Clinical Practice</label>
+                    <label className="block text-sm font-medium text-text-muted mb-1">Date of Treatment Initiation in Clinical Practice</label>
                     <input
                       type="date"
                       value={formData.treatment_initiation_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, treatment_initiation_date: e.target.value }))}
                       disabled={isReadOnly}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-[#4A5565] mb-1">Date of Treatment Discontinuation (optional)</label>
+                    <label className="block text-sm font-medium text-text-muted mb-1">Date of Treatment Discontinuation (optional)</label>
                     <input
                       type="date"
                       value={formData.treatment_discontinuation_date}
                       onChange={(e) => setFormData(prev => ({ ...prev, treatment_discontinuation_date: e.target.value }))}
                       disabled={isReadOnly}
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] disabled:bg-gray-50 disabled:text-gray-500"
+                      className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary disabled:bg-bg disabled:text-text-muted"
                     />
                   </div>
                 </div>
@@ -785,13 +784,14 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
       </div>
 
       {/* Follow-Up Section */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-100">
-        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-[#4A5565]">Follow-Ups</h3>
+      <div className="bg-surface rounded-xl shadow-sm border border-border">
+        <div className="px-6 py-4 border-b border-border flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-text-muted">Follow-Ups</h3>
           {isOwner && treatmentPlan && (
             <button
               onClick={openAddFollowUpModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#4A90E2] text-white rounded-lg hover:bg-[#3A7BC8] transition-colors"
+              data-tour="add-follow-up"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add Follow-Up
@@ -799,29 +799,29 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           )}
         </div>
 
-        <div className="px-6 py-6">
+        <div className="p-6">
           {!treatmentPlan ? (
-            <p className="text-sm text-[#4A5565] text-center py-4">
+            <p className="text-sm text-text-muted text-center py-4">
               {isOwner ? 'Save the treatment plan first to add follow-ups.' : 'No treatment plan exists yet.'}
             </p>
           ) : followUps.length === 0 ? (
-            <p className="text-sm text-[#4A5565] text-center py-4">No follow-ups documented yet.</p>
+            <p className="text-sm text-text-muted text-center py-4">No follow-ups documented yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-gray-100">
-                    <th className="text-left py-3 px-2 font-medium text-[#4A5565]">Follow-up Date</th>
-                    <th className="text-left py-3 px-2 font-medium text-[#4A5565]">Disease Progression Date</th>
-                    <th className="text-left py-3 px-2 font-medium text-[#4A5565]">Patient Status</th>
-                    <th className="text-left py-3 px-2 font-medium text-[#4A5565]">Discontinuation/LTFU</th>
-                    <th className="text-left py-3 px-2 font-medium text-[#4A5565]">Notes</th>
-                    {isOwner && <th className="text-right py-3 px-2 font-medium text-[#4A5565]">Actions</th>}
+                  <tr className="border-b border-border">
+                    <th className="text-left py-3 px-2 font-medium text-text-muted">Follow-up Date</th>
+                    <th className="text-left py-3 px-2 font-medium text-text-muted">Disease Progression Date</th>
+                    <th className="text-left py-3 px-2 font-medium text-text-muted">Patient Status</th>
+                    <th className="text-left py-3 px-2 font-medium text-text-muted">Discontinuation/LTFU</th>
+                    <th className="text-left py-3 px-2 font-medium text-text-muted">Notes</th>
+                    {isOwner && <th className="text-right py-3 px-2 font-medium text-text-muted">Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
                   {followUps.map((fu) => (
-                    <tr key={fu.id} className="border-b border-gray-100 hover:bg-gray-50">
+                    <tr key={fu.id} className="border-b border-border hover:bg-bg">
                       <td className="py-3 px-2">{fu.followup_date || '-'}</td>
                       <td className="py-3 px-2">{fu.disease_progression_date || '-'}</td>
                       <td className="py-3 px-2">
@@ -846,14 +846,14 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditFollowUpModal(fu)}
-                              className="p-1 text-gray-500 hover:text-blue-600 transition-colors"
+                              className="p-1 text-text-muted hover:text-blue-600 transition-colors"
                               title="Edit"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setDeleteFollowUpId(fu.id)}
-                              className="p-1 text-gray-500 hover:text-red-600 transition-colors"
+                              className="p-1 text-text-muted hover:text-red-600 transition-colors"
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -882,33 +882,33 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
       >
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-[#4A5565] mb-1">
+            <label className="block text-sm font-medium text-text-muted mb-1">
               Follow-up Date <span className="text-red-500">*</span>
             </label>
             <input
               type="date"
               value={followUpForm.followup_date}
               onChange={(e) => setFollowUpForm(prev => ({ ...prev, followup_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2]"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#4A5565] mb-1">Disease Progression Date</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">Disease Progression Date</label>
             <input
               type="date"
               value={followUpForm.disease_progression_date}
               onChange={(e) => setFollowUpForm(prev => ({ ...prev, disease_progression_date: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2]"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#4A5565] mb-1">Current Patient Status</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">Current Patient Status</label>
             <select
               value={followUpForm.current_patient_status}
               onChange={(e) => setFollowUpForm(prev => ({ ...prev, current_patient_status: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2]"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             >
               <option value="">Select...</option>
               <option value="Alive">Alive</option>
@@ -917,17 +917,17 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#4A5565] mb-1">Reason for Discontinuation / LTFU</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">Reason for Discontinuation / LTFU</label>
             <input
               type="text"
               value={followUpForm.discontinuation_or_ltfu_reason}
               onChange={(e) => setFollowUpForm(prev => ({ ...prev, discontinuation_or_ltfu_reason: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2]"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-[#4A5565] mb-1">Additional Notes</label>
+            <label className="block text-sm font-medium text-text-muted mb-1">Additional Notes</label>
             <textarea
               value={followUpForm.additional_clinical_notes}
               onChange={(e) => {
@@ -935,7 +935,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                 handleTextareaAutoGrow(e);
               }}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#4A90E2]/30 focus:border-[#4A90E2] resize-y min-h-[80px]"
+              className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary resize-y min-h-[80px]"
             />
           </div>
 
@@ -947,14 +947,14 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                 setEditingFollowUpId(null);
               }}
               disabled={savingFollowUp}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-[#4A5565] hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleSaveFollowUp}
               disabled={savingFollowUp}
-              className="px-4 py-2 bg-[#4A90E2] text-white rounded-lg hover:bg-[#3A7BC8] transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
             >
               {savingFollowUp ? 'Saving...' : editingFollowUpId ? 'Update' : 'Add'}
             </button>
@@ -969,14 +969,14 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         title="Delete Follow-Up"
       >
         <div className="space-y-4">
-          <p className="text-sm text-[#4A5565]">
+          <p className="text-sm text-text-muted">
             Are you sure you want to delete this follow-up? This action cannot be undone.
           </p>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setDeleteFollowUpId(null)}
               disabled={deletingFollowUp}
-              className="px-4 py-2 border border-gray-200 rounded-lg text-[#4A5565] hover:bg-gray-50 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>

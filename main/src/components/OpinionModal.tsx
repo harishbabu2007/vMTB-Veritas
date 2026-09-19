@@ -52,7 +52,7 @@ export function OpinionModal({
           value={content}
           onChange={(e) => setContent(e.target.value)}
           rows={isMobile ? 6 : 8}
-          className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${isMobile ? 'text-sm' : ''}`}
+          className={`w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${isMobile ? 'text-sm' : ''}`}
           placeholder={placeholder}
           autoFocus
         />
@@ -61,14 +61,14 @@ export function OpinionModal({
           <button
             onClick={handleClose}
             disabled={submitting}
-            className={`border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2.5 text-sm' : 'px-4 py-2'}`}
+            className={`border border-border rounded-md text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2.5 text-sm' : 'px-4 py-2'}`}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
-            className={`bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2.5 text-sm' : 'px-6 py-2'}`}
+            className={`bg-primary text-white rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2.5 text-sm' : 'px-6 py-2'}`}
           >
             {submitting ? 'Submitting...' : 'Submit Opinion'}
           </button>

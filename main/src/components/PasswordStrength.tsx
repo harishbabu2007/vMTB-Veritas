@@ -39,8 +39,8 @@ export function PasswordStrength({ password, isFocused }: PasswordStrengthProps)
   ];
 
   return (
-    <div className="mt-2.5 p-3 bg-slate-50/90 rounded-lg border border-slate-200/80 space-y-1.5 transition-all text-xs">
-      <p className="text-gray-500 font-semibold mb-1.5 text-[11px] uppercase tracking-wider">
+    <div className="mt-2.5 p-3 bg-bg rounded-lg border border-border space-y-1.5 transition-all text-xs">
+      <p className="text-text-muted font-semibold mb-1.5 text-[11px] uppercase tracking-wider">
         Password Requirements:
       </p>
       {rules.map((rule, idx) => (

@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { AlertTriangle } from 'lucide-react';
 import { Modal } from './Modal';
 
@@ -6,11 +7,37 @@ interface VerifyModalProps {
   onConfirm: () => void;
   onCancel: () => void;
   isLoading: boolean;
+  title?: string;
+  description?: string;
+  bullets?: string[];
+  footerNote?: string;
+  confirmLabel?: string;
+  confirmingLabel?: string;
+  /** Optional content (e.g. a patient-details recap) rendered above the bullet list. */
+  reviewContent?: ReactNode;
 }
 
-export function VerifyModal({ isOpen, onConfirm, onCancel, isLoading }: VerifyModalProps) {
+const DEFAULT_BULLETS = [
+  'Shared with selected MTBs',
+  'Visible to other MTB members and experts',
+  'No longer editable',
+];
+
+export function VerifyModal({
+  isOpen,
+  onConfirm,
+  onCancel,
+  isLoading,
+  title = 'Verify Case Summary',
+  description = 'Once you verify this case summary, it will be:',
+  bullets = DEFAULT_BULLETS,
+  footerNote = 'Make sure the summary is accurate before confirming. This action cannot be undone.',
+  confirmLabel = 'Verify & Share',
+  confirmingLabel = 'Verifying...',
+  reviewContent,
+}: VerifyModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onCancel} title="Verify Case Summary">
+    <Modal isOpen={isOpen} onClose={onCancel} title={title}>
       <div className="space-y-5">
         {/* Warning Icon */}
         <div className="flex justify-center">
@@ -20,53 +47,47 @@ export function VerifyModal({ isOpen, onConfirm, onCancel, isLoading }: VerifyMo
         </div>
 
         {/* Warning Text */}
-        <p style={{ color: '#4A5565' }} className="text-sm text-center">
-          Once you verify this case summary, it will be:
+        <p className="text-sm text-center text-text-muted">
+          {description}
         </p>
 
+        {/* Review content (e.g. patient details recap) */}
+        {reviewContent}
+
         {/* Bullet List */}
-        <ul className="space-y-2">
-          <li className="flex items-start gap-3">
-            <span className="text-blue-500 font-bold mt-0.5">•</span>
-            <span style={{ color: '#4A5565' }} className="text-sm">
-              Shared with selected MTBs
-            </span>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-blue-500 font-bold mt-0.5">•</span>
-            <span style={{ color: '#4A5565' }} className="text-sm">
-              Visible to other MTB members and experts
-            </span>
-          </li>
-          <li className="flex items-start gap-3">
-            <span className="text-blue-500 font-bold mt-0.5">•</span>
-            <span style={{ color: '#4A5565' }} className="text-sm">
-              No longer editable
-            </span>
-          </li>
-        </ul>
+        {bullets.length > 0 && (
+          <ul className="space-y-2">
+            {bullets.map((bullet) => (
+              <li key={bullet} className="flex items-start gap-3">
+                <span className="text-blue-500 font-bold mt-0.5">•</span>
+                <span className="text-sm text-text-muted">
+                  {bullet}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/* Footer Note */}
-        <p style={{ color: '#4A5565' }} className="text-xs text-center">
-          Make sure the summary is accurate before confirming. This action cannot be undone.
+        <p className="text-xs text-center text-text-muted">
+          {footerNote}
         </p>
 
         {/* Actions */}
-        <div className="flex gap-3 justify-end pt-2 border-t border-gray-100">
+        <div className="flex gap-3 justify-end pt-2 border-t border-border">
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="px-5 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-text bg-surface border border-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className="px-5 py-2.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
-            style={{ backgroundColor: '#4A90E2' }}
+            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary"
           >
-            {isLoading ? 'Verifying...' : 'Verify & Share'}
+            {isLoading ? confirmingLabel : confirmLabel}
           </button>
         </div>
       </div>
