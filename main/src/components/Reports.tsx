@@ -1,31 +1,69 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { FileText, AlertTriangle, Loader2, Edit, Save, Trash2, Upload, Plus, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { FileText, AlertTriangle, Loader2, Check, Upload, Plus, Undo2, X, StickyNote } from 'lucide-react';
 import { Case } from '../context/CasesContext';
-import { useCases } from '../context/CasesContext';
 import { Modal } from './Modal';
+import { VoiceRecorder } from './VoiceRecorder';
+import { DocumentWorkspace, WorkspaceDocument } from './documents/DocumentWorkspace';
+import { invalidateRedactionSource } from './documents/useRedactionSource';
+import { ReportFile, fetchReportFiles, fetchSignedKeys, toDocumentName } from '../services/redactionService';
+import {
+  AdditionalDocument,
+  SessionSnapshot,
+  toRedactionChanges,
+  useDocumentEditSession,
+} from '../hooks/useDocumentEditSession';
+import {
+  PipelineError,
+  CaseRunState,
+  announceCaseChanged,
+  commitCaseEdits,
+  getTabId,
+  CommitInput,
+} from '../services/pipelineService';
+import { useCaseRunState } from '../hooks/useCaseRunState';
+import { useRunActions } from '../hooks/useRunActions';
+import { CaseUpdateStatus, SaveProblem } from './CaseUpdateStatus';
+import { DismissButton } from './DismissButton';
+import { supabase } from '../Supabase/client';
+import { loadPdfjs } from '../utils/pdfjs';
 import { showToast } from '../utils/toast';
 import { useIsMobile } from '../hooks/useMobile';
 
 interface ReportsProps {
   caseData: Case;
   isOwner: boolean;
+  // Lets the parent page reflect status changes this tab causes (e.g. a
+  // commit moving the case back to processing) without refetching the case.
+  onCaseChange?: (patch: Partial<Case>) => void;
+  /**
+   * Show the documents as they were at this content generation (the owner's
+   * last verified version) instead of the current ones. Set for MTB members
+   * while a newer version of the case is unverified.
+   */
+  snapshotGeneration?: number | null;
 }
 
-interface ReportFile {
-  filename: string;
-  url: string;
-  id?: string;
-  pending?: boolean;
-  file?: File;
+const ANONYMIZED_PREFIX = 'ANO_NNCMFAGSSS_22246_';
+
+// Signed URLs from VMTB-GET-REPORTS expire after 15 minutes and this tab
+// stays mounted for the whole page visit, so the listing (used for grid
+// thumbnails) is re-fetched before that. Opening a document never relies on
+// it — the workspace asks for a fresh URL at open time.
+const LIST_REFRESH_MS = 10 * 60 * 1000;
+
+const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'txt'];
+
+function getFileExtension(filename: string): string {
+  const parts = filename.split('.');
+  return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
 }
 
-interface ReportsApiResponse {
-  files: ReportFile[];
-}
-
-interface AdditionalDocument {
-  title: string;
-  content: string;
+function documentKind(filename: string): WorkspaceDocument['kind'] {
+  const ext = getFileExtension(filename);
+  if (ext === 'pdf') return 'pdf';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
+  if (ext === 'txt') return 'text';
+  return 'other';
 }
 
 // ============================================================
@@ -44,50 +82,8 @@ function stripReportPrefix(filename: string): string {
 }
 
 // ============================================================
-// PLACEHOLDER API FUNCTIONS (TO BE IMPLEMENTED LATER)
+// API FUNCTIONS
 // ============================================================
-
-async function updateAdditionalDocument(data: AdditionalDocument, caseId: string) {
-  const { supabase } = await import('../Supabase/client');
-  
-  const { data: upsertData, error } = await supabase
-      .from('case_additional_documents')
-      .upsert(
-        {
-          case_id: caseId,
-          document_title: data.title,
-          document_data: data.content,
-        },
-        {
-          onConflict: 'case_id',
-        }
-      )
-      .select();
-  
-  if (error) {
-    console.error('Error upserting additional document:', error);
-    throw error;
-  }
-  
-  console.log('✓ Additional document saved to Supabase', upsertData);
-  return Promise.resolve();
-}
-
-async function deleteReportsForRequest(requestId: string, filenames: string[]) {
-  const response = await fetch('https://gzgrswe52e.execute-api.ap-south-1.amazonaws.com/dev/delete-reports', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      request_id: requestId,
-      delete_files: filenames,
-    }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Delete failed: ${text}`);
-  }
-}
 
 async function getUploadConfigForExistingRequest(requestId: string): Promise<{
   uploadUrl: string;
@@ -153,33 +149,7 @@ async function uploadFilesToS3(files: File[], uploadUrl: string, uploadPrefix: s
   }
 }
 
-async function triggerReprocessing(requestId: string, caseId: string, additionalData: string) {
-  // Mirror create-case flow endpoint (CORS-enabled)
-  const response = await fetch('https://gzgrswe52e.execute-api.ap-south-1.amazonaws.com/dev/trigger-converter-files-to-png', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ request_id: requestId, case_id: caseId, additional_data: additionalData }),
-  });
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Converter failed: ${text}`);
-  }
-}
-
-async function markCaseProcessing(caseId: string) {
-  const { supabase } = await import('../Supabase/client');
-  const { error } = await supabase
-    .from('cases')
-    .update({ summary_status: 'processing', report_status: 'not_ready' })
-    .eq('id', caseId);
-
-  if (error) {
-    throw new Error(`Failed to update case status: ${error.message}`);
-  }
-}
-
-async function fetchAdditionalDocument(caseId: string): Promise<AdditionalDocument | null> {
+export async function fetchAdditionalDocument(caseId: string): Promise<AdditionalDocument | null> {
   const { supabase } = await import('../Supabase/client');
   
   // Don't use .single() - it throws 406 if no rows found
@@ -205,544 +175,672 @@ async function fetchAdditionalDocument(caseId: string): Promise<AdditionalDocume
   };
 }
 
-export function Reports({ caseData, isOwner }: ReportsProps) {
-  // Mobile detection
+// A save that would leave the case with no documents and no notes is held
+// for the owner's decision (add data, or archive). If they walk away from
+// that decision — close the tab, navigate off, dismiss — the case is archived.
+// The pending save is remembered here (localStorage, so it survives the tab
+// closing) and applied on the next visit if the keepalive request sent while
+// leaving didn't make it.
+const emptyArchiveKey = (caseId: string) => `vmtb:empty-case-archive:${caseId}`;
+
+interface PendingEmptyArchive {
+  sessionId: string;
+  documents: CommitInput['documents'];
+  deleteFiles: string[];
+  additionalData: AdditionalDocument | null;
+}
+
+function readPendingEmptyArchive(caseId: string): PendingEmptyArchive | null {
+  try {
+    const raw = window.localStorage.getItem(emptyArchiveKey(caseId));
+    return raw ? (JSON.parse(raw) as PendingEmptyArchive) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writePendingEmptyArchive(caseId: string, pending: PendingEmptyArchive | null) {
+  try {
+    if (pending) window.localStorage.setItem(emptyArchiveKey(caseId), JSON.stringify(pending));
+    else window.localStorage.removeItem(emptyArchiveKey(caseId));
+  } catch {
+    // Storage unavailable: the in-page dialog still decides; only the
+    // "closed the tab" fallback is lost.
+  }
+}
+
+export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = null }: ReportsProps) {
   const isMobile = useIsMobile();
-  
-  // Reports state
+
   const [reports, setReports] = useState<ReportFile[]>([]);
   const [loading, setLoading] = useState(false);
+  // Refresh with reports already on screen: keep the grid, show a small
+  // header indicator instead of the full loading state.
+  const [refreshing, setRefreshing] = useState(false);
+  const hasLoadedReportsRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
 
-  // Edit mode state
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [filesToDelete, setFilesToDelete] = useState<string[]>([]); // filenames only
-  const [filesToUpload, setFilesToUpload] = useState<File[]>([]);
-  const [additionalDataDraft, setAdditionalDataDraft] = useState<AdditionalDocument | null>(null);
-  
-  // Additional document state
   const [additionalDocument, setAdditionalDocument] = useState<AdditionalDocument | null>(null);
   const [showAdditionalDataModal, setShowAdditionalDataModal] = useState(false);
   const [additionalDataTitle, setAdditionalDataTitle] = useState('');
   const [additionalDataContent, setAdditionalDataContent] = useState('');
 
-  // Upload modal state
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState<File[]>([]);
-  const [isSaving, setIsSaving] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Full-screen viewer state
-  const [viewerReport, setViewerReport] = useState<ReportFile | null>(null);
-  const [zoomLevel, setZoomLevel] = useState(100);
+  const session = useDocumentEditSession(caseData.id);
+  const [workspaceFor, setWorkspaceFor] = useState<string | null>(null);
+  // Saving = the commit_case_edits call is in flight (seconds). After it
+  // returns, the changes are saved; processing progress comes from runState.
+  const [committing, setCommitting] = useState(false);
+  const committingRef = useRef(false);
+  const [saveProblem, setSaveProblem] = useState<SaveProblem | null>(null);
+  // Documents touched by the latest save, for per-document "Updating" chips
+  // while that save's run is applying them.
+  const [lastSave, setLastSave] = useState<{ runId: string; filenames: string[] } | null>(null);
 
-  // PDF thumbnail cache
+
+  // PDF thumbnail cache, keyed by filename.
   const [thumbnails, setThumbnails] = useState<Record<string, string>>({});
   const thumbnailsRequested = useRef<Set<string>>(new Set());
 
-  const isImageFile = useCallback((filename: string) => {
-    return /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(filename);
-  }, []);
+  const displayedAdditional = session.additionalData ?? additionalDocument;
 
-  // Object URL cache for pending files
-  const objectUrlMap = useRef<Map<File, string>>(new Map());
+  // Snapshot mode: document key per listed filename, for re-signing on open.
+  const snapshotKeysRef = useRef<Record<string, string>>({});
 
-  const getObjectUrl = useCallback((file: File) => {
-    const existing = objectUrlMap.current.get(file);
-    if (existing) return existing;
-    const url = URL.createObjectURL(file);
-    objectUrlMap.current.set(file, url);
-    return url;
-  }, []);
+  /**
+   * The documents exactly as they were at generation `g`: those added at or
+   * before it and not yet removed then, each at its latest version published
+   * at or before it (versions keep immutable per-version files, so a document
+   * redacted or removed afterwards still has the content that was verified).
+   */
+  const loadSnapshotReports = async (g: number) => {
+    const requestId = caseData.requestId!;
+    const [docsRes, versionsRes, notesRes] = await Promise.all([
+      supabase.from('case_documents')
+        .select('document_name, file_name, added_generation, deleted_generation, deleted_s3_key, created_at')
+        .eq('case_id', caseData.id),
+      supabase.from('case_document_versions').select('document_name, version, generation, s3_key').eq('case_id', caseData.id),
+      supabase.from('cases').select('verified_snapshot').eq('id', caseData.id).maybeSingle(),
+    ]);
+    if (docsRes.error) throw docsRes.error;
+    if (versionsRes.error) throw versionsRes.error;
 
-  // Cleanup revoked URLs when files are removed or component unmounts
-  useEffect(() => {
-    return () => {
-      objectUrlMap.current.forEach(url => URL.revokeObjectURL(url));
-      objectUrlMap.current.clear();
-    };
-  }, []);
-
-  useEffect(() => {
-    // Revoke URLs for files no longer in queue
-    const activeFiles = new Set(filesToUpload);
-    objectUrlMap.current.forEach((url, file) => {
-      if (!activeFiles.has(file)) {
-        URL.revokeObjectURL(url);
-        objectUrlMap.current.delete(file);
+    const entries = new Map<string, string>(); // filename -> key
+    const docs = [...(docsRes.data || [])].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at)));
+    for (const d of docs) {
+      const liveAtG = (d.added_generation ?? 0) <= g && (d.deleted_generation == null || d.deleted_generation > g);
+      if (!liveAtG || !d.document_name) continue;
+      const removedSince = d.deleted_generation != null && typeof d.deleted_s3_key === 'string' && d.deleted_s3_key.startsWith('uploads/');
+      if (String(d.file_name).toLowerCase().endsWith('.txt')) {
+        entries.set(d.file_name, removedSince ? d.deleted_s3_key : `uploads/${requestId}/data/${d.file_name}`);
+        continue;
       }
-    });
-  }, [filesToUpload]);
+      const best = (versionsRes.data || [])
+        .filter((v) => v.document_name === d.document_name && (v.generation ?? 0) <= g)
+        .sort((a, b) => b.version - a.version)[0];
+      if (!best) continue; // not anonymized yet at that point
+      const canonical = `uploads/${requestId}/data/${ANONYMIZED_PREFIX}${d.document_name}.pdf`;
+      entries.set(`${ANONYMIZED_PREFIX}${d.document_name}.pdf`, best.s3_key === canonical && removedSince ? d.deleted_s3_key : best.s3_key);
+    }
 
-  // Refs
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { verifyReport } = useCases();
+    const urls = await fetchSignedKeys(requestId, [...entries.values()]);
+    snapshotKeysRef.current = Object.fromEntries(entries);
+    setReports([...entries].filter(([, key]) => urls[key]).map(([filename, key]) => ({ filename, url: urls[key] })));
+    const snapshotNotes = notesRes.data?.verified_snapshot?.notes as AdditionalDocument | null | undefined;
+    setAdditionalDocument(snapshotNotes && snapshotNotes.content ? snapshotNotes : null);
+  };
 
   const loadReports = useCallback(async () => {
     const status = caseData.reportStatus;
-
-    if (status !== 'unverified' && status !== 'verified' && status !== 'not_ready') {
-      return;
-    }
+    if (status !== 'unverified' && status !== 'verified' && status !== 'not_ready') return;
 
     if (!caseData.requestId || caseData.requestId.trim() === '') {
-      setError('Oh sorry, but your reports are not available.');
+      setError('Reports are not available for this case.');
       return;
     }
 
-    setLoading(true);
-    setError(null);
+    const isBackgroundRefresh = hasLoadedReportsRef.current;
+    if (isBackgroundRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+      setError(null);
+    }
 
     try {
-      const response = await fetch(
-        `https://gzgrswe52e.execute-api.ap-south-1.amazonaws.com/dev/get-reports?request_id=${caseData.requestId}`
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch reports');
+      if (snapshotGeneration != null) {
+        await loadSnapshotReports(snapshotGeneration);
+        hasLoadedReportsRef.current = true;
+        setError(null);
+        return;
       }
+      const [files, removed] = await Promise.all([
+        fetchReportFiles(caseData.requestId),
+        supabase.from('case_documents').select('document_name, deleted_at').eq('case_id', caseData.id),
+      ]);
+      if (removed.error) throw removed.error;
+      // Removals are committed to the database first; the S3 file is only
+      // renamed once processing gets to it. Filter by the database so a
+      // removed document never reappears in between.
+      // A name removed and later re-added (same file name) is live again.
+      const liveNames = new Set((removed.data || []).filter((r) => !r.deleted_at).map((r) => r.document_name as string));
+      const removedSet = new Set(
+        (removed.data || []).filter((r) => r.deleted_at && !liveNames.has(r.document_name)).map((r) => r.document_name as string)
+      );
+      setReports(files.filter((f) => !removedSet.has(toDocumentName(f.filename).replace(/\.[^./]+$/, ''))));
+      hasLoadedReportsRef.current = true;
+      setError(null);
 
-      const data: ReportsApiResponse = await response.json();
-      const filesWithIds = (data.files || []).map((file, idx) => ({
-        ...file,
-        id: `report-${idx}-${file.filename}`
-      }));
-
-      setReports(filesWithIds);
-
-      // Fetch additional document from Supabase
       try {
-        console.log('Fetching additional document from Supabase for case:', caseData.id);
         const additionalDoc = await fetchAdditionalDocument(caseData.id);
-        if (additionalDoc) {
-          console.log('✓ Additional document loaded:', JSON.stringify(additionalDoc, null, 2));
-          setAdditionalDocument(additionalDoc);
-        } else {
-          console.log('No additional document found in Supabase');
-        }
+        setAdditionalDocument(additionalDoc);
       } catch (docErr) {
         console.error('Error fetching additional document:', docErr);
-        // Don't fail the entire component if additional doc fails
       }
     } catch (err) {
       console.error('Error fetching reports:', err);
-      setError('Unable to load reports right now. Please try again later.');
+      if (isBackgroundRefresh) {
+        showToast.error("Reports couldn't be refreshed. Showing the last loaded version.");
+      } else {
+        setError("Reports couldn't be loaded. Try again in a moment.");
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  }, [caseData.id, caseData.reportStatus, caseData.requestId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [caseData.id, caseData.reportStatus, caseData.requestId, snapshotGeneration]);
 
   useEffect(() => {
     loadReports();
   }, [loadReports]);
 
-  const handleVerifyReports = async () => {
-    setIsVerifying(true);
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === 'visible' && hasLoadedReportsRef.current) loadReports();
+    }, LIST_REFRESH_MS);
+    return () => window.clearInterval(interval);
+  }, [loadReports]);
+
+  const forgetThumbnails = useCallback((filenames: Iterable<string>) => {
+    const names = new Set(filenames);
+    names.forEach((f) => thumbnailsRequested.current.delete(f));
+    setThumbnails((prev) => Object.fromEntries(Object.entries(prev).filter(([k]) => !names.has(k))));
+  }, []);
+
+  // ============================================================
+  // Saving and processing
+  // ============================================================
+
+  const runState = useCaseRunState(isOwner ? caseData.id : undefined, (state: CaseRunState) => {
+    onCaseChange?.({
+      summaryStatus: state.summary_status,
+      reportStatus: (state.report_status as Case['reportStatus']) ?? caseData.reportStatus,
+      archivedAt: state.archived_at,
+    });
+    // Whenever processing moves forward, show the documents as they now are.
+    if (hasLoadedReportsRef.current) loadReports();
+  });
+  const refreshRunState = runState.refresh;
+  const runActions = useRunActions(isOwner ? caseData.id : undefined, runState);
+  const { start: startRunAndTrack } = runActions;
+
+  // Once a save's document changes are applied, drop cached renders of them.
+  const lastRun = runState.state?.run;
+  useEffect(() => {
+    if (!lastSave || !lastRun || lastRun.id !== lastSave.runId) return;
+    if (lastRun.materialize_done || lastRun.status !== 'running') {
+      lastSave.filenames.forEach((f) => invalidateRedactionSource(caseData.id, f));
+      forgetThumbnails(lastSave.filenames);
+    }
+  }, [lastRun, lastSave, caseData.id, forgetThumbnails]);
+
+  const updatingFilenames = useMemo(() => {
+    const run = runState.state?.run;
+    if (!lastSave || !run || run.id !== lastSave.runId) return new Set<string>();
+    const applying = (run.status === 'pending' || run.status === 'running') && !run.materialize_done;
+    return new Set(applying ? lastSave.filenames : []);
+  }, [runState.state, lastSave]);
+
+  /**
+   * Save everything in the session: uploads go to storage first, then ONE
+   * commit_case_edits call records the whole batch. Only when that returns
+   * are the changes saved — nothing is removed or reset before it. Then the
+   * run is started; if starting fails the changes are still saved and the
+   * strip offers "Start processing".
+   */
+  const commitSession = useCallback(async (options?: { emptyAction?: 'archive' }) => {
+    if (committingRef.current || !caseData.requestId) return;
+    const snap: SessionSnapshot = session.snapshot();
+    const documents = Object.entries(snap.redactions)
+      .filter(([filename, changes]) => changes.length > 0 && !snap.deletes.includes(filename))
+      .map(([documentFilename, changes]) => ({ documentFilename, changes: toRedactionChanges(changes) }));
+    if (documents.length === 0 && snap.deletes.length === 0 && snap.uploads.length === 0 && !snap.additionalData) return;
+
+    committingRef.current = true;
+    setCommitting(true);
+    setSaveProblem(null);
     try {
-      await verifyReport(caseData.id);
-      showToast.success('Reports verified successfully');
-    } catch (error) {
-      console.error('Failed to verify reports:', error);
-      showToast.error('Failed to verify reports. Please try again.');
+      if (snap.uploads.length > 0) {
+        // Same keys every attempt, so a retried save just overwrites them.
+        const { uploadUrl, uploadPrefix, uploadFields } = await getUploadConfigForExistingRequest(caseData.requestId);
+        await uploadFilesToS3(snap.uploads, uploadUrl, uploadPrefix, uploadFields);
+      }
+
+      const run = await commitCaseEdits({
+        caseId: caseData.id,
+        sessionId: snap.sessionId,
+        documents,
+        deleteFiles: snap.deletes,
+        uploadFiles: snap.uploads.map((f) => ({ file_name: f.name, size: String(f.size), type: f.type || '' })),
+        additionalData: snap.additionalData,
+        emptyAction: options?.emptyAction ?? null,
+      });
+
+      // Saved.
+      writePendingEmptyArchive(caseData.id, null);
+      setEmptyPrompt(false);
+      session.reset();
+      if (snap.additionalData) setAdditionalDocument(snap.additionalData);
+      setLastSave({ runId: run.id, filenames: [...documents.map((d) => d.documentFilename), ...snap.deletes] });
+      announceCaseChanged(caseData.id, getTabId());
+      if (run.archived) {
+        onCaseChange?.({ archivedAt: new Date().toISOString(), summaryStatus: 'failed' });
+        showToast.success('Changes saved. The case had no documents or notes left, so it was archived.');
+      } else {
+        showToast.success(
+          run.duplicate
+            ? 'These changes were already saved.'
+            : 'Changes saved. The summary will be regenerated and will need your verification.'
+        );
+      }
+      await refreshRunState();
+      loadReports();
+
+      await startRunAndTrack(run.id);
+    } catch (err) {
+      const e = err instanceof PipelineError ? err : null;
+      console.error('[Reports] Save failed', err);
+      if (e?.code === 'NOTHING_TO_SAVE') {
+        session.reset();
+        showToast.info(e.message);
+      } else if (e?.code === 'CASE_WOULD_BE_EMPTY') {
+        // Nothing saved yet: ask what to do, and remember the save so walking
+        // away from the question still archives.
+        writePendingEmptyArchive(caseData.id, {
+          sessionId: snap.sessionId,
+          documents,
+          deleteFiles: snap.deletes,
+          additionalData: snap.additionalData,
+        });
+        setEmptyPrompt(true);
+      } else {
+        setSaveProblem({
+          message: e?.message ?? (err instanceof Error ? err.message : "Your changes couldn't be saved."),
+          // Retrying makes sense unless the user must act first (sign in,
+          // fix a name clash, wait for processing).
+          canRetry: !e || ['NETWORK', 'UNKNOWN'].includes(e.code),
+        });
+      }
     } finally {
-      setIsVerifying(false);
+      committingRef.current = false;
+      setCommitting(false);
     }
-  };
+  }, [caseData.id, caseData.requestId, loadReports, onCaseChange, refreshRunState, session, startRunAndTrack]);
 
-  const handleEnterEditMode = () => {
-    if (!isOwner) return;
-    setIsEditMode(true);
-    setFilesToDelete([]);
-    setFilesToUpload([]);
-  };
+  // ============================================================
+  // Emptying the case (no documents, no notes left)
+  // ============================================================
 
-  const handleCancelEdit = () => {
-    setIsEditMode(false);
-    setFilesToDelete([]);
-    setFilesToUpload([]);
-    setAdditionalDataDraft(null);
-    showToast.info('Edit mode cancelled');
-  };
+  const [emptyPrompt, setEmptyPrompt] = useState(false);
+  const accessTokenRef = useRef<string | null>(null);
 
-  const handleMarkForDeletion = (reportId: string) => {
-    if (isSaving) return;
-    const report = reports.find(r => r.id === reportId);
-    if (report?.filename) {
-      setFilesToDelete(prev => [...prev, report.filename]);
-      showToast.success('Report marked for deletion');
-    }
-  };
+  const archiveEmptyCase = useCallback(() => {
+    commitSession({ emptyAction: 'archive' });
+  }, [commitSession]);
 
-  // Allowed file extensions for upload
-  const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'doc', 'docx', 'ppt', 'pptx', 'pdf', 'txt'];
+  // The owner chose to add data instead: keep their draft, forget the archive.
+  const keepCaseAndAddData = useCallback((then: () => void) => {
+    writePendingEmptyArchive(caseData.id, null);
+    setEmptyPrompt(false);
+    then();
+  }, [caseData.id]);
 
-  const getFileExtension = (filename: string): string => {
-    const parts = filename.split('.');
-    return parts.length > 1 ? parts.pop()!.toLowerCase() : '';
-  };
+  // Walking away while the question is open archives. A keepalive request
+  // survives the page unloading; if it doesn't arrive, the stored pending
+  // save is applied on the next visit (below).
+  useEffect(() => {
+    if (!emptyPrompt) return;
+    supabase.auth.getSession().then(({ data }) => {
+      accessTokenRef.current = data.session?.access_token ?? null;
+    });
+    const onPageHide = () => {
+      const pending = readPendingEmptyArchive(caseData.id);
+      const token = accessTokenRef.current;
+      if (!pending || !token) return;
+      const url = import.meta.env.VITE_SUPABASE_URL as string;
+      const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_API) as string;
+      fetch(`${url}/rest/v1/rpc/commit_case_edits`, {
+        method: 'POST',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json', apikey: key, Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          p_case_id: caseData.id,
+          p_session_id: pending.sessionId,
+          p_documents: pending.documents.map((d) => ({
+            document_filename: d.documentFilename,
+            changes: d.changes.map((c) =>
+              c.action === 'add'
+                ? { action: 'add', page_number: c.pageNumber, bbox: c.bbox, style: c.style }
+                : { action: 'remove', redaction_id: c.redactionId }
+            ),
+          })),
+          p_delete_files: pending.deleteFiles,
+          p_upload_files: [],
+          p_additional_data: pending.additionalData,
+          p_empty_action: 'archive',
+        }),
+      }).catch(() => undefined);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') archiveEmptyCase();
+    };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [emptyPrompt, caseData.id, archiveEmptyCase]);
+
+  // An empty-case decision left unanswered on an earlier visit: archive now.
+  const pendingArchiveCheckedRef = useRef(false);
+  useEffect(() => {
+    if (!isOwner || pendingArchiveCheckedRef.current) return;
+    pendingArchiveCheckedRef.current = true;
+    const pending = readPendingEmptyArchive(caseData.id);
+    if (!pending) return;
+    (async () => {
+      try {
+        const run = await commitCaseEdits({
+          caseId: caseData.id,
+          sessionId: pending.sessionId,
+          documents: pending.documents,
+          deleteFiles: pending.deleteFiles,
+          uploadFiles: [],
+          additionalData: pending.additionalData,
+          emptyAction: 'archive',
+        });
+        writePendingEmptyArchive(caseData.id, null);
+        session.reset();
+        if (run.archived) onCaseChange?.({ archivedAt: new Date().toISOString(), summaryStatus: 'failed' });
+        if (!run.duplicate) {
+          showToast.info('You left this case with no documents or notes, so it was archived.');
+          await startRunAndTrack(run.id);
+        }
+        refreshRunState();
+        loadReports();
+      } catch (err) {
+        // The case changed since (e.g. data was added): nothing to archive.
+        console.warn('[Reports] Pending empty-case archive not applied', err);
+        writePendingEmptyArchive(caseData.id, null);
+      }
+    })();
+  }, [isOwner, caseData.id, loadReports, onCaseChange, refreshRunState, session, startRunAndTrack]);
+
+  // Leaving or reloading the page with unsaved changes (or mid-save) asks first.
+  useEffect(() => {
+    if (!isOwner || (session.pendingCount === 0 && !committing)) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [isOwner, session.pendingCount, committing]);
+
+  const saveAndCloseWorkspace = useCallback(() => {
+    setWorkspaceFor(null);
+    commitSession();
+  }, [commitSession]);
+
+  // ============================================================
+  // Uploads and "your data"
+  // ============================================================
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (isSaving) return;
     const files = e.target.files;
     if (!files || files.length === 0) return;
-    
+
     const validFiles: File[] = [];
     const rejectedFiles: string[] = [];
     const blockedPdfs: string[] = [];
+    const takenNames = new Set([...reports.map((r) => stripReportPrefix(r.filename)), ...session.uploads.map((f) => f.name)]);
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
+    for (const file of Array.from(files)) {
       const extension = getFileExtension(file.name);
-
-      // File extension validation
       if (!ALLOWED_EXTENSIONS.includes(extension)) {
-        rejectedFiles.push(file.name);
+        rejectedFiles.push(`${file.name} (allowed types: ${ALLOWED_EXTENSIONS.join(', ')})`);
         continue;
       }
-
-      // PDF page limit validation - strictly block PDFs with more than 50 pages
-      if (file.type === 'application/pdf' || extension === 'pdf') {
+      if (takenNames.has(file.name)) {
+        rejectedFiles.push(`${file.name} (a document with this name already exists)`);
+        continue;
+      }
+      if (extension === 'pdf') {
         try {
-          const arrayBuffer = await file.arrayBuffer();
-          const pdfjsLib = await import('pdfjs-dist');
-          pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-          const pageCount = pdf.numPages;
-          
-          if (pageCount > 50) {
-            blockedPdfs.push(`"${file.name}" (${pageCount} pages)`);
-            continue; // Skip this file
+          const pdfjsLib = await loadPdfjs();
+          const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+          if (pdf.numPages > 50) {
+            blockedPdfs.push(`"${file.name}" (${pdf.numPages} pages)`);
+            continue;
           }
         } catch (err) {
           console.warn('Could not validate PDF page count for:', file.name, err);
-          // If validation fails, still allow upload
         }
       }
-
       validFiles.push(file);
     }
 
-    // Show error messages for rejected files
     if (blockedPdfs.length > 0) {
-      setError(`This PDF contains more than 50 pages. Uploading PDFs with more than 50 pages is not allowed: ${blockedPdfs.join(', ')}`);
-      showToast.error('This PDF contains more than 50 pages. Uploading PDFs with more than 50 pages is not allowed.');
+      showToast.error(`PDFs can have at most 50 pages: ${blockedPdfs.join(', ')}`);
     }
-    
     if (rejectedFiles.length > 0) {
-      const msg = `File type not allowed. Only png, jpg, jpeg, doc, docx, ppt, pptx, pdf, txt files are accepted: ${rejectedFiles.join(', ')}`;
-      setError(prev => prev ? `${prev} | ${msg}` : msg);
-      showToast.error('File type not allowed. Only png, jpg, jpeg, doc, docx, ppt, pptx, pdf, txt files are accepted.');
+      showToast.error(`Not added: ${rejectedFiles.join(', ')}.`);
     }
-
     if (validFiles.length > 0) {
       setUploadingFiles(validFiles);
       setShowUploadModal(true);
     }
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleConfirmUpload = () => {
-    setFilesToUpload(prev => [...prev, ...uploadingFiles]);
+    session.addUploads(uploadingFiles);
     setUploadingFiles([]);
     setShowUploadModal(false);
   };
 
-  const handleOpenAdditionalDataModal = () => {
-    if (isSaving) return;
-    console.log('=== OPENING MODAL ===');
-    console.log('Current additionalDocument state:', JSON.stringify(additionalDocument, null, 2));
-    console.log('Current additionalDataDraft state:', JSON.stringify(additionalDataDraft, null, 2));
-    console.log('Current showAdditionalDataModal:', showAdditionalDataModal);
-    
-    const source = additionalDataDraft || additionalDocument;
-
-    if (source) {
-      console.log('Loading existing document into modal fields');
-      setAdditionalDataTitle(source.title);
-      setAdditionalDataContent(source.content);
-    } else {
-      console.log('No existing document, initializing empty');
-      setAdditionalDataTitle('Additional Data');
-      setAdditionalDataContent('');
-    }
+  const openAdditionalData = () => {
+    setAdditionalDataTitle(displayedAdditional?.title || 'Additional Data');
+    setAdditionalDataContent(displayedAdditional?.content || '');
     setShowAdditionalDataModal(true);
-    console.log('Modal should now be visible');
   };
 
-  const handleSaveAdditionalData = async () => {
-    console.log('=== SAVING ADDITIONAL DATA ===');
-    console.log('Title:', additionalDataTitle);
-    console.log('Content length:', additionalDataContent.length);
-    
-    const docToSave = {
-      title: additionalDataTitle || 'Additional Data',
-      content: additionalDataContent
-    };
-    
-    console.log('Document to save:', JSON.stringify(docToSave, null, 2));
-    
-    // Update local draft/state only; persistence happens on Save All
-    setAdditionalDataDraft(docToSave);
-    setAdditionalDocument(docToSave);
-    console.log('Local draft updated');
-
+  const handleSaveAdditionalData = () => {
+    const next = { title: additionalDataTitle || 'Additional Data', content: additionalDataContent };
+    const saved = additionalDocument;
+    // Unchanged from what's saved: nothing to save (and no re-verification).
+    if (saved && saved.title === next.title && saved.content === next.content) {
+      session.setAdditionalData(null);
+    } else {
+      session.setAdditionalData(next);
+    }
     setShowAdditionalDataModal(false);
-    console.log('=== SAVE COMPLETE (draft only) ===');
   };
 
-  const handleViewAdditionalData = () => {
-    if (additionalDocument) {
-      openViewer({ 
-        filename: additionalDocument.title, 
-        url: '', 
-        id: 'additional-data' 
-      });
-    }
-  };
+  // ============================================================
+  // Thumbnails
+  // ============================================================
 
-  const handleSaveAll = async () => {
-    if (!caseData.requestId) {
-      showToast.error('Request ID missing. Cannot update reports.');
-      return;
-    }
-
-    setError(null);
-    setIsSaving(true);
-    try {
-      // STEP 1: Delete reports (if any)
-      if (filesToDelete.length > 0) {
-        console.log('🗑️ Deleting reports:', filesToDelete);
-        await deleteReportsForRequest(caseData.requestId, filesToDelete);
-        console.log('✓ Delete complete');
-      }
-
-      // STEP 2: Upload new reports (if any)
-      if (filesToUpload.length > 0) {
-        console.log('📡 Getting upload config for existing request');
-        const { uploadUrl, uploadPrefix, uploadFields } = await getUploadConfigForExistingRequest(caseData.requestId);
-        console.log('📤 Uploading new reports:', filesToUpload.map(f => f.name));
-        await uploadFilesToS3(filesToUpload, uploadUrl, uploadPrefix, uploadFields);
-        console.log('✓ Uploads complete');
-      }
-
-      // STEP 3: Save / update additional data
-      const latestAdditional = additionalDataDraft || additionalDocument;
-      const additionalPayload: AdditionalDocument = {
-        title: latestAdditional?.title || 'Additional Data',
-        content: latestAdditional?.content || '',
-      };
-      console.log('💾 Saving additional data to Supabase...');
-      await updateAdditionalDocument(additionalPayload, caseData.id);
-      console.log('✓ Additional data saved');
-      setAdditionalDocument(additionalPayload);
-
-      // STEP 4: Update case status to processing before triggering summary regeneration
-      console.log('📈 Marking case as processing...');
-      await markCaseProcessing(caseData.id);
-      console.log('✓ Case status updated');
-
-      // STEP 5: Trigger reprocessing (summary regeneration)
-      console.log('⚙️ Triggering converter...');
-      await triggerReprocessing(caseData.requestId, caseData.id, additionalPayload.content);
-      console.log('✓ Converter triggered');
-
-      // STEP 6: Refetch the latest report_status from database
-      console.log('🔄 Refetching case data to get latest report_status...');
-      const { supabase } = await import('../Supabase/client');
-      const { data: updatedCase, error: fetchError } = await supabase
-        .from('cases')
-        .select('report_status')
-        .eq('id', caseData.id)
-        .single();
-      
-      if (fetchError) {
-        console.error('Failed to refetch case data:', fetchError);
-      } else if (updatedCase) {
-        console.log('✓ Latest report_status:', updatedCase.report_status);
-        // Update the parent component's case data
-        caseData.reportStatus = updatedCase.report_status;
-      }
-
-      // Exit edit mode, reset local queues, and reload reports in view mode
-      setIsEditMode(false);
-      setFilesToDelete([]);
-      setFilesToUpload([]);
-      setAdditionalDataDraft(null);
-      await loadReports();
-      
-      showToast.success('Changes saved successfully. Reports are being reprocessed.');
-    } catch (err) {
-      console.error('Save failed:', err);
-      const message = err instanceof Error ? err.message : 'Failed to save changes.';
-      setError(message);
-      showToast.error(message);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const isProcessing = caseData.reportStatus === 'not_ready';
-
-  // Open full-screen viewer
-  const openViewer = (report: ReportFile) => {
-    setViewerReport(report);
-    setZoomLevel(100);
-  };
-
-  // Close full-screen viewer
-  const closeViewer = () => {
-    setViewerReport(null);
-    setZoomLevel(100);
-  };
-
-  // Pending uploads as pseudo-reports for UI
-  const pendingReports: ReportFile[] = filesToUpload.map((file, idx) => ({
-    id: `pending-${idx}-${file.name}`,
-    filename: file.name,
-    url: getObjectUrl(file),
-    pending: true,
-    file,
-  }));
-
-  // Filter out deleted reports and combine with pending uploads
-  const displayedReports = [
-    ...reports.filter(r => !filesToDelete.includes(r.filename)),
-    ...pendingReports,
-  ];
-
-  // Generate PDF thumbnails
   useEffect(() => {
-    const pdfReports = reports.filter(r =>
-      r.filename.toLowerCase().endsWith('.pdf') &&
-      !filesToDelete.includes(r.filename) &&
-      !thumbnailsRequested.current.has(r.id || r.filename)
+    const pdfReports = reports.filter(
+      (r) => documentKind(r.filename) === 'pdf' && !thumbnailsRequested.current.has(r.filename)
     );
     if (pdfReports.length === 0) return;
-
     let cancelled = false;
 
     (async () => {
-      const pdfjsLib = await import('pdfjs-dist');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-
+      const pdfjsLib = await loadPdfjs();
       for (const report of pdfReports) {
         if (cancelled) break;
-        const key = report.id || report.filename;
-        thumbnailsRequested.current.add(key);
+        thumbnailsRequested.current.add(report.filename);
         try {
-          // Try fetch-as-ArrayBuffer first; fall back to loading by URL
-          let pdf;
-          try {
-            const resp = await fetch(report.url);
-            const arrayBuf = await resp.arrayBuffer();
-            pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
-          } catch {
-            // If fetch fails (e.g. CORS), let pdfjs load from URL directly
-            pdf = await pdfjsLib.getDocument({
-              url: report.url,
-              disableAutoFetch: true,
-              disableStream: true,
-            }).promise;
-          }
+          const resp = await fetch(report.url);
+          if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+          const pdf = await pdfjsLib.getDocument({ data: await resp.arrayBuffer() }).promise;
           const page = await pdf.getPage(1);
           const viewport = page.getViewport({ scale: 0.8 });
           const canvas = document.createElement('canvas');
           canvas.width = viewport.width;
           canvas.height = viewport.height;
           const ctx = canvas.getContext('2d');
-          if (!ctx) { pdf.destroy(); continue; }
-          await page.render({ canvasContext: ctx, viewport }).promise;
-          if (!cancelled) {
-            setThumbnails(prev => ({ ...prev, [key]: canvas.toDataURL('image/jpeg', 0.8) }));
+          if (ctx) {
+            await page.render({ canvas, canvasContext: ctx, viewport }).promise;
+            if (!cancelled) setThumbnails((prev) => ({ ...prev, [report.filename]: canvas.toDataURL('image/jpeg', 0.8) }));
           }
           pdf.destroy();
         } catch {
-          // Silently fail - will show generic icon fallback
+          // Allow a retry after the next listing refresh (e.g. an expired URL).
+          thumbnailsRequested.current.delete(report.filename);
         }
       }
     })();
 
-    return () => { cancelled = true; };
-  }, [reports, filesToDelete]);
+    return () => {
+      cancelled = true;
+    };
+  }, [reports]);
+
+  // ============================================================
+  // Render
+  // ============================================================
+
+  const workspaceDocuments = useMemo<WorkspaceDocument[]>(
+    () => [
+      ...reports.map((r) => ({
+        filename: r.filename,
+        displayName: stripReportPrefix(r.filename),
+        kind: documentKind(r.filename),
+        thumbnail: thumbnails[r.filename] ?? (documentKind(r.filename) === 'image' ? r.url : undefined),
+        getUrl:
+          snapshotGeneration != null && caseData.requestId && snapshotKeysRef.current[r.filename]
+            ? async () => {
+                const key = snapshotKeysRef.current[r.filename];
+                const urls = await fetchSignedKeys(caseData.requestId!, [key]);
+                if (!urls[key]) throw new Error('This version of the document is no longer available.');
+                return urls[key];
+              }
+            : undefined,
+      })),
+      ...session.uploads.map((file) => ({
+        filename: `pending:${file.name}`,
+        displayName: file.name,
+        kind: documentKind(file.name),
+        file,
+      })),
+    ],
+    [reports, thumbnails, session.uploads, snapshotGeneration, caseData.requestId]
+  );
+
+  const isProcessing = caseData.reportStatus === 'not_ready';
+  const hasCachedReports = reports.length > 0;
+  const showBlockingProcessing = isProcessing && !hasCachedReports;
+
+  const statusLine = (filename: string, pending: boolean) => {
+    if (pending) return { text: 'Added, not uploaded yet', className: 'text-amber-700' };
+    if (session.deletes.includes(filename)) return { text: 'Will be removed', className: 'text-red-600' };
+    if (updatingFilenames.has(filename)) return { text: 'Updating…', className: 'text-text-muted' };
+    if (session.editedFilenames.has(filename)) return { text: 'Edited', className: 'text-green-700' };
+    return {
+      text: caseData.createdDate
+        ? new Date(caseData.createdDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+        : 'Report',
+      className: 'text-gray-400',
+    };
+  };
 
   return (
     <div className="w-full flex flex-col gap-4">
-      {isSaving && (
-        <div className="fixed inset-0 z-[120000] bg-white/70 backdrop-blur-sm flex items-center justify-center">
-          <div className="flex items-center gap-3 text-gray-800 bg-white/90 px-4 py-3 rounded-lg shadow">
-            <Loader2 className="w-6 h-6 animate-spin" />
-            <span className="font-medium">Saving changes...</span>
-          </div>
+      {isOwner && session.recovered && (
+        <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-2.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-900" role="status">
+          <p>
+            {session.recovered === 'restored'
+              ? 'Your unsaved changes were restored. They are not saved yet.'
+              : 'Your last changes were already saved.'}
+          </p>
+          <DismissButton onClick={session.dismissRecovered} label="Dismiss this notice" />
         </div>
       )}
 
-      {/* Processing Message */}
-      {isProcessing && (
+      {showBlockingProcessing && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
           <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
           <p className="text-sm text-blue-800 font-medium">
-            Reports are still anonymizing. Please wait. They will be available shortly.
+            Documents are being anonymized. They'll appear here shortly.
           </p>
         </div>
       )}
 
-      {/* Error Message */}
-      {error && !isProcessing && (
+      {error && !showBlockingProcessing && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
           <AlertTriangle className="w-6 h-6 text-red-600 mx-auto mb-2" />
           <p className="text-sm text-red-800">{error}</p>
         </div>
       )}
 
-      {/* Loading State */}
-      {loading && !isProcessing && (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
+      {loading && !showBlockingProcessing && (
+        <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
           <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
-          <p className="text-sm text-gray-600">Loading reports...</p>
+          <p className="text-sm text-text-muted">Loading reports…</p>
         </div>
       )}
 
-      {/* Main Content - Grid Layout */}
-      {!isProcessing && !loading && !error && (
-        <>
+      {!showBlockingProcessing && !loading && !error && (
+        <div className="flex flex-col gap-3">
           {/* Header */}
-          <div className="flex items-center justify-between">
-            <h2 className={`font-bold ${isMobile ? 'text-lg' : 'text-xl'}`} style={{ color: '#1a1a1a' }}>All Reports</h2>
-            <div className="flex items-center gap-3">
-              {isOwner && (
-                !isEditMode ? (
-                  <button
-                    onClick={handleEnterEditMode}
-                    disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg text-gray-600 bg-gray-50 border border-gray-200 hover:bg-gray-100 transition-colors"
-                  >
-                    <Edit className="w-4 h-4" />
-                    <span>Edit</span>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-3">
-                    <button
-                      onClick={handleCancelEdit}
-                      disabled={isSaving}
-                      className="px-4 py-2 text-sm font-medium rounded-lg text-gray-600 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleSaveAll}
-                      disabled={isSaving}
-                      className="px-4 py-2 text-sm font-medium rounded-lg text-white hover:opacity-90 transition-opacity disabled:opacity-50"
-                      style={{ backgroundColor: '#4A90E2' }}
-                    >
-                      {isSaving ? 'Saving...' : 'Save'}
-                    </button>
-                  </div>
-                )
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2.5">
+              <h2 className={`font-bold text-text ${isMobile ? 'text-lg' : 'text-xl'}`}>
+                All Reports
+              </h2>
+              {isProcessing && hasCachedReports && (
+                <span className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Reprocessing documents…
+                </span>
+              )}
+              {refreshing && !(isProcessing && hasCachedReports) && (
+                <span className="flex items-center gap-1.5 text-xs text-text-muted">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Updating…
+                </span>
               )}
             </div>
+            {isOwner && (
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={committing}
+                data-tour="reports-add"
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-text-muted bg-surface border border-border hover:bg-bg transition-colors disabled:opacity-50"
+              >
+                <Upload className="w-4 h-4" />
+                <span>Add documents</span>
+              </button>
+            )}
             <input
               ref={fileInputRef}
               type="file"
@@ -753,345 +851,324 @@ export function Reports({ caseData, isOwner }: ReportsProps) {
             />
           </div>
 
-          {/* Report Grid */}
-          {displayedReports.length > 0 || additionalDocument ? (
-            <div className={`grid gap-3 ${isMobile ? 'grid-cols-2' : 'grid-cols-4 max-w-5xl'}`}>
-              {/* Additional Document Card */}
-              {additionalDocument && (
-                <div
-                  className="group relative rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer bg-white overflow-hidden"
-                  onClick={() => openViewer({ id: 'additional-data', filename: additionalDocument.title, url: '' })}
+          {isOwner && workspaceFor === null && (
+            <CaseUpdateStatus
+              caseId={caseData.id}
+              runState={runState.state}
+              isOwner={isOwner}
+              unsavedCount={session.pendingCount}
+              saving={committing}
+              saveProblem={saveProblem}
+              startFailed={runActions.startFailed}
+              busy={committing || runActions.retrying}
+              onSave={() => commitSession()}
+              onDiscard={() => { session.reset(); setSaveProblem(null); }}
+              onRetrySave={() => commitSession()}
+              onStartRun={runActions.startCurrentRun}
+              onRetryRun={runActions.retryFailedRun}
+            />
+          )}
+          {isOwner && runState.changedElsewhere && (
+            <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-lg border border-border bg-surface text-sm" role="status">
+              <span className="text-text-muted">This case was changed in another tab.</span>
+              <div className="flex items-center gap-3">
+                <button onClick={() => { runState.dismissChangedElsewhere(); loadReports(); }} className="font-medium text-primary">
+                  Show latest
+                </button>
+                <DismissButton onClick={runState.dismissChangedElsewhere} label="Dismiss this notice" className="text-text-muted" />
+              </div>
+            </div>
+          )}
+
+          {/* Grid: as many columns as fit, not a fixed count. */}
+          {workspaceDocuments.length > 0 || displayedAdditional || isOwner ? (
+            <div
+              className="grid gap-3"
+              style={{ gridTemplateColumns: `repeat(auto-fill, minmax(${isMobile ? 140 : 180}px, 1fr))` }}
+            >
+              {displayedAdditional ? (
+                <button
+                  type="button"
+                  className="group text-left rounded-xl border-2 border-border hover:border-blue-300 hover:shadow-lg transition-all bg-surface overflow-hidden"
+                  onClick={openAdditionalData}
                 >
                   <div className="aspect-[4/3] bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
-                    <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-green-400`} />
+                    <StickyNote className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-green-400`} />
                   </div>
-                  <div className="px-3 py-2 border-t border-gray-100">
-                    <p className={`font-medium text-gray-900 truncate ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>{additionalDocument.title}</p>
-                    <p className={`text-gray-400 mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>Your data</p>
+                  <div className="px-3 py-2 border-t border-border">
+                    <p className={`font-medium text-text truncate ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>{displayedAdditional.title}</p>
+                    <p className={`mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'} ${session.additionalData ? 'text-amber-700' : 'text-gray-400'}`}>
+                      {session.additionalData ? 'Edited, not saved yet' : 'Your data'}
+                    </p>
                   </div>
-                </div>
-              )}
+                </button>
+              ) : null}
 
-              {/* Report Cards */}
-              {displayedReports.map((report) => {
-                const reportKey = report.id || report.filename;
-                const isImage = isImageFile(report.filename);
-                const isPdf = report.filename.toLowerCase().endsWith('.pdf');
-                const thumbnailUrl = thumbnails[reportKey];
-                const previewUrl = report.pending && report.file ? getObjectUrl(report.file) : report.url;
-
+              {workspaceDocuments.map((doc, docIndex) => {
+                const pending = Boolean(doc.file);
+                const deleted = session.deletes.includes(doc.filename);
+                const updating = updatingFilenames.has(doc.filename);
+                const status = statusLine(doc.filename, pending);
                 return (
                   <div
-                    key={reportKey}
-                    className="group relative rounded-xl border-2 border-gray-200 hover:border-blue-300 hover:shadow-lg transition-all cursor-pointer bg-white overflow-hidden"
-                    onClick={() => !isEditMode && openViewer(report)}
+                    key={doc.filename}
+                    data-tour={docIndex === 0 ? 'report-card' : undefined}
+                    className={`group relative rounded-xl border-2 transition-all overflow-hidden ${
+                      deleted ? 'border-dashed border-red-300 bg-red-50/40' : 'border-border hover:border-blue-300 hover:shadow-lg bg-surface'
+                    }`}
                   >
-                    {/* Preview Area */}
-                    <div className="aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden relative">
-                      {isImage ? (
-                        <img
-                          src={previewUrl}
-                          alt={stripReportPrefix(report.filename)}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                        />
-                      ) : isPdf && thumbnailUrl ? (
-                        <img
-                          src={thumbnailUrl}
-                          alt={stripReportPrefix(report.filename)}
-                          className="w-full h-full object-contain bg-white p-1"
-                        />
-                      ) : isPdf ? (
-                        <div className="flex flex-col items-center justify-center gap-1">
-                          <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-red-300`} />
-                          <span className="text-[10px] text-gray-400">PDF</span>
-                        </div>
-                      ) : (
-                        <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-gray-300`} />
-                      )}
-                      {report.pending && (
-                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[9px] font-medium rounded-full">
-                          Pending
-                        </div>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setWorkspaceFor(doc.filename)}
+                      className="block w-full text-left"
+                      aria-label={`Open ${doc.displayName}`}
+                    >
+                      <div className={`aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden relative ${deleted ? 'opacity-50' : ''}`}>
+                        {doc.thumbnail ? (
+                          <img
+                            src={doc.thumbnail}
+                            alt=""
+                            className={`w-full h-full ${doc.kind === 'image' ? 'object-cover' : 'object-contain bg-surface p-1'}`}
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center gap-1">
+                            <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} ${doc.kind === 'pdf' ? 'text-red-300' : 'text-gray-300'}`} />
+                            <span className="text-[10px] text-gray-400 uppercase">{getFileExtension(doc.displayName)}</span>
+                          </div>
+                        )}
+                        {updating && (
+                          <div className="absolute inset-0 bg-surface/70 flex items-center justify-center gap-1.5">
+                            <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                            <span className="text-xs font-medium text-text-muted">Updating…</span>
+                          </div>
+                        )}
+                        {session.editedFilenames.has(doc.filename) && !deleted && !updating && (
+                          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow" aria-hidden="true">
+                            <Check className="w-3 h-3" />
+                          </span>
+                        )}
+                      </div>
+                      <div className={`px-3 py-2 border-t border-border ${isOwner && (pending || deleted) ? 'pr-12' : ''}`}>
+                        <p className={`font-medium truncate ${deleted ? 'text-red-400 line-through' : 'text-text'} ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>
+                          {doc.displayName}
+                        </p>
+                        <p className={`mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'} ${status.className}`}>{status.text}</p>
+                      </div>
+                    </button>
 
-                    {/* Info */}
-                    <div className={`px-3 py-2 border-t border-gray-100 ${isEditMode ? 'pr-10' : ''}`}>
-                      <p className={`font-medium text-gray-900 truncate ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>
-                        {stripReportPrefix(report.filename)}
-                      </p>
-                      <p className={`text-gray-400 mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                        {report.pending
-                          ? 'Pending upload'
-                          : caseData.createdDate
-                          ? new Date(caseData.createdDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-                          : 'Report'}
-                      </p>
-                    </div>
-
-                    {/* Delete button - Edit mode only */}
-                    {isEditMode && (
+                    {isOwner && pending && (
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleMarkForDeletion(report.id!); }}
-                        disabled={isSaving}
-                        className="absolute bottom-3 right-3 p-1.5 bg-white rounded-full shadow-md border border-gray-200 hover:bg-red-50 hover:border-red-300 transition-colors"
-                        title="Delete report"
+                        onClick={() => session.removeUpload(doc.file!)}
+                        className="absolute bottom-2.5 right-2.5 p-1.5 rounded-full bg-surface shadow border border-border hover:bg-bg"
+                        aria-label={`Don't add ${doc.displayName}`}
+                        title="Don't add this file"
                       >
-                        <Trash2 className="w-4 h-4 text-red-500" />
+                        <X className="w-3.5 h-3.5 text-text-muted" />
+                      </button>
+                    )}
+                    {isOwner && deleted && (
+                      <button
+                        onClick={() => session.toggleDelete(doc.filename)}
+                        className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-full bg-surface shadow border border-red-200 hover:bg-red-50 text-xs font-medium text-red-600"
+                      >
+                        <Undo2 className="w-3.5 h-3.5" />
+                        Keep
                       </button>
                     )}
                   </div>
                 );
               })}
+
+              {isOwner && !displayedAdditional && (
+                <button
+                  type="button"
+                  onClick={openAdditionalData}
+                  className="rounded-xl border-2 border-dashed border-border text-text-muted hover:border-green-400 hover:text-green-700 hover:bg-green-50/50 transition-colors flex flex-col items-center justify-center gap-2 min-h-[140px]"
+                >
+                  <Plus className="w-6 h-6" />
+                  <span className="text-sm font-medium">Add your data</span>
+                </button>
+              )}
             </div>
           ) : (
-            <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
+            <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
               <FileText className={`text-gray-200 mx-auto mb-4 ${isMobile ? 'w-12 h-12' : 'w-16 h-16'}`} />
-              <p className="text-gray-500 font-medium">No reports available for this case.</p>
+              <p className="text-text-muted font-medium">No reports available for this case.</p>
             </div>
           )}
-
-          {/* Edit Mode Bottom Buttons */}
-          {isEditMode && (
-            <div className={`flex ${isMobile ? 'flex-col gap-3' : 'justify-between'} mt-2`}>
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border-2 border-dashed border-gray-300 text-gray-600 hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload More Documents</span>
-              </button>
-              <button
-                onClick={handleOpenAdditionalDataModal}
-                disabled={isSaving}
-                className="flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg border-2 border-dashed border-gray-300 text-gray-600 hover:border-green-400 hover:text-green-600 hover:bg-green-50 transition-colors disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-                <span>{additionalDocument ? 'Edit Your Data' : 'Create Your Own Data'}</span>
-              </button>
-            </div>
-          )}
-        </>
+        </div>
       )}
 
-      {/* Full-Screen Report Viewer */}
-      {viewerReport && (
-        <div className="fixed inset-0 z-[100000] bg-black/80" onClick={closeViewer}>
-          {/* Top bar */}
-          <div className="absolute top-0 left-0 right-0 h-14 flex items-center justify-between px-6 z-10" onClick={(e) => e.stopPropagation()}>
-            <span className="text-white text-sm font-medium truncate max-w-md">
-              {viewerReport.id === 'additional-data'
-                ? additionalDocument?.title || 'Additional Data'
-                : stripReportPrefix(viewerReport.filename)}
-            </span>
-            <div className="flex items-center gap-4">
-              {/* Zoom controls for images */}
-              {isImageFile(viewerReport.filename) && viewerReport.id !== 'additional-data' && (
-                <div className="flex items-center gap-2 bg-white/10 rounded-lg px-3 py-1.5">
-                  <button
-                    onClick={() => setZoomLevel(z => Math.max(25, z - 25))}
-                    className="text-white hover:text-blue-300 transition-colors"
-                    title="Zoom out"
-                  >
-                    <ZoomOut className="w-4 h-4" />
-                  </button>
-                  <span className="text-white text-xs min-w-[3rem] text-center">{zoomLevel}%</span>
-                  <button
-                    onClick={() => setZoomLevel(z => Math.min(400, z + 25))}
-                    className="text-white hover:text-blue-300 transition-colors"
-                    title="Zoom in"
-                  >
-                    <ZoomIn className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-              <button
-                onClick={closeViewer}
-                className="p-2 rounded-full hover:bg-white/10 transition-colors"
-                title="Close"
-              >
-                <X className="w-6 h-6 text-white" />
+      {workspaceFor !== null && caseData.requestId && (
+        <DocumentWorkspace
+          documents={workspaceDocuments}
+          initialFilename={workspaceFor}
+          requestId={caseData.requestId}
+          caseId={caseData.id}
+          isOwner={isOwner}
+          session={session}
+          updatingFilenames={updatingFilenames}
+          onSaveAndClose={saveAndCloseWorkspace}
+          onClose={() => setWorkspaceFor(null)}
+        />
+      )}
+
+      {emptyPrompt && (
+        <div className="fixed inset-0 z-[120000] flex items-center justify-center px-4" role="alertdialog" aria-modal="true" aria-labelledby="empty-case-title">
+          {/* Dismissing the question archives, as agreed: walking away from an empty case archives it. */}
+          <div className="absolute inset-0 bg-gray-900/40" onClick={archiveEmptyCase} aria-hidden="true" />
+          <div className="relative w-full max-w-md rounded-xl bg-surface shadow-xl p-6">
+            <div className="flex items-start justify-between gap-4">
+              <h3 id="empty-case-title" className="text-base font-semibold text-text-muted">
+                This case would have no documents or notes
+              </h3>
+              <button onClick={archiveEmptyCase} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Close and archive the case">
+                <X className="w-4 h-4 text-text-muted" />
               </button>
             </div>
-          </div>
-
-          {/* Viewer Content */}
-          <div
-            className="absolute inset-0 top-14 overflow-auto flex items-center justify-center p-4"
-            onClick={closeViewer}
-          >
-            {viewerReport.id === 'additional-data' && additionalDocument ? (
-              <div className="bg-white rounded-xl p-8 max-w-4xl w-full max-h-[85vh] overflow-auto shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                <h2 className="text-xl font-bold text-gray-900 mb-4">{additionalDocument.title}</h2>
-                <pre className="whitespace-pre-wrap text-gray-700 text-sm leading-relaxed">{additionalDocument.content}</pre>
-              </div>
-            ) : viewerReport.pending && viewerReport.file ? (
-              (() => {
-                const vIsImage = isImageFile(viewerReport.filename) || viewerReport.file!.type.startsWith('image/');
-                const vIsPdf = viewerReport.filename.toLowerCase().endsWith('.pdf') || viewerReport.file!.type === 'application/pdf';
-                const objectUrl = getObjectUrl(viewerReport.file!);
-
-                if (vIsImage) {
-                  return (
-                    <img
-                      src={objectUrl}
-                      alt={stripReportPrefix(viewerReport.filename)}
-                      style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
-                      className="max-w-none transition-transform duration-200"
-                      draggable={false}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  );
-                }
-
-                if (vIsPdf) {
-                  return (
-                    <iframe
-                      src={objectUrl}
-                      className="w-[90vw] h-[85vh] rounded-lg bg-white"
-                      title={stripReportPrefix(viewerReport.filename)}
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                  );
-                }
-
-                return (
-                  <div className="bg-white rounded-xl p-8 text-center shadow-2xl" onClick={(e) => e.stopPropagation()}>
-                    <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                    <p className="font-medium text-gray-900">{stripReportPrefix(viewerReport.filename)}</p>
-                    <p className="text-gray-500 mt-1 text-sm">Preview will be available after save.</p>
-                  </div>
-                );
-              })()
-            ) : isImageFile(viewerReport.filename) ? (
-              <img
-                src={viewerReport.url}
-                alt={stripReportPrefix(viewerReport.filename)}
-                style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'center center' }}
-                className="max-w-none transition-transform duration-200"
-                draggable={false}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <iframe
-                src={viewerReport.url}
-                className="w-[90vw] h-[85vh] rounded-lg bg-white"
-                title={stripReportPrefix(viewerReport.filename)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
+            <p className="mt-2 text-sm text-text-muted">
+              A case needs at least one document or note to summarize. Add something to keep working on it, or archive it.
+              If you close this or leave the page, the case is archived.
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
+              <button
+                onClick={() => keepCaseAndAddData(() => fileInputRef.current?.click())}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-text hover:bg-bg"
+              >
+                Add documents
+              </button>
+              <button
+                onClick={() => keepCaseAndAddData(openAdditionalData)}
+                className="px-4 py-2 text-sm font-medium rounded-lg border border-border text-text hover:bg-bg"
+              >
+                Add your data
+              </button>
+              <button
+                onClick={archiveEmptyCase}
+                disabled={committing}
+                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-gray-800 hover:bg-gray-900 disabled:opacity-50"
+              >
+                {committing ? 'Archiving…' : 'Archive case'}
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* Upload Confirmation Modal */}
       {showUploadModal && (
-        <Modal
-          isOpen={showUploadModal}
-          onClose={() => setShowUploadModal(false)}
-          title="Add Documents to Queue"
-        >
+        <Modal isOpen={showUploadModal} onClose={() => setShowUploadModal(false)} title="Add documents">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <h4 className="text-sm font-medium text-gray-900">Selected Files ({uploadingFiles.length})</h4>
-              <ul className="text-sm text-gray-700 space-y-1 max-h-60 overflow-y-auto">
-                {uploadingFiles.map((file, idx) => (
-                  <li key={idx} className="flex items-center gap-2">
-                    <FileText className="w-4 h-4 text-gray-400" />
-                    <span className="flex-1 truncate">{file.name}</span>
-                    <span className="text-gray-500 text-xs">({(file.size / (1024 * 1024)).toFixed(2)} MB)</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <p className="text-sm text-gray-600 bg-blue-50 border border-blue-200 rounded-md p-3">
-              These files will be added to your upload queue. Click &quot;Save&quot; to upload them.
+            <ul className="text-sm text-text space-y-1 max-h-60 overflow-y-auto">
+              {uploadingFiles.map((file, idx) => (
+                <li key={idx} className="flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-gray-400" />
+                  <span className="flex-1 truncate">{file.name}</span>
+                  <span className="text-text-muted text-xs">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
+                </li>
+              ))}
+            </ul>
+            <p className="text-sm text-text-muted">
+              They'll be uploaded and processed when you save your changes.
             </p>
-
             <div className="flex justify-end gap-3 mt-6">
               <button
                 onClick={() => {
                   setShowUploadModal(false);
                   setUploadingFiles([]);
                 }}
-                disabled={isSaving}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
+                className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmUpload}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
-                style={{ backgroundColor: '#4A90E2' }}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary"
               >
                 <Plus className="w-4 h-4" />
-                <span>Add to Queue</span>
+                <span>Add {uploadingFiles.length === 1 ? 'document' : `${uploadingFiles.length} documents`}</span>
               </button>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Additional Data Modal */}
       {showAdditionalDataModal && (
         <Modal
           isOpen={showAdditionalDataModal}
           onClose={() => setShowAdditionalDataModal(false)}
-          title={additionalDocument ? 'Edit Your Data' : 'Create Your Own Data'}
+          title={isOwner ? (displayedAdditional ? 'Edit your data' : 'Add your data') : displayedAdditional?.title || 'Your data'}
           size="large"
         >
-          <div className="space-y-4">
-            <div>
-              <label htmlFor="additional-title" className="block text-sm font-medium text-gray-700 mb-1">
-                Title
-              </label>
-              <input
-                id="additional-title"
-                type="text"
-                value={additionalDataTitle}
-                onChange={(e) => setAdditionalDataTitle(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter a title for your data..."
-              />
+          {isOwner ? (
+            <div className="space-y-4">
+              <div>
+                <label htmlFor="additional-title" className="block text-sm font-medium text-text mb-1">Title</label>
+                <input
+                  id="additional-title"
+                  type="text"
+                  value={additionalDataTitle}
+                  onChange={(e) => setAdditionalDataTitle(e.target.value)}
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label htmlFor="additional-content" className="block text-sm font-medium text-text">Content</label>
+                  {/* VoiceRecorder's own idle icon is a bare 14px glyph with no
+                      background — easy to miss next to a full-width textarea.
+                      This chip (padding/border/larger icon) wraps it without
+                      touching the shared "do not touch" component; the border
+                      also still frames its recording/transcribing states.
+                      The chip forwards clicks anywhere on it (including the
+                      "Dictate" label) to VoiceRecorder's own mic button, so
+                      the whole chip is clickable, not just the icon glyph. */}
+                  <div
+                    className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg border border-border hover:border-primary hover:bg-status-processing-bg transition-colors cursor-pointer"
+                    onClick={(e) => {
+                      const target = e.target as HTMLElement;
+                      const micButton = e.currentTarget.querySelector('.voice-recorder-mic-btn') as HTMLButtonElement | null;
+                      if (micButton && !micButton.contains(target)) micButton.click();
+                    }}
+                  >
+                    <VoiceRecorder
+                      onTranscriptionComplete={(text) =>
+                        setAdditionalDataContent((prev) => (prev.trim() ? `${prev.replace(/\s+$/, '')}\n${text}` : text))
+                      }
+                      variant="inline"
+                      source="step2"
+                      iconSize={20}
+                    />
+                    <span className="text-xs font-medium text-text-muted">Dictate</span>
+                  </div>
+                </div>
+                <textarea
+                  id="additional-content"
+                  value={additionalDataContent}
+                  onChange={(e) => setAdditionalDataContent(e.target.value)}
+                  rows={20}
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  onClick={() => setShowAdditionalDataModal(false)}
+                  className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveAdditionalData}
+                  className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Save</span>
+                </button>
+              </div>
             </div>
-
-            <div>
-              <label htmlFor="additional-content" className="block text-sm font-medium text-gray-700 mb-1">
-                Content
-              </label>
-              <textarea
-                id="additional-content"
-                value={additionalDataContent}
-                onChange={(e) => setAdditionalDataContent(e.target.value)}
-                rows={20}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
-                placeholder="Enter your additional data here..."
-              />
-            </div>
-
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowAdditionalDataModal(false)}
-                disabled={isSaving}
-                className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveAdditionalData}
-                disabled={isSaving}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
-                style={{ backgroundColor: '#4A90E2' }}
-              >
-                <Save className="w-4 h-4" />
-                <span>Save</span>
-              </button>
-            </div>
-          </div>
+          ) : (
+            <pre className="whitespace-pre-wrap text-text text-sm leading-relaxed">{displayedAdditional?.content}</pre>
+          )}
         </Modal>
       )}
     </div>

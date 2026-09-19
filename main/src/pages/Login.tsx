@@ -250,18 +250,18 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm p-8">
+        <div className="bg-surface rounded-2xl shadow-sm p-8">
           <div className="flex items-center justify-center space-x-3 mb-8">
             <img src="https://i.ibb.co/vxP6Cs3c/logo.png" alt="VMTB" className="h-12 w-auto" />
-            <h1 className="text-3xl font-bold text-gray-900">vMTB</h1>
+            <h1 className="text-3xl font-bold text-text">vMTB</h1>
           </div>
 
-          <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
+          <h2 className="text-2xl font-semibold text-text mb-2 text-center">
             Welcome Back
           </h2>
-          <p className="text-center text-gray-600 mb-8">
+          <p className="text-center text-text-muted mb-8">
             Login to your account
           </p>
 
@@ -270,12 +270,12 @@ export function Login() {
             type="button"
             onClick={handleGoogleLogin}
             disabled={googleLoading}
-            className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-gray-300 rounded-lg font-medium text-gray-700 transition hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed mb-6"
+            className="w-full flex items-center justify-center gap-3 px-4 py-2.5 border border-border rounded-lg font-medium text-text transition hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed mb-6"
           >
             {googleLoading ? (
               <div
-                className="w-5 h-5 border-2 border-gray-300 rounded-full animate-spin"
-                style={{ borderTopColor: '#4A90E2' }}
+                className="w-5 h-5 border-2 border-border rounded-full animate-spin"
+                style={{ borderTopColor: 'var(--color-primary)' }}
               />
             ) : (
               <svg className="w-5 h-5" viewBox="0 0 24 24">
@@ -291,17 +291,17 @@ export function Login() {
           {/* Separator */}
           <div className="relative mb-6">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200"></div>
+              <div className="w-full border-t border-border"></div>
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-4 bg-white text-gray-500">OR</span>
+              <span className="px-4 bg-surface text-text-muted">OR</span>
             </div>
           </div>
 
           {mode === 'password' && (
             <form onSubmit={handlePhonePasswordLogin} className="space-y-5">
               <div>
-                <label htmlFor="phone" className="block text-sm font-medium text-gray-900 mb-2">
+                <label htmlFor="phone" className="block text-sm font-medium text-text mb-2">
                   Phone Number
                 </label>
                 <div className="flex gap-2">
@@ -313,8 +313,7 @@ export function Login() {
                       inputMode="numeric"
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-20 pl-7 pr-2 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition text-sm"
-                      style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                      className="w-20 pl-7 pr-2 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
                       placeholder="91"
                     />
                   </div>
@@ -324,8 +323,7 @@ export function Login() {
                     inputMode="numeric"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition text-sm"
-                    style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                    className="flex-1 px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
                     placeholder="9876543210"
                     required
                   />
@@ -333,7 +331,7 @@ export function Login() {
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-2">
+                <label htmlFor="password" className="block text-sm font-medium text-text mb-2">
                   Password
                 </label>
                 <PasswordInput
@@ -354,10 +352,7 @@ export function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#4A90E2' }}
-                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                className="w-full bg-primary hover:bg-primary-hover text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Logging in...' : 'Login'}
               </button>
@@ -367,7 +362,7 @@ export function Login() {
           {mode === 'otp-send' && (
             <form onSubmit={handleSendOtp} className="space-y-5">
               <div>
-                <label htmlFor="otp-phone" className="block text-sm font-medium text-gray-900 mb-2">
+                <label htmlFor="otp-phone" className="block text-sm font-medium text-text mb-2">
                   Phone Number
                 </label>
                 <div className="flex gap-2">
@@ -378,8 +373,7 @@ export function Login() {
                       inputMode="numeric"
                       value={countryCode}
                       onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                      className="w-20 pl-7 pr-2 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition text-sm"
-                      style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                      className="w-20 pl-7 pr-2 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
                       placeholder="91"
                     />
                   </div>
@@ -389,8 +383,7 @@ export function Login() {
                     inputMode="numeric"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
-                    className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0 transition text-sm"
-                    style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                    className="flex-1 px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
                     placeholder="9876543210"
                     required
                   />
@@ -406,10 +399,7 @@ export function Login() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#4A90E2' }}
-                onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                className="w-full bg-primary hover:bg-primary-hover text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Sending OTP...' : 'Send OTP'}
               </button>
@@ -417,8 +407,7 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => { setMode('password'); setError(null); }}
-                className="w-full text-sm font-medium transition text-center"
-                style={{ color: '#4A5565' }}
+                className="w-full text-sm font-medium transition text-center text-text-muted"
               >
                 ← Back to password login
               </button>
@@ -428,13 +417,13 @@ export function Login() {
           {mode === 'otp-verify' && (
             <form onSubmit={handleVerifyOtp} className="space-y-6">
               <div className="text-center mb-2">
-                <p className="text-sm" style={{ color: '#4A5565' }}>
-                  OTP sent to <span className="font-semibold text-gray-900">+{getFullPhone()}</span>
+                <p className="text-sm text-text-muted">
+                  OTP sent to <span className="font-semibold text-text">+{getFullPhone()}</span>
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-4 text-center">
+                <label className="block text-sm font-medium text-text mb-4 text-center">
                   Enter 6-Digit OTP
                 </label>
                 <div className="flex justify-center gap-2" onPaste={handleOtpPaste}>
@@ -448,8 +437,7 @@ export function Login() {
                       value={digit}
                       onChange={(e) => handleOtpChange(index, e.target.value)}
                       onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                      className="w-12 h-12 text-center text-lg font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-0"
-                      style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                      className="w-12 h-12 text-center text-lg font-semibold border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0"
                     />
                   ))}
                 </div>
@@ -464,10 +452,7 @@ export function Login() {
               <button
                 type="submit"
                 disabled={loading || otp.join('').length !== 6}
-                className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ backgroundColor: '#4A90E2' }}
-                onMouseEnter={(e) => !loading && otp.join('').length === 6 && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                className="w-full bg-primary hover:bg-primary-hover text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? 'Verifying...' : 'Verify & Login'}
               </button>
@@ -477,8 +462,7 @@ export function Login() {
                   type="button"
                   onClick={handleResendOtp}
                   disabled={resendCooldown > 0 || loading}
-                  className="block text-sm font-medium transition"
-                  style={{ color: resendCooldown > 0 ? '#9CA3AF' : '#4A90E2' }}
+                  className={`block text-sm font-medium transition ${resendCooldown > 0 ? 'text-gray-400' : 'text-primary'}`}
                 >
                   {resendCooldown > 0 
                     ? `Resend OTP in ${resendCooldown}s` 
@@ -489,8 +473,7 @@ export function Login() {
                   <button
                     type="button"
                     onClick={() => { setMode('otp-send'); setOtp(['', '', '', '', '', '']); setError(null); }}
-                    className="text-sm font-medium transition"
-                    style={{ color: '#4A5565' }}
+                    className="text-sm font-medium transition text-text-muted"
                   >
                     ← Change phone number
                   </button>
@@ -504,25 +487,22 @@ export function Login() {
               <button
                 type="button"
                 onClick={() => { setMode('otp-send'); setError(null); }}
-                className="block w-full text-sm font-medium transition"
-                style={{ color: '#4A90E2' }}
+                className="block w-full text-sm font-medium transition text-primary"
               >
                 Login using OTP
               </button>
             )}
             <Link
               to="/forgot-password"
-              className="block text-sm font-medium transition"
-              style={{ color: '#4A90E2' }}
+              className="block text-sm font-medium transition text-primary"
             >
               Forgot your password?
             </Link>
-            <div className="text-sm" style={{ color: '#4A5565' }}>
+            <div className="text-sm text-text-muted">
               Don't have an account?{' '}
               <Link
                 to="/signup"
-                className="font-semibold transition"
-                style={{ color: '#4A90E2' }}
+                className="font-semibold transition text-primary"
               >
                 Sign Up
               </Link>

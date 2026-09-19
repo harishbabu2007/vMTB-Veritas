@@ -216,28 +216,28 @@ export function ForgotPassword() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-8">
+    <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-8">
       <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm p-8">
+        <div className="bg-surface rounded-2xl shadow-sm p-8">
           {/* Header */}
           <div className="flex items-center justify-center space-x-3 mb-8">
             <img src="https://i.ibb.co/vxP6Cs3c/logo.png" alt="VMTB" className="h-12 w-auto" />
-            <h1 className="text-3xl font-bold text-gray-900">vMTB</h1>
+            <h1 className="text-3xl font-bold text-text">vMTB</h1>
           </div>
 
           {/* STEP 1: Enter Phone Number */}
           {step === 'phone' && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
+              <h2 className="text-2xl font-semibold text-text mb-2 text-center">
                 Reset Your Password
               </h2>
-              <p className="text-center mb-8 text-gray-600 text-sm">
+              <p className="text-center mb-8 text-text-muted text-sm">
                 Enter your WhatsApp phone number to receive a verification code.
               </p>
 
               <form onSubmit={handleSendOTP} className="space-y-5">
                 <div>
-                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-900 mb-2">
+                  <label htmlFor="phoneNumber" className="block text-sm font-medium text-text mb-2">
                     Phone Number (WhatsApp)
                   </label>
                   {/* Side-by-Side Country Code + Phone Input */}
@@ -250,8 +250,8 @@ export function ForgotPassword() {
                         type="text"
                         value={countryCode}
                         onChange={(e) => setCountryCode(e.target.value.replace(/\D/g, ''))}
-                        className="w-full pl-7 pr-3 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 text-sm font-medium text-gray-900"
-                        style={{ '--tw-ring-color': '#4A90E2', fontSize: '16px' } as React.CSSProperties}
+                        className="w-full pl-7 pr-3 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium text-text"
+                        style={{ fontSize: '16px' }}
                         placeholder="91"
                         required
                         disabled={loading}
@@ -262,8 +262,8 @@ export function ForgotPassword() {
                       type="tel"
                       value={phoneNumber}
                       onChange={(e) => setPhoneNumber(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 transition text-sm"
-                      style={{ '--tw-ring-color': '#4A90E2', fontSize: '16px' } as React.CSSProperties}
+                      className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary transition text-sm"
+                      style={{ fontSize: '16px' }}
                       placeholder="10-digit phone number"
                       required
                       disabled={loading}
@@ -280,10 +280,7 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#4A90E2' }}
-                  onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                  onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
                 >
                   {loading ? 'Sending OTP...' : 'Send WhatsApp OTP'}
                 </button>
@@ -295,21 +292,21 @@ export function ForgotPassword() {
           {step === 'otp' && (
             <>
               <div className="flex justify-center mb-4">
-                <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
-                  <ShieldCheck className="w-6 h-6 text-[#4A90E2]" />
+                <div className="w-12 h-12 rounded-full bg-status-processing-bg flex items-center justify-center">
+                  <ShieldCheck className="w-6 h-6 text-primary" />
                 </div>
               </div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
+              <h2 className="text-2xl font-semibold text-text mb-2 text-center">
                 Verify WhatsApp OTP
               </h2>
-              <p className="text-center mb-6 text-gray-600 text-sm">
+              <p className="text-center mb-6 text-text-muted text-sm">
                 Enter the 6-digit code sent to your WhatsApp number:<br />
-                <span className="font-semibold text-gray-900">+{countryCode} {phoneNumber}</span>
+                <span className="font-semibold text-text">+{countryCode} {phoneNumber}</span>
               </p>
 
               <form onSubmit={handleVerifyOTP} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-3 text-center">
+                  <label className="block text-sm font-medium text-text mb-3 text-center">
                     Enter Verification Code
                   </label>
                   {/* 6-box OTP Inputs */}
@@ -324,8 +321,7 @@ export function ForgotPassword() {
                         value={digit}
                         onChange={(e) => handleOtpChange(index, e.target.value)}
                         onKeyDown={(e) => handleOtpKeyDown(index, e)}
-                        className="w-11 h-12 text-center text-xl font-bold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition"
-                        style={{ '--tw-ring-color': '#4A90E2' } as React.CSSProperties}
+                        className="w-11 h-12 text-center text-xl font-bold border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition"
                         disabled={loading}
                         autoFocus={index === 0}
                       />
@@ -342,25 +338,22 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading || otp.join('').length < 6}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#4A90E2' }}
-                  onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                  onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
                 >
                   {loading ? 'Verifying...' : 'Verify OTP'}
                 </button>
 
                 <div className="text-center pt-2">
                   {resendTimer > 0 ? (
-                    <p className="text-xs text-gray-500">
-                      Resend code in <span className="font-semibold text-gray-700">{resendTimer}s</span>
+                    <p className="text-xs text-text-muted">
+                      Resend code in <span className="font-semibold text-text">{resendTimer}s</span>
                     </p>
                   ) : (
                     <button
                       type="button"
                       onClick={handleResendOTP}
                       disabled={loading}
-                      className="text-xs font-semibold text-[#4A90E2] hover:underline focus:outline-none"
+                      className="text-xs font-semibold text-primary hover:underline focus:outline-none"
                     >
                       Resend WhatsApp OTP
                     </button>
@@ -373,16 +366,16 @@ export function ForgotPassword() {
           {/* STEP 3: Enter New Password */}
           {step === 'reset' && (
             <>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2 text-center">
+              <h2 className="text-2xl font-semibold text-text mb-2 text-center">
                 Set New Password
               </h2>
-              <p className="text-center mb-6 text-gray-600 text-sm">
+              <p className="text-center mb-6 text-text-muted text-sm">
                 Create a new secure password for your vMTB account.
               </p>
 
               <form onSubmit={handleResetPassword} className="space-y-5">
                 <div>
-                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-900 mb-2">
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-text mb-2">
                     New Password
                   </label>
                   <PasswordInput
@@ -397,7 +390,7 @@ export function ForgotPassword() {
                 </div>
 
                 <div>
-                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-900 mb-2">
+                  <label htmlFor="confirmPassword" className="block text-sm font-medium text-text mb-2">
                     Confirm New Password
                   </label>
                   <PasswordInput
@@ -419,10 +412,7 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed"
-                  style={{ backgroundColor: '#4A90E2' }}
-                  onMouseEnter={(e) => !loading && (e.currentTarget.style.backgroundColor = '#357ABD')}
-                  onMouseLeave={(e) => !loading && (e.currentTarget.style.backgroundColor = '#4A90E2')}
+                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
                 >
                   {loading ? 'Updating Password...' : 'Reset Password'}
                 </button>
@@ -436,10 +426,10 @@ export function ForgotPassword() {
               <div className="inline-flex items-center justify-center bg-green-100 rounded-full mb-6 w-16 h-16">
                 <CheckCircle className="text-green-600 w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-semibold text-gray-900 mb-2">
+              <h2 className="text-2xl font-semibold text-text mb-2">
                 Password Reset Successful!
               </h2>
-              <p className="text-gray-600 mb-6 text-sm">
+              <p className="text-text-muted mb-6 text-sm">
                 Your password has been updated successfully. Redirecting you to the login page...
               </p>
             </div>
@@ -450,7 +440,7 @@ export function ForgotPassword() {
             <div className="mt-8 text-center">
               <Link
                 to="/login"
-                className="text-sm font-medium text-gray-600 hover:text-gray-900 transition"
+                className="text-sm font-medium text-text-muted hover:text-text transition"
               >
                 ← Back to Login
               </Link>

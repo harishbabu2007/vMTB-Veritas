@@ -1,0 +1,6 @@
+boto3==1.42.42
+requests==2.32.5
+# Pinned to what the deployed image runs: newer Pillow releases ship no
+# wheel for this Amazon Linux 2 / Python 3.10 base (and it has no compiler).
+pillow==12.1.0
+PyMuPDF==1.23.26

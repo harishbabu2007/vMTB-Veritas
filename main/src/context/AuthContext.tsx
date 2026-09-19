@@ -1,11 +1,14 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { supabase } from '../Supabase/client';
 
+type AuthUser = { id: string; email: string | null; name?: string; avatarKey?: string | null };
+
 interface AuthContextType {
   isAuthenticated: boolean;
-  user: { id: string; email: string | null; name?: string } | null;
+  user: AuthUser | null;
   loading: boolean;
   isInPasswordRecovery: boolean;
+  updateAvatarKey: (avatarKey: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (countryCode: string, phoneNumber: string, password: string) => Promise<void>;
   sendPhoneOtp: (countryCode: string, phoneNumber: string) => Promise<void>;
@@ -30,7 +33,7 @@ const AUTH_USER_STORAGE_KEY = 'vmtb.auth.user';
 
 const canUseStorage = () => typeof window !== 'undefined' && !!window.localStorage;
 
-const storeUser = (user: { id: string; email: string | null; name?: string } | null) => {
+const storeUser = (user: AuthUser | null) => {
   if (!canUseStorage()) return;
   if (!user) {
     window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
@@ -39,22 +42,40 @@ const storeUser = (user: { id: string; email: string | null; name?: string } | n
   window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
 };
 
-const readStoredUser = (): { id: string; email: string | null; name?: string } | null => {
+const readStoredUser = (): AuthUser | null => {
   if (!canUseStorage()) return null;
   try {
     const raw = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
     if (!raw) return null;
-    return JSON.parse(raw) as { id: string; email: string | null; name?: string };
+    return JSON.parse(raw) as AuthUser;
   } catch (_err) {
     return null;
   }
 };
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<{ id: string; email: string | null; name?: string } | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInPasswordRecovery, setIsInPasswordRecovery] = useState(false);
   const isAuthenticated = !!user;
+
+  // Auth events (TOKEN_REFRESHED, a repeated SIGNED_IN, another tab's storage
+  // write) re-deliver the same user. Keep the existing object in that case so
+  // everything keyed on `user` doesn't treat it as a new login and refetch.
+  // The event payload usually lacks the profile name, so keep the one already
+  // loaded rather than blanking it.
+  const setUserIfChanged = (next: AuthUser | null) => {
+    setUser(prev => {
+      if (!next) return prev === null ? prev : null;
+      if (!prev || prev.id !== next.id) return next;
+      const merged = { ...next, name: next.name ?? prev.name, avatarKey: next.avatarKey ?? prev.avatarKey };
+      return prev.email === merged.email && prev.name === merged.name && prev.avatarKey === merged.avatarKey ? prev : merged;
+    });
+  };
+
+  const updateAvatarKey = (avatarKey: string | null) => {
+    setUser(prev => (prev ? { ...prev, avatarKey } : prev));
+  };
 
   const backfillProfileFromMetadata = async (id: string) => {
     try {
@@ -76,7 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }, { onConflict: 'id' });
 
       if (fullName) {
-        setUser(prev => (prev ? { ...prev, name: fullName } : prev));
+        setUser(prev => (prev && prev.name !== fullName ? { ...prev, name: fullName } : prev));
       }
     } catch (_err) {
       // Ignore failures; do not block auth flow
@@ -87,12 +108,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data } = await supabase
         .from('profiles')
-        .select('full_name')
+        .select('full_name, avatar_key')
         .eq('id', id)
         .single();
-      const name = (data as { full_name?: string } | null)?.full_name;
+      const profile = data as { full_name?: string; avatar_key?: string | null } | null;
+      const name = profile?.full_name;
       if (name) {
-        setUser(prev => (prev ? { ...prev, name } : prev));
+        setUser(prev =>
+          prev && (prev.name !== name || prev.avatarKey !== profile?.avatar_key)
+            ? { ...prev, name, avatarKey: profile?.avatar_key ?? null }
+            : prev
+        );
       } else {
         await backfillProfileFromMetadata(id);
       }
@@ -136,12 +162,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = session?.user;
       if (u) {
         const userData = { id: u.id, email: u.email ?? null, name: (u as any)?.user_metadata?.name };
-        setUser(userData);
+        setUserIfChanged(userData);
         storeUser(userData);
         // Fire-and-forget profile name fetch
         loadProfileName(u.id);
       } else {
-        setUser(null);
+        setUserIfChanged(null);
         storeUser(null);
       }
       
@@ -167,7 +193,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === AUTH_USER_STORAGE_KEY) {
         const newUser = readStoredUser();
-        setUser(newUser);
+        setUserIfChanged(newUser);
       }
     };
 
@@ -351,7 +377,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery]);
+  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

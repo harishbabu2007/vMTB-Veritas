@@ -2,12 +2,30 @@
 
 This is the **only** document you need to take an empty cloud account to a
 fully working platform: GCP backend, Jitsi VM, Render app, Vercel frontend,
-CI/CD buttons in GitHub, then a real end-to-end test.
+CI/CD buttons in GitHub, then a real end-to-end test. It also folds in the
+GCP-only manual `gcloud` alternative previously in `docs/GCP_SETUP.md` (§2
+appendix) for anyone who wants to skip the GitHub Actions buttons.
 
 Follow top to bottom. Steps marked **(one-time)** never need repeating.
 If you already did part of §2 (e.g. bucket/Pub/Sub), just skip those blocks.
 
 Total time estimate: **half a day** (most of it waiting on builds/quota/DNS).
+
+> **Flagged, not corrected:** this guide describes `main/`'s frontend
+> hosting as Render (`vmtb-main.onrender.com`). Per current confirmation,
+> the live main app's domain is `vmtb.3billionpairs.com` — the underlying
+> hosting platform for that domain wasn't re-verified as part of this
+> documentation pass, and per the project owner, service domains are
+> actively in flux during development. Don't assume §7.1 (Render setup) is
+> still exactly how `main/` is deployed today without checking; jitsi-frontend/
+> jitsi-activation-backend/opus-transcriber-proxy/stt-service/transcript-worker
+> hosting *is* confirmed current — see `docs/CLOUD_INVENTORY.md`.
+>
+> Every `feature/codebase-reorg` branch reference below is **stale** — that
+> branch was this repo's pre-monorepo working branch and no longer reflects
+> current git state (see the root `CLAUDE.md` for the actual git workflow:
+> feature branches off `main`, merged via PR). Read "the branch you're
+> deploying from" wherever this guide says `feature/codebase-reorg`.
 
 ---
 
@@ -255,6 +273,104 @@ GitHub → **Settings → Secrets and variables → Actions → New repository s
 projects.)
 
 ---
+
+## 2A. Appendix — manual `gcloud`-only alternative to §2/§4
+
+*(Merged from the former `docs/GCP_SETUP.md`, which used direct `gcloud
+builds submit`/`gcloud run deploy` commands instead of the GitHub Actions
+buttons above. Superseded by §2/§4 as the recommended path — kept here for
+anyone who wants to deploy without wiring up CI, or who wants to understand
+what the buttons do underneath. The original doc used region `asia-south1`
+throughout; corrected to `asia-southeast1` below to match the confirmed-live
+region per `docs/CLOUD_INVENTORY.md` — `asia-south1` L4 GPU access is
+invitation-gated, see `docs/GPU_ACCESS_MUMBAI.md`.)*
+
+```bash
+# APIs (same as §2.1)
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com \
+  pubsub.googleapis.com storage.googleapis.com cloudbuild.googleapis.com \
+  secretmanager.googleapis.com
+
+# Artifact Registry + docker auth
+gcloud artifacts repositories create vmtb-services \
+  --repository-format=docker --location=asia-southeast1
+gcloud auth configure-docker asia-southeast1-docker.pkg.dev
+
+# GCS bucket for transcript artifacts
+gcloud storage buckets create gs://vmtb-transcripts \
+  --location=asia-southeast1 --uniform-bucket-level-access
+
+# Pub/Sub topic + a push subscription (fill in the real worker URL once deployed)
+gcloud pubsub topics create meeting-transcripts
+gcloud pubsub subscriptions create meeting-transcripts-worker \
+  --topic=meeting-transcripts \
+  --push-endpoint=REPLACE_WITH_WORKER_URL_AFTER_DEPLOY \
+  --push-auth-service-account=YOUR_PROJECT_NUMBER-compute@developer.gserviceaccount.com \
+  --ack-deadline=60
+```
+
+Build + deploy each service directly (equivalent to what the GitHub Actions
+buttons in §4 do):
+
+```bash
+# stt-service (GPU) — model is baked into the image at build time
+cd stt-service
+gcloud builds submit --tag \
+  asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/stt-service:medium \
+  --build-arg=STT_DEVICE=gpu --build-arg=STT_MODEL=medium .
+
+gcloud run deploy stt-service \
+  --image=asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/stt-service:medium \
+  --region=asia-southeast1 --gpu=1 --gpu-type=nvidia-l4 --no-gpu-zonal-redundancy \
+  --memory=16Gi --cpu=4 --no-allow-unauthenticated \
+  --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --set-env-vars=STT_MODEL=medium,STT_DEVICE=cuda,STT_COMPUTE_TYPE=float16 \
+  --min-instances=0 --max-instances=2 --concurrency=1   # concurrency=1: transcription is serialized per instance
+
+# opus-transcriber-proxy
+cd opus-transcriber-proxy
+gcloud builds submit --tag \
+  asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/opus-transcriber-proxy .
+gcloud run deploy opus-transcriber-proxy \
+  --image=asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/opus-transcriber-proxy \
+  --region=asia-southeast1 --no-allow-unauthenticated \
+  --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --set-env-vars=PROVIDER=self-hosted,STT_SAMPLE_RATE=16000,STT_CHUNK_MS=60 \
+  --set-env-vars=STT_WS_URL=<stt-service URL>/client/ws/speech \
+  --set-env-vars=GCP_PROJECT_ID=YOUR_PROJECT_ID,PUBSUB_TOPIC=meeting-transcripts \
+  --set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest \
+  --min-instances=0 --max-instances=10 --concurrency=50
+
+# transcript-worker
+cd transcript-worker
+gcloud builds submit --tag \
+  asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/transcript-worker .
+gcloud run deploy transcript-worker \
+  --image=asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/transcript-worker \
+  --region=asia-southeast1 --no-allow-unauthenticated \
+  --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
+  --set-env-vars=GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=YOUR_PROJECT_ID,LLM_PROVIDER=mistral \
+  --set-env-vars=LLM_BASE_URL=https://api.mistral.ai/v1,LLM_MODEL=mistral-small-latest \
+  --set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest \
+  --set-secrets=LLM_API_KEY=llm-api-key:latest \
+  --min-instances=0 --max-instances=5
+
+# then wire Pub/Sub push with a token (see §4/§8 for the equivalent via the
+# GitHub Actions buttons, which do this step for you automatically):
+gcloud run services update transcript-worker --region=asia-southeast1 \
+  --update-env-vars=PUBSUB_PUSH_TOKEN=RANDOM_TOKEN
+gcloud pubsub subscriptions update meeting-transcripts-worker \
+  --push-endpoint=<transcript-worker URL>/pubsub/push \
+  --push-auth-token=RANDOM_TOKEN
+```
+
+Common gotchas specific to the manual path (the GitHub Actions workflows
+already handle all of these): GPU quota is the most common blocker — request
+it early (§2.5); STT and proxy regions must agree (`STT_WS_URL` must point
+at wherever STT actually landed); keep STT at `concurrency=1`; Cloud Run's
+default idle timeout (~15 min) is shorter than a real meeting — set
+`--timeout=3600` and rely on the proxy/STT heartbeat rather than the
+platform for liveness.
 
 ## 3. Supabase schema (one-time)
 
@@ -800,7 +916,7 @@ gcloud run services describe stt-service --project YOUR_PROJECT_ID \
 - Cost audit after any test session: Console → Cloud Run → stt-service →
   **Metrics** → `Billable instance time`. A 2-minute meeting should show
   ~3–5 minutes of billable time (cold start + meeting), not hours.
-- Considering Mumbai for the STT service? See `docs/GPU_MUMBAI_ACCESS.md` —
+- Considering Mumbai for the STT service? See `docs/GPU_ACCESS_MUMBAI.md` —
   L4 there is invite-only and GPU pricing is identical across regions.
 
 ### Tuning the Jitsi VM itself

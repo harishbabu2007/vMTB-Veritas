@@ -1,7 +1,11 @@
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster, ToastBar } from 'react-hot-toast';
+import { DismissButton } from './components/DismissButton';
+import { TourOverlay } from './components/onboarding/TourOverlay';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { OnboardingProvider } from './context/OnboardingContext';
 import { CasesProvider } from './context/CasesContext';
 import { CaseCreationProvider } from './context/CaseCreationContext';
 import { Login } from './pages/Login';
@@ -17,6 +21,9 @@ import { MTBs } from './pages/MTBs';
 import { MTBDetail } from './pages/MTBDetail';
 import { MeetingDetail } from './pages/MeetingDetail';
 import { ViewCase } from './pages/ViewCase';
+import { NotFound } from './pages/NotFound';
+import { SampleCase } from './pages/SampleCase';
+import { SampleBoard } from './pages/SampleBoard';
 
 function AuthRedirect() {
   const { isAuthenticated, loading, isInPasswordRecovery } = useAuth();
@@ -25,7 +32,7 @@ function AuthRedirect() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+        <div className="text-text-muted">Loading...</div>
       </div>
     );
   }
@@ -72,8 +79,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-600 font-medium animate-pulse">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-text-muted font-medium animate-pulse">Loading...</div>
       </div>
     );
   }
@@ -89,15 +96,37 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ThemeProvider>
+        <OnboardingProvider>
         <CasesProvider>
           <CaseCreationProvider>
+            {/* Above every full-screen overlay (Modal 99999-100000, document
+                workspace 110000) — at react-hot-toast's default 9999, a
+                success or error message raised while one was open rendered
+                underneath it and was never seen. */}
             <Toaster
               position="bottom-right"
+              containerStyle={{ zIndex: 130000 }}
               toastOptions={{
                 className: 'toast-slide-up',
               }}
-            />
+            >
+              {(t) => (
+                <ToastBar toast={t}>
+                  {({ icon, message }) => (
+                    <>
+                      {icon}
+                      {message}
+                      {t.type !== 'loading' && (
+                        <DismissButton onClick={() => toast.dismiss(t.id)} label="Dismiss notification" />
+                      )}
+                    </>
+                  )}
+                </ToastBar>
+              )}
+            </Toaster>
             <AuthRecoveryHandler />
+            <TourOverlay />
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
@@ -134,6 +163,22 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ReviewCase />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sample-case"
+              element={
+                <ProtectedRoute>
+                  <SampleCase />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/sample-board"
+              element={
+                <ProtectedRoute>
+                  <SampleBoard />
                 </ProtectedRoute>
               }
             />
@@ -179,9 +224,12 @@ function App() {
             />
 
             <Route path="/" element={<AuthRedirect />} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </CaseCreationProvider>
       </CasesProvider>
+      </OnboardingProvider>
+      </ThemeProvider>
     </AuthProvider>
   </BrowserRouter>
   );

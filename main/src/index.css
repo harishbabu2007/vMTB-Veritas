@@ -4,9 +4,71 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Design tokens (primitive -> semantic). Redefined under :root.dark for dark
+   mode. Consumed via Tailwind color classes (bg-bg, text-text, etc, see
+   tailwind.config.js) and directly as CSS vars in plain-CSS rules below. */
+:root {
+	--color-bg: #f9fafb;
+	--color-surface: #ffffff;
+	--color-text: #111827;
+	--color-text-muted: #4A5565;
+	--color-border: #e5e7eb;
+	--color-primary: #4A90E2;
+	--color-primary-hover: #357ABD;
+
+	--color-status-processing-bg: #eff6ff;
+	--color-status-processing-text: #1d4ed8;
+	--color-status-pending-bg: #fefce8;
+	--color-status-pending-text: #a16207;
+	--color-status-verified-bg: #f0fdf4;
+	--color-status-verified-text: #15803d;
+	--color-status-failed-bg: #fef2f2;
+	--color-status-failed-text: #b91c1c;
+	--color-status-mtb-updated-bg: #fffbeb;
+	--color-status-mtb-updated-text: #b45309;
+
+	--color-tour-backdrop: rgba(17, 24, 39, 0.55);
+}
+
+/* Dark-mode status colors are chosen with deliberately spread hues (not a
+   uniform darken of the light values) so the 5 statuses stay mutually
+   distinguishable on a dark surface, not just individually readable. */
+:root.dark {
+	--color-bg: #0f1115;
+	--color-surface: #1a1d23;
+	--color-text: #f3f4f6;
+	--color-text-muted: #9ca3af;
+	--color-border: #2d3138;
+	--color-primary: #5b9ee8;
+	--color-primary-hover: #7fb3ff;
+
+	--color-status-processing-bg: #17233b;
+	--color-status-processing-text: #7fb3ff;
+	--color-status-pending-bg: #3a2f10;
+	--color-status-pending-text: #f2c94c;
+	--color-status-verified-bg: #142c1d;
+	--color-status-verified-text: #4ade80;
+	--color-status-failed-bg: #3a1414;
+	--color-status-failed-text: #f87171;
+	--color-status-mtb-updated-bg: #3a2410;
+	--color-status-mtb-updated-text: #fb923c;
+
+	--color-tour-backdrop: rgba(0, 0, 0, 0.7);
+}
+
 @layer base {
 	body {
 		font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+		background-color: var(--color-bg);
+		color: var(--color-text);
+	}
+
+	/* Default form-field surface so every input/select/textarea follows the
+	   theme even where a component didn't set an explicit bg-* class — a
+	   Tailwind bg-* class on the element still wins (higher specificity). */
+	input, select, textarea {
+		background-color: var(--color-surface);
+		color: var(--color-text);
 	}
 
 	/* Disable browser default password reveal and clear buttons (Edge/Chrome/Safari) */
@@ -37,7 +99,7 @@
 .summary-editor h1 {
 	font-size: 2rem;
 	font-weight: bold;
-	color: #111827;
+	color: var(--color-text);
 	margin-bottom: 1rem;
 	margin-top: 1.5rem;
 }
@@ -49,7 +111,7 @@
 .summary-editor h2 {
 	font-size: 1.5rem;
 	font-weight: bold;
-	color: #111827;
+	color: var(--color-text);
 	margin-bottom: 0.75rem;
 	margin-top: 1.25rem;
 }
@@ -61,7 +123,7 @@
 .summary-editor h3 {
 	font-size: 1.25rem;
 	font-weight: bold;
-	color: #111827;
+	color: var(--color-text);
 	margin-bottom: 0.5rem;
 	margin-top: 1rem;
 }
@@ -73,7 +135,7 @@
 .summary-editor h4 {
 	font-size: 1.125rem;
 	font-weight: bold;
-	color: #111827;
+	color: var(--color-text);
 	margin-bottom: 0.5rem;
 	margin-top: 0.75rem;
 }
@@ -83,7 +145,7 @@
 }
 
 .summary-editor p {
-	color: #1f2937;
+	color: var(--color-text-muted);
 	margin-bottom: 1rem;
 	line-height: 1.625;
 }
@@ -92,7 +154,7 @@
 	list-style-type: disc;
 	list-style-position: outside;
 	margin-left: 1.5rem;
-	color: #1f2937;
+	color: var(--color-text-muted);
 	margin-bottom: 1rem;
 }
 
@@ -100,23 +162,23 @@
 	list-style-type: decimal;
 	list-style-position: outside;
 	margin-left: 1.5rem;
-	color: #1f2937;
+	color: var(--color-text-muted);
 	margin-bottom: 1rem;
 }
 
 .summary-editor li {
-	color: #1f2937;
+	color: var(--color-text-muted);
 	margin-bottom: 0.25rem;
 }
 
 .summary-editor strong {
 	font-weight: bold;
-	color: #111827;
+	color: var(--color-text);
 }
 
 .summary-editor em {
 	font-style: italic;
-	color: #1f2937;
+	color: var(--color-text-muted);
 }
 
 .summary-editor u {
@@ -139,6 +201,154 @@
 	animation: slideUp 0.3s ease-out;
 }
 
+/* First-time walkthrough (components/onboarding/TourOverlay.tsx). The
+   spotlight's outer shadow dims everything around the highlighted control and
+   glides between targets; that glide is the tour's one bit of motion. */
+.tour-backdrop {
+	background-color: var(--color-tour-backdrop);
+}
+
+.tour-spotlight {
+	/* 100vmax reaches every viewport edge from anywhere on screen; a fixed
+	   huge spread (e.g. 9999px) paints a layer hundreds of megapixels large. */
+	box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 100vmax var(--color-tour-backdrop);
+	transition: top 200ms ease-out, left 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
+}
+
+@keyframes tourFadeIn {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.tour-popover {
+	animation: tourFadeIn 150ms ease-out;
+}
+
+/* A file row that just arrived (the walkthrough's sample drop). */
+@keyframes arrivedFlash {
+	from {
+		background-color: var(--color-status-processing-bg);
+		border-color: var(--color-primary);
+	}
+}
+
+.file-arrived {
+	animation: arrivedFlash 900ms ease-out;
+}
+
+/* A status badge changing (the sample case going In Progress → Pending). */
+@keyframes statusSwap {
+	from {
+		opacity: 0;
+		transform: scale(0.92);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.status-swap {
+	animation: statusSwap 200ms ease-out;
+}
+
+.content-reveal {
+	animation: tourFadeIn 150ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tour-spotlight {
+		transition: none;
+	}
+	.tour-popover,
+	.file-arrived,
+	.status-swap,
+	.content-reveal {
+		animation: none;
+	}
+}
+
+/* Step 2's Dictate control: the legacy VoiceRecorder (left untouched) inside
+   a labelled pill. The recorder's own mic button is stretched over the whole
+   pill, so clicking the word "Dictate" starts recording too. While it's
+   recording or transcribing, the recorder's bar replaces the pill. */
+.dictate-control {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	min-height: 36px;
+	padding: 0 12px;
+	border: 1px solid var(--color-border);
+	border-radius: 8px;
+	background-color: var(--color-surface);
+	color: var(--color-primary);
+	font-size: 14px;
+	font-weight: 500;
+	transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.dictate-control:hover {
+	background-color: var(--color-status-processing-bg);
+	border-color: var(--color-primary);
+}
+
+.dictate-control:focus-within {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+}
+
+.dictate-control .voice-recorder-mic-btn {
+	position: static;
+	color: inherit;
+}
+
+.dictate-control .voice-recorder-mic-btn:focus {
+	outline: none;
+}
+
+.dictate-control .voice-recorder-mic-btn::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+}
+
+.dictate-control .voice-recorder-error {
+	position: absolute;
+	top: 100%;
+	right: 0;
+	white-space: nowrap;
+}
+
+.dictate-control:has(.voice-recorder-bar, .voice-recorder-loading) {
+	flex-basis: 100%;
+	padding: 0;
+	border: 0;
+	background: transparent;
+	outline: none;
+}
+
+.dictate-control:has(.voice-recorder-bar, .voice-recorder-loading) .dictate-label {
+	display: none;
+}
+
+.dictate-control:has(.voice-recorder-bar, .voice-recorder-loading) > .voice-recorder {
+	flex: 1;
+}
+
+@media (max-width: 640px) {
+	.dictate-control {
+		min-height: 44px;
+	}
+}
+
 /* ============================
    MOBILE-SPECIFIC STYLES
    Only applied for phone-sized screens (max-width: 640px)
@@ -158,6 +368,28 @@
 @media (max-width: 640px) {
 	.desktop-nav {
 		display: none !important;
+	}
+}
+
+/* Case page tab bar: pinned directly under the sticky top nav. The offset is
+   the nav's height plus its 1px bottom border (desktop h-12, mobile h-14,
+   phone landscape 48px). The page background hides content scrolling under it. */
+.case-tabs-sticky {
+	position: sticky;
+	top: 49px;
+	z-index: 40;
+	background-color: var(--color-bg);
+}
+
+@media (max-width: 640px) {
+	.case-tabs-sticky {
+		top: 57px;
+	}
+}
+
+@media (max-width: 900px) and (max-height: 500px) {
+	.case-tabs-sticky {
+		top: 49px;
 	}
 }
 
@@ -311,7 +543,7 @@
 
 	/* Mobile case card list view */
 	.mobile-case-card {
-		background: white;
+		background: var(--color-surface);
 		border-radius: 0.5rem;
 		box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 		padding: 1rem;
@@ -327,7 +559,7 @@
 
 	.mobile-case-card-title {
 		font-weight: 600;
-		color: #111827;
+		color: var(--color-text);
 		font-size: 0.9rem;
 		line-height: 1.25;
 	}
@@ -337,7 +569,7 @@
 		grid-template-columns: 1fr 1fr;
 		gap: 0.5rem;
 		font-size: 0.75rem;
-		color: #6b7280;
+		color: var(--color-text-muted);
 	}
 
 	.mobile-case-card-actions {
@@ -345,7 +577,7 @@
 		gap: 0.5rem;
 		margin-top: 0.75rem;
 		padding-top: 0.75rem;
-		border-top: 1px solid #e5e7eb;
+		border-top: 1px solid var(--color-border);
 	}
 
 	/* Mobile MTB cards - 2 column grid on larger phones, 1 on small */

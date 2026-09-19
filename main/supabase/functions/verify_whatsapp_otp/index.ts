@@ -243,9 +243,57 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Action B: Signup / Existing User Update (Google OAuth completion)
+    // Action B: Signup / Existing User Update (Google OAuth completion, or an
+    // authenticated user changing their own WhatsApp number from their profile)
     if (user_id) {
       console.log("[verify_whatsapp_otp] Updating existing user ID:", user_id);
+
+      // --- Identity check: this branch writes to a specific profile, so the
+      // caller must be authenticated as that exact user. Never trust the
+      // body-supplied user_id on its own — resolve the real caller from their
+      // JWT and require it to match. ---
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const supabaseAsCaller = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: callerData, error: callerErr } = await supabaseAsCaller.auth.getUser();
+      if (callerErr || !callerData?.user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired session. Please log in again." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (callerData.user.id !== user_id) {
+        console.error("[verify_whatsapp_otp] user_id mismatch: JWT subject differs from requested user_id");
+        return new Response(
+          JSON.stringify({ error: "You can only update your own profile." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // --- Reject if this WhatsApp number is already registered to a
+      // different account, before making any writes. ---
+      const { data: existingOwners, error: dupErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`)
+        .neq("id", user_id);
+
+      if (dupErr) {
+        console.error("[verify_whatsapp_otp] duplicate-check error:", JSON.stringify(dupErr, Object.getOwnPropertyNames(dupErr)));
+      } else if (existingOwners && existingOwners.length > 0) {
+        return new Response(
+          JSON.stringify({ error: "This WhatsApp number is already registered to another account." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Step B1: Update Password on auth.users (CRITICAL)
       if (password) {

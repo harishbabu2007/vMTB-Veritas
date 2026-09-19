@@ -7,7 +7,7 @@ const POLL_INTERVAL_MS = 3000; // Poll every 3 seconds
 const POLL_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes safety timeout
 const SUPABASE_TABLE = 'speech_transcriptions';
 
-export type TranscriptionSource = 'step2' | 'general_opinion' | 'question' | 'answer' | 'reply';
+export type TranscriptionSource = 'step2' | 'general_opinion' | 'question' | 'answer' | 'reply' | 'feedback';
 
 // ─── UUID v4 Generator ──────────────────────────────────────────────────────
 export function generateUUID(): string {
