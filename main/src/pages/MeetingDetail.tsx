@@ -1,0 +1,323 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, CalendarDays, Clock, Users, FileText, AlertCircle, CheckCircle2, Loader2, ClipboardList } from 'lucide-react';
+import { Layout } from '../components/Layout';
+import { supabase } from '../Supabase/client';
+import { useIsMobile } from '../hooks/useMobile';
+
+const MOM_REFRESH_INTERVAL_MS = 60_000;
+
+interface MeetingSession {
+  id: string;
+  mtb_id: string;
+  room_name: string;
+  started_at: string;
+  ended_at: string | null;
+  total_duration_seconds: number | null;
+  max_participants: number;
+  status: 'active' | 'ended';
+}
+
+interface MomData {
+  summary: string;
+  decisions: string[];
+  action_items: Array<{ owner?: string; task: string }>;
+  discussion_points: string[];
+  generated_at: string;
+  model: string;
+}
+
+interface Transcript {
+  id: string;
+  meeting_id: string;
+  status: string;
+  mom: MomData | null;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+function formatDuration(seconds: number | null): string {
+  if (!seconds) return '—';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  if (m > 0) return `${m}m ${s}s`;
+  return `${s}s`;
+}
+
+function formatDate(dateStr: string): string {
+  return new Date(dateStr).toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatTime(dateStr: string): string {
+  return new Date(dateStr).toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+export function MeetingDetail() {
+  const { mtbId, meetingId } = useParams<{ mtbId: string; meetingId: string }>();
+  const navigate = useNavigate();
+  const isMobile = useIsMobile();
+
+  const [session, setSession] = useState<MeetingSession | null>(null);
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchData = useCallback(async () => {
+    if (!meetingId || !mtbId) return;
+
+    try {
+      const { data: sessionData, error: sessionError } = await supabase
+        .from('meeting_sessions')
+        .select('*')
+        .eq('id', meetingId)
+        .eq('mtb_id', mtbId)
+        .maybeSingle();
+
+      if (sessionError) {
+        console.error('Failed to fetch meeting session:', sessionError);
+        setError(sessionError.message);
+        return;
+      }
+
+      if (!sessionData) {
+        setError('Meeting not found');
+        return;
+      }
+
+      setSession(sessionData);
+      setError(null);
+
+      const { data: transcriptData } = await supabase
+        .rpc('get_mtb_transcripts', { p_mtb_id: mtbId });
+
+      if (transcriptData) {
+        const match = transcriptData.find((t: any) => t.meeting_id === meetingId);
+        setTranscript(match || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch meeting data:', err);
+      setError('Failed to load meeting details');
+    } finally {
+      setLoading(false);
+    }
+  }, [meetingId, mtbId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (!transcript) return;
+    const status = transcript.status?.toLowerCase();
+    if (status === 'pending' || status === 'processing') {
+      const interval = setInterval(fetchData, MOM_REFRESH_INTERVAL_MS);
+      return () => clearInterval(interval);
+    }
+  }, [transcript?.status, fetchData]);
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="text-center py-12">
+          <Loader2 className="w-6 h-6 text-gray-400 animate-spin mx-auto mb-3" />
+          <p className="text-sm text-gray-500">Loading meeting details...</p>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error || !session) {
+    return (
+      <Layout>
+        <div className="text-center py-12">
+          <p className="text-sm text-red-500">{error || 'Meeting not found'}</p>
+          <button
+            onClick={() => navigate(`/mtb/${mtbId}`)}
+            className="mt-3 text-sm text-blue-600 hover:text-blue-700"
+          >
+            Back to MTB
+          </button>
+        </div>
+      </Layout>
+    );
+  }
+
+  const momStatus = transcript?.status?.toLowerCase() || 'none';
+
+  return (
+    <Layout>
+      <div className={isMobile ? 'space-y-4' : 'space-y-6'}>
+        {/* Back button */}
+        <button
+          onClick={() => navigate(`/mtb/${mtbId}`)}
+          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Back to MTB
+        </button>
+
+        {/* Meeting metadata */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <h1 className={`font-bold ${isMobile ? 'text-lg' : 'text-xl'} mb-4`} style={{ color: '#4A5565' }}>
+            Meeting Details
+          </h1>
+          <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-4'} gap-4`}>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-500">Date</p>
+                <p className="text-sm font-medium text-gray-900">{formatDate(session.started_at)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-500">Time</p>
+                <p className="text-sm font-medium text-gray-900">{formatTime(session.started_at)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-500">Duration</p>
+                <p className="text-sm font-medium text-gray-900">{formatDuration(session.total_duration_seconds)}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Users className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <div>
+                <p className="text-xs text-gray-500">Max Participants</p>
+                <p className="text-sm font-medium text-gray-900">{session.max_participants}</p>
+              </div>
+            </div>
+          </div>
+          {session.status === 'active' && (
+            <div className="mt-4 flex items-center gap-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-green-700">Meeting in progress</span>
+            </div>
+          )}
+        </div>
+
+        {/* Minutes of Meeting */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <ClipboardList className="w-5 h-5" style={{ color: '#4A90E2' }} />
+            <h2 className={`font-bold ${isMobile ? 'text-base' : 'text-lg'}`} style={{ color: '#4A5565' }}>
+              Minutes of Meeting
+            </h2>
+          </div>
+
+          {/* MoM Status: Pending / Processing */}
+          {(momStatus === 'pending' || momStatus === 'processing') && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
+              <Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto mb-3" />
+              <p className="text-sm font-medium text-yellow-800">Minutes of Meeting are being generated</p>
+              <p className="text-xs text-yellow-600 mt-1">This page will refresh automatically every minute.</p>
+            </div>
+          )}
+
+          {/* MoM Status: Failed */}
+          {momStatus === 'failed' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
+              <p className="text-sm font-medium text-red-800">MoM generation failed</p>
+              {transcript?.error_message && (
+                <p className="text-xs text-red-600 mt-1">{transcript.error_message}</p>
+              )}
+            </div>
+          )}
+
+          {/* MoM Status: None (no transcript) */}
+          {momStatus === 'none' && (
+            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+              <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-500">No transcript available for this meeting.</p>
+              <p className="text-xs text-gray-400 mt-1">Transcripts are only available for meetings with live transcription enabled.</p>
+            </div>
+          )}
+
+          {/* MoM Status: Completed — show content */}
+          {momStatus === 'completed' && transcript?.mom && (
+            <div className="space-y-5">
+              {/* Summary */}
+              <div>
+                <h3 className="text-sm font-semibold text-gray-700 mb-2">Summary</h3>
+                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{transcript.mom.summary}</p>
+              </div>
+
+              {/* Decisions */}
+              {transcript.mom.decisions && transcript.mom.decisions.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Decisions</h3>
+                  <ul className="space-y-1.5">
+                    {transcript.mom.decisions.map((decision, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                        <span>{decision}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Action Items */}
+              {transcript.mom.action_items && transcript.mom.action_items.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Action Items</h3>
+                  <ul className="space-y-1.5">
+                    {transcript.mom.action_items.map((item, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <span className="w-4 h-4 rounded border border-blue-300 flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-medium text-blue-600">
+                          {i + 1}
+                        </span>
+                        <span>
+                          {item.owner && <span className="font-medium text-gray-800">{item.owner}: </span>}
+                          {item.task}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Discussion Points */}
+              {transcript.mom.discussion_points && transcript.mom.discussion_points.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Discussion Points</h3>
+                  <ul className="space-y-1.5">
+                    {transcript.mom.discussion_points.map((point, i) => (
+                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                        <span className="w-1 h-1 bg-gray-400 rounded-full flex-shrink-0 mt-2" />
+                        <span>{point}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Metadata */}
+              <div className="pt-3 border-t border-gray-100">
+                <p className="text-xs text-gray-400">
+                  Generated {formatDate(transcript.mom.generated_at)} at {formatTime(transcript.mom.generated_at)}
+                  {transcript.mom.model && ` · Model: ${transcript.mom.model}`}
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </Layout>
+  );
+}

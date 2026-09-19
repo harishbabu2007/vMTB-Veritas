@@ -19,6 +19,7 @@ import NewCaseStep2 from './pages/NewCaseStep2';
 import ReviewCase from './pages/ReviewCase';
 import { MTBs } from './pages/MTBs';
 import { MTBDetail } from './pages/MTBDetail';
+import { MeetingDetail } from './pages/MeetingDetail';
 import { ViewCase } from './pages/ViewCase';
 import { NotFound } from './pages/NotFound';
 import { SampleCase } from './pages/SampleCase';
@@ -210,6 +211,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <ViewCase />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/mtb/:mtbId/meeting/:meetingId"
+              element={
+                <ProtectedRoute>
+                  <MeetingDetail />
                 </ProtectedRoute>
               }
             />
