@@ -101,20 +101,20 @@ export function OpinionComment({
 
   return (
     <div style={{ marginLeft: `${marginLeft}px` }}>
-      <div className={`${compact ? 'py-2' : depth === 0 ? 'bg-surface rounded-xl shadow-sm border border-border p-4' : 'pl-4 py-3 border-l-2 border-blue-100'}`}>
+      <div className={`${compact ? 'py-2' : depth === 0 ? 'bg-surface rounded-xl shadow-sm border border-border p-4' : 'pl-4 py-3 border-l-2 border-info-border'}`}>
         {/* Author and timestamp */}
         <div className="flex items-center gap-2 mb-1.5">
           {/* Intentionally NOT a real-photo Avatar: authorLabel is anonymized
               ("You"/"Case Owner"/"Anonymous XX"), and showing the real profile
               photo here would deanonymize case discussions. */}
-          <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-            <span className="text-[10px] font-bold text-blue-600">{authorLabel.charAt(0).toUpperCase()}</span>
+          <div className="w-6 h-6 rounded-full bg-info-bg-strong flex items-center justify-center flex-shrink-0">
+            <span className="text-[10px] font-bold text-info">{authorLabel.charAt(0).toUpperCase()}</span>
           </div>
           <span className="text-sm font-semibold text-text">{authorLabel}</span>
           {isCaseOwner && !isOwnOpinion && (
-            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-blue-50 text-blue-600">Owner</span>
+            <span className="px-1.5 py-0.5 text-[9px] font-medium rounded bg-info-bg text-info">Owner</span>
           )}
-          <span className="text-xs text-gray-400">{timeAgo(opinion.createdAt)}</span>
+          <span className="text-xs text-text-subtle">{timeAgo(opinion.createdAt)}</span>
         </div>
 
         {/* Content */}
@@ -124,7 +124,7 @@ export function OpinionComment({
         <div className="flex items-center gap-4 mt-2 ml-8">
           <button
             onClick={() => setLiked(!liked)}
-            className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-blue-600' : 'text-gray-400 hover:text-blue-500'}`}
+            className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-info' : 'text-text-subtle hover:text-info'}`}
           >
             <ThumbsUp className="w-3 h-3" />
             <span>Like</span>
@@ -132,14 +132,14 @@ export function OpinionComment({
           {canReply && (
             <button
               onClick={() => setShowReplyInput(!showReplyInput)}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition-colors"
+              className="flex items-center gap-1 text-xs text-text-subtle hover:text-info transition-colors"
             >
               <Reply className="w-3 h-3" />
               <span>Reply</span>
             </button>
           )}
           {replies.length > 0 && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-text-subtle">
               {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
             </span>
           )}
@@ -170,13 +170,13 @@ export function OpinionComment({
               <button
                 onClick={handleSubmitReply}
                 disabled={submitting || !replyText.trim()}
-                className="px-3 py-1.5 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+                className="px-3 py-1.5 text-xs font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
               >
                 {submitting ? 'Posting...' : 'Reply'}
               </button>
               <button
                 onClick={() => { setShowReplyInput(false); setReplyText(''); }}
-                className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="px-3 py-1.5 text-xs font-medium border border-border rounded-lg text-text-muted hover:bg-surface-hover transition-colors"
               >
                 Cancel
               </button>

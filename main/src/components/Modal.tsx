@@ -21,7 +21,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
     <div className="fixed inset-0 z-[99999] flex items-center justify-center px-4" aria-labelledby="modal-title" role="dialog" aria-modal="true">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-gray-500 bg-opacity-75"
+        className="fixed inset-0 bg-overlay"
         onClick={onClose}
         aria-hidden="true"
       />

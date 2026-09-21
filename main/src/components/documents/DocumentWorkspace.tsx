@@ -49,7 +49,7 @@ interface DocumentWorkspaceProps {
 type Mode = 'view' | 'redact';
 type Zoom = 'width' | 'page' | number;
 
-const PRIMARY = 'var(--color-primary)';
+const PRIMARY = 'var(--color-primary-solid)';
 const INK = 'var(--color-text-muted)';
 const CANVAS_BG = 'var(--color-bg)';
 const MAX_FIT_WIDTH = 1000;
@@ -303,7 +303,7 @@ export function DocumentWorkspace({
       <header className="h-12 flex-shrink-0 flex items-center gap-2 sm:gap-3 px-2 sm:px-4 border-b border-border bg-surface">
         <button
           onClick={requestBack}
-          className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          className="flex items-center gap-1.5 px-2 py-1.5 text-sm font-medium rounded-lg hover:bg-surface-muted transition-colors"
           style={{ color: INK }}
           aria-label="Back to reports"
         >
@@ -314,7 +314,7 @@ export function DocumentWorkspace({
         {isMobile && documents.length > 1 && (
           <button
             onClick={() => selectDocument(documents[(activeIndex - 1 + documents.length) % documents.length].filename)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-2 rounded-lg hover:bg-surface-muted"
             aria-label="Previous document"
           >
             <ChevronLeft className="w-4 h-4" style={{ color: INK }} />
@@ -330,7 +330,7 @@ export function DocumentWorkspace({
         {isMobile && documents.length > 1 && (
           <button
             onClick={() => selectDocument(documents[(activeIndex + 1) % documents.length].filename)}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-2 rounded-lg hover:bg-surface-muted"
             aria-label="Next document"
           >
             <ChevronRight className="w-4 h-4" style={{ color: INK }} />
@@ -363,17 +363,17 @@ export function DocumentWorkspace({
                 {page.current} / {page.total}
               </span>
             )}
-            <button onClick={() => stepZoom(-1)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Zoom out">
+            <button onClick={() => stepZoom(-1)} className="p-1.5 rounded-lg hover:bg-surface-muted" aria-label="Zoom out">
               <Minus className="w-4 h-4" />
             </button>
             <button
               onClick={() => setZoom(zoom === 'width' ? 'page' : 'width')}
-              className="px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 min-w-[5.5rem] text-center"
+              className="px-2 py-1 rounded-lg hover:bg-surface-muted min-w-[5.5rem] text-center"
               title="Switch between fitting the page width and the whole page"
             >
               {zoom === 'width' ? 'Fit width' : zoom === 'page' ? 'Fit page' : `${Math.round(numericZoom * 100)}%`}
             </button>
-            <button onClick={() => stepZoom(1)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Zoom in">
+            <button onClick={() => stepZoom(1)} className="p-1.5 rounded-lg hover:bg-surface-muted" aria-label="Zoom in">
               <Plus className="w-4 h-4" />
             </button>
           </div>
@@ -393,7 +393,7 @@ export function DocumentWorkspace({
               }
             }}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-              isDeleted ? 'text-red-600 bg-red-50 hover:bg-red-100' : 'text-text-muted hover:text-red-600 hover:bg-red-50'
+              isDeleted ? 'text-danger bg-danger-bg hover:bg-danger-bg-strong' : 'text-text-muted hover:text-danger hover:bg-danger-bg'
             }`}
             aria-pressed={isDeleted}
           >
@@ -416,7 +416,7 @@ export function DocumentWorkspace({
             {discardMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setDiscardMenuOpen(false)} aria-hidden="true" />
-                <div role="menu" className="absolute right-0 top-full mt-1 z-20 w-72 rounded-lg bg-surface shadow-lg ring-1 ring-black/5 py-1">
+                <div role="menu" className="absolute right-0 top-full mt-1 z-20 w-72 rounded-lg bg-surface shadow-lg ring-1 ring-border py-1">
                   <button
                     role="menuitem"
                     disabled={changes.length === 0 && !isDeleted}
@@ -429,7 +429,7 @@ export function DocumentWorkspace({
                   <button
                     role="menuitem"
                     onClick={() => { session.discardAllDocuments(); setDiscardMenuOpen(false); }}
-                    className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                    className="w-full text-left px-3 py-2 text-sm text-danger hover:bg-danger-bg"
                   >
                     Discard changes to all documents ({session.viewerDocumentCount})
                   </button>
@@ -442,7 +442,7 @@ export function DocumentWorkspace({
         {hasViewerChanges && (
           <button
             onClick={onSaveAndClose}
-            className="px-4 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
+            className="px-4 py-1.5 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity whitespace-nowrap"
             style={{ backgroundColor: PRIMARY }}
           >
             Save changes ({session.viewerChangeCount})
@@ -474,19 +474,19 @@ export function DocumentWorkspace({
                     {d.thumbnail ? (
                       <img src={d.thumbnail} alt="" className="w-full h-full object-contain bg-surface" />
                     ) : (
-                      <FileText className="w-6 h-6 text-gray-300" aria-hidden="true" />
+                      <FileText className="w-6 h-6 text-text-faint" aria-hidden="true" />
                     )}
                     {(edited || deleted || updating) && (
                       <span
-                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-white shadow ${
-                          updating ? 'bg-gray-500' : deleted ? 'bg-red-500' : 'bg-green-600'
+                        className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-on-solid shadow ${
+                          updating ? 'bg-neutral-solid' : deleted ? 'bg-danger-solid' : 'bg-success-solid'
                         }`}
                       >
                         {updating ? <Loader2 className="w-3 h-3 animate-spin" /> : deleted ? <Trash2 className="w-3 h-3" /> : <Check className="w-3 h-3" />}
                       </span>
                     )}
                   </div>
-                  <p className={`mt-1 text-[11px] leading-tight line-clamp-2 ${deleted ? 'line-through text-gray-400' : ''}`} style={deleted ? undefined : { color: INK }}>
+                  <p className={`mt-1 text-[11px] leading-tight line-clamp-2 ${deleted ? 'line-through text-text-subtle' : ''}`} style={deleted ? undefined : { color: INK }}>
                     {d.displayName}
                   </p>
                 </button>
@@ -498,7 +498,7 @@ export function DocumentWorkspace({
         {/* Document */}
         <div className="relative flex-1 min-w-0 flex flex-col" style={{ backgroundColor: CANVAS_BG }}>
           {isDeleted && (
-            <div className="flex items-center justify-center gap-3 px-4 py-2 text-sm bg-red-50 text-red-700 border-b border-red-100">
+            <div className="flex items-center justify-center gap-3 px-4 py-2 text-sm bg-danger-bg text-danger-text border-b border-danger-border">
               <span>This document will be removed when you close.</span>
               <button onClick={() => session.toggleDelete(doc.filename)} className="font-medium underline underline-offset-2">
                 Keep it
@@ -546,7 +546,7 @@ export function DocumentWorkspace({
       </div>
       {confirmLeave && (
         <div className="fixed inset-0 z-[120000] flex items-center justify-center px-4" role="alertdialog" aria-modal="true" aria-labelledby="discard-title">
-          <div className="absolute inset-0 bg-gray-900/40" onClick={() => setConfirmLeave(false)} aria-hidden="true" />
+          <div className="absolute inset-0 bg-overlay" onClick={() => setConfirmLeave(false)} aria-hidden="true" />
           <div className="relative w-full max-w-md rounded-xl bg-surface shadow-xl p-6">
             <h3 id="discard-title" className="text-base font-semibold" style={{ color: INK }}>
               Discard your changes?
@@ -564,7 +564,7 @@ export function DocumentWorkspace({
               >
                 Keep editing
               </button>
-              <button onClick={discardAndLeave} className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700">
+              <button onClick={discardAndLeave} className="px-4 py-2 text-sm font-medium rounded-lg text-on-solid bg-danger-solid hover:bg-danger-solid-hover">
                 Discard and go back
               </button>
             </div>
@@ -586,11 +586,11 @@ function DocumentStateChip({ edited, deleted, updating }: { edited: boolean; del
     );
   }
   if (deleted) {
-    return <span className="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full bg-red-50 text-red-700">Removing</span>;
+    return <span className="flex-shrink-0 px-2 py-0.5 text-xs font-medium rounded-full bg-danger-bg text-danger-text">Removing</span>;
   }
   if (edited) {
     return (
-      <span className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-green-50 text-green-700">
+      <span className="flex-shrink-0 flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-success-bg text-success">
         <Check className="w-3 h-3" aria-hidden="true" /> Saved
       </span>
     );
@@ -615,7 +615,7 @@ function ToolPill({ tool, onTool, style, onStyle, canUndo, canRedo, onUndo, onRe
       onClick={() => onTool(value)}
       aria-pressed={tool === value}
       className={`flex items-center gap-1.5 px-3 h-9 rounded-full text-sm font-medium transition-colors ${
-        tool === value ? 'text-white' : 'text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800'
+        tool === value ? 'text-on-solid' : 'text-text-muted hover:bg-surface-muted'
       }`}
       style={tool === value ? { backgroundColor: PRIMARY } : undefined}
     >
@@ -625,7 +625,7 @@ function ToolPill({ tool, onTool, style, onStyle, canUndo, canRedo, onUndo, onRe
   );
 
   return (
-    <div data-tour="redact-tools" className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-full bg-surface shadow-lg ring-1 ring-black/5">
+    <div data-tour="redact-tools" className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-1 p-1 rounded-full bg-surface shadow-lg ring-1 ring-border">
       {toolButton('box', 'Box', Square)}
       {toolButton('freehand', 'Draw', PenTool)}
       <span className="w-px h-6 bg-border mx-1" aria-hidden="true" />
@@ -638,17 +638,17 @@ function ToolPill({ tool, onTool, style, onStyle, canUndo, canRedo, onUndo, onRe
             aria-label={`${opt.label} fill`}
             title={`${opt.label} fill`}
             onClick={() => onStyle(opt.value)}
-            className={`w-9 h-9 rounded-full flex items-center justify-center ${style === opt.value ? 'ring-2 ring-primary' : 'hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+            className={`w-9 h-9 rounded-full flex items-center justify-center ${style === opt.value ? 'ring-2 ring-primary' : 'hover:bg-surface-muted'}`}
           >
-            <span className="w-5 h-5 rounded-full border border-gray-300" style={{ backgroundColor: styleFill(opt.value) }} />
+            <span className="w-5 h-5 rounded-full border border-border-strong" style={{ backgroundColor: styleFill(opt.value) }} />
           </button>
         ))}
       </div>
       <span className="w-px h-6 bg-border mx-1" aria-hidden="true" />
-      <button onClick={onUndo} disabled={!canUndo} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30" aria-label="Undo">
+      <button onClick={onUndo} disabled={!canUndo} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-muted disabled:opacity-30" aria-label="Undo">
         <Undo2 className="w-4 h-4" />
       </button>
-      <button onClick={onRedo} disabled={!canRedo} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800 disabled:opacity-30" aria-label="Redo">
+      <button onClick={onRedo} disabled={!canRedo} className="w-9 h-9 rounded-full flex items-center justify-center text-text-muted hover:bg-surface-muted disabled:opacity-30" aria-label="Redo">
         <Redo2 className="w-4 h-4" />
       </button>
     </div>
@@ -691,12 +691,12 @@ function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, on
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold" style={{ color: INK }}>Redactions</p>
           {changes.length > 0 && (
-            <button onClick={onDiscard} className="text-xs font-medium text-text-muted hover:text-red-600">
+            <button onClick={onDiscard} className="text-xs font-medium text-text-muted hover:text-danger">
               Discard changes
             </button>
           )}
         </div>
-        <p className="text-xs text-gray-400 mt-0.5">
+        <p className="text-xs text-text-subtle mt-0.5">
           {regions.length - revealed.size + adds.length} hidden{revealed.size > 0 ? `, ${revealed.size} to reveal` : ''}
         </p>
       </div>
@@ -706,7 +706,7 @@ function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, on
         <div className="p-2 space-y-3">
           {pages.map((pageNumber) => (
             <section key={pageNumber}>
-              <button onClick={() => scrollToPage(pageNumber)} className="px-2 text-xs text-gray-400 hover:text-text-muted">
+              <button onClick={() => scrollToPage(pageNumber)} className="px-2 text-xs text-text-subtle hover:text-text-muted">
                 Page {pageNumber + 1}
               </button>
               <ul className="mt-1 space-y-0.5">
@@ -723,13 +723,13 @@ function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, on
                         />
                         <span className={`flex-1 min-w-0 ${isRevealed ? 'opacity-60' : ''}`}>
                           {pageUrl(pageNumber) && <RegionSnippet pageUrl={pageUrl(pageNumber)!} bbox={region.bbox} />}
-                          <span className="block text-[11px] text-gray-400 truncate">
+                          <span className="block text-[11px] text-text-subtle truncate">
                             {isRevealed ? 'Will be visible' : humanizeCategory(region)}
                           </span>
                         </span>
                         <button
                           onClick={() => toggle(region)}
-                          className={`text-xs font-medium px-2 py-1 rounded ${isRevealed ? 'text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800' : 'text-red-600 hover:bg-red-50'}`}
+                          className={`text-xs font-medium px-2 py-1 rounded ${isRevealed ? 'text-text-muted hover:bg-surface-muted' : 'text-danger hover:bg-danger-bg'}`}
                         >
                           {isRevealed ? 'Hide again' : 'Reveal'}
                         </button>
@@ -747,11 +747,11 @@ function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, on
                       />
                       <span className="flex-1 min-w-0">
                         {pageUrl(pageNumber) && <RegionSnippet pageUrl={pageUrl(pageNumber)!} bbox={add.bbox} />}
-                        <span className="block text-[11px] text-gray-400">New, added by you</span>
+                        <span className="block text-[11px] text-text-subtle">New, added by you</span>
                       </span>
                       <button
                         onClick={() => onChange(changes.filter((c) => c.localId !== add.localId))}
-                        className="text-xs font-medium px-2 py-1 rounded text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800"
+                        className="text-xs font-medium px-2 py-1 rounded text-text-muted hover:bg-surface-muted"
                       >
                         Remove
                       </button>
@@ -800,7 +800,7 @@ function ImageDocument({ doc, requestId, width }: { doc: WorkspaceDocument; requ
   if (!url) return <DocumentLoading />;
   return (
     <div className="py-4">
-      <img src={url} alt={doc.displayName} onError={() => setFailed(true)} className="block mx-auto bg-surface shadow-sm ring-1 ring-black/5" style={{ width }} />
+      <img src={url} alt={doc.displayName} onError={() => setFailed(true)} className="block mx-auto bg-surface shadow-sm ring-1 ring-border" style={{ width }} />
     </div>
   );
 }
@@ -825,7 +825,7 @@ function TextDocument({ doc, requestId, width }: { doc: WorkspaceDocument; reque
   if (text === null) return <DocumentLoading />;
   return (
     <div className="py-4">
-      <pre className="mx-auto bg-surface shadow-sm ring-1 ring-black/5 p-8 whitespace-pre-wrap text-sm leading-relaxed" style={{ width, color: INK }}>
+      <pre className="mx-auto bg-surface shadow-sm ring-1 ring-border p-8 whitespace-pre-wrap text-sm leading-relaxed" style={{ width, color: INK }}>
         {text}
       </pre>
     </div>

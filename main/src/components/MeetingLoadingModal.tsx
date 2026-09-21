@@ -39,9 +39,9 @@ export function MeetingLoadingModal({ isOpen, onClose }: MeetingLoadingModalProp
       <div className="flex flex-col items-center justify-center py-8 px-4">
         {/* Animated Icon */}
         <div className="relative mb-6">
-          <div className="absolute inset-0 bg-green-100 rounded-full animate-ping opacity-75"></div>
-          <div className="relative bg-green-600 p-6 rounded-full">
-            <Video className="w-12 h-12 text-white" />
+          <div className="absolute inset-0 bg-success-bg-strong rounded-full animate-ping opacity-75"></div>
+          <div className="relative bg-success-solid p-6 rounded-full">
+            <Video className="w-12 h-12 text-on-solid" />
           </div>
         </div>
 
@@ -52,7 +52,7 @@ export function MeetingLoadingModal({ isOpen, onClose }: MeetingLoadingModalProp
 
         {/* Status Message */}
         <div className="flex items-center space-x-3 mb-6">
-          <Loader2 className="w-6 h-6 text-green-600 animate-spin" />
+          <Loader2 className="w-6 h-6 text-success animate-spin" />
           <span className="text-text font-medium">
             Please wait{dots}
           </span>
@@ -65,18 +65,18 @@ export function MeetingLoadingModal({ isOpen, onClose }: MeetingLoadingModalProp
         </div>
 
         {/* Status Messages */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 max-w-md w-full">
-          <ul className="space-y-2 text-sm text-gray-700">
+        <div className="bg-info-bg border border-info-border rounded-lg p-4 max-w-md w-full">
+          <ul className="space-y-2 text-sm text-text-muted">
             <li className="flex items-start">
-              <span className="text-blue-600 mr-2">•</span>
+              <span className="text-info mr-2">•</span>
               <span>Initializing secure video server</span>
             </li>
             <li className="flex items-start">
-              <span className="text-blue-600 mr-2">•</span>
+              <span className="text-info mr-2">•</span>
               <span>This typically takes 30–60 seconds</span>
             </li>
             <li className="flex items-start">
-              <span className="text-blue-600 mr-2">•</span>
+              <span className="text-info mr-2">•</span>
               <span>You'll be redirected automatically when ready</span>
             </li>
           </ul>

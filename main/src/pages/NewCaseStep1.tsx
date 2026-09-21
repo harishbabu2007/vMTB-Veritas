@@ -10,6 +10,14 @@ import { useOnboarding } from '../context/OnboardingContext';
 import { SampleDropAnimation } from '../components/onboarding/SampleDropAnimation';
 import { SamplePdf } from '../components/onboarding/SamplePdf';
 import { SAMPLE_CANCER_TYPE, SAMPLE_FILE_NAME, SAMPLE_PDF_URL } from '../onboarding/sampleCase';
+import { CancerTypeSelect } from '../components/CancerTypeSelect';
+import {
+  CANCER_TYPES,
+  CancerType,
+  OTHER_CANCER_TYPE_ID,
+  buildCaseName,
+  findCancerTypeByName,
+} from '../data/cancerTypes';
 import { FileText, X, Upload, AlertCircle, Info, Eye, EyeOff } from 'lucide-react';
 // @ts-ignore - pdfjs types may not be available
 import * as pdfjsLib from 'pdfjs-dist';
@@ -66,182 +74,50 @@ export default function NewCaseStep1() {
     patientName: step1Data?.patientName || '',
     cancerType: step1Data?.cancerType || '',
   });
+  // The chosen entry from the cancer-type list: its abbreviation is what the
+  // case name is built from. "Other Cancer Type (Not Listed)" adds a
+  // free-text box, and what's typed there is what the case stores.
+  // Coming back from step 2: a stored value that isn't one of the list's own
+  // names was typed under "Other".
+  const stored = step1Data?.cancerType || '';
+  const storedType = findCancerTypeByName(stored);
+  const [cancerType, setCancerType] = useState<CancerType | null>(
+    () => storedType ?? (stored ? CANCER_TYPES.find(t => t.id === OTHER_CANCER_TYPE_ID) ?? null : null)
+  );
+  const [otherDetail, setOtherDetail] = useState(() => (storedType ? '' : stored));
+  const isOther = cancerType?.id === OTHER_CANCER_TYPE_ID;
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const cancerTypes = [
-    "Acute Lymphoblastic Leukemia",
-    "Acute Myeloid Leukemia",
-    "Adrenocortical Carcinoma",
-    "AIDS-Related Lymphoma",
-    "AIDS-Related Malignancies",
-    "Anal Cancer",
-    "Appendix Cancer",
-    "Astrocytoma",
-    "Atypical Teratoid/Rhabdoid Tumor",
-    "Bile Duct Cancer",
-    "Bladder Cancer",
-    "Bone Cancer",
-    "Brain Tumor",
-    "Breast Cancer",
-    "Bronchial Tumors",
-    "Burkitt Lymphoma",
-    "Carcinoid Tumor",
-    "Cardiac Tumors",
-    "Cervical Cancer",
-    "Childhood Cancers",
-    "Cholangiocarcinoma",
-    "Chordoma",
-    "Chronic Lymphocytic Leukemia",
-    "Chronic Myelogenous Leukemia",
-    "Chronic Myeloproliferative Neoplasms",
-    "Colon Cancer",
-    "Colorectal Cancer",
-    "Craniopharyngioma",
-    "Cutaneous T-Cell Lymphoma",
-    "Ductal Carcinoma In Situ",
-    "Embryonal Tumors",
-    "Endometrial Cancer",
-    "Ependymoma",
-    "Esophageal Cancer",
-    "Esthesioneuroblastoma",
-    "Ewing Sarcoma",
-    "Eye Cancer",
-    "Fallopian Tube Cancer",
-    "Gallbladder Cancer",
-    "Gastric Cancer",
-    "Gastrointestinal Carcinoid Tumor",
-    "Gastrointestinal Stromal Tumor",
-    "Germ Cell Tumors",
-    "Gestational Trophoblastic Disease",
-    "Glioblastoma",
-    "Glioma",
-    "Hairy Cell Leukemia",
-    "Head and Neck Cancer",
-    "Heart Tumors",
-    "Hepatocellular Cancer",
-    "Histiocytosis",
-    "Hodgkin Lymphoma",
-    "Hypopharyngeal Cancer",
-    "Intraocular Melanoma",
-    "Islet Cell Tumors",
-    "Kaposi Sarcoma",
-    "Kidney Cancer",
-    "Langerhans Cell Histiocytosis",
-    "Laryngeal Cancer",
-    "Leukemia",
-    "Lip and Oral Cavity Cancer",
-    "Liver Cancer",
-    "Lung Cancer",
-    "Lymphoma",
-    "Malignant Mesothelioma",
-    "Medulloblastoma",
-    "Melanoma",
-    "Merkel Cell Carcinoma",
-    "Mesothelioma",
-    "Metastatic Cancer",
-    "Metastatic Squamous Neck Cancer",
-    "Midline Tract Carcinoma",
-    "Mouth Cancer",
-    "Multiple Endocrine Neoplasia Syndromes",
-    "Multiple Myeloma",
-    "Mycosis Fungoides",
-    "Myelodysplastic Syndromes",
-    "Myeloproliferative Neoplasms",
-    "Nasal Cavity and Paranasal Sinus Cancer",
-    "Nasopharyngeal Cancer",
-    "Neuroblastoma",
-    "Non-Hodgkin Lymphoma",
-    "Non-Small Cell Lung Cancer",
-    "Oral Cancer",
-    "Oropharyngeal Cancer",
-    "Osteosarcoma",
-    "Ovarian Cancer",
-    "Pancreatic Cancer",
-    "Papillomatosis",
-    "Paraganglioma",
-    "Paranasal Sinus Cancer",
-    "Parathyroid Cancer",
-    "Penile Cancer",
-    "Pharyngeal Cancer",
-    "Pheochromocytoma",
-    "Pituitary Tumors",
-    "Plasma Cell Neoplasm",
-    "Pleuropulmonary Blastoma",
-    "Primary Central Nervous System Lymphoma",
-    "Primary Peritoneal Cancer",
-    "Prostate Cancer",
-    "Rectal Cancer",
-    "Renal Cell Cancer",
-    "Retinoblastoma",
-    "Rhabdomyosarcoma",
-    "Salivary Gland Cancer",
-    "Sarcoma",
-    "Sézary Syndrome",
-    "Skin Cancer",
-    "Small Cell Lung Cancer",
-    "Small Intestine Cancer",
-    "Soft Tissue Sarcoma",
-    "Squamous Cell Carcinoma",
-    "Squamous Neck Cancer",
-    "Stomach Cancer",
-    "T-Cell Lymphoma",
-    "Testicular Cancer",
-    "Throat Cancer",
-    "Thymoma",
-    "Thymic Carcinoma",
-    "Thyroid Cancer",
-    "Transitional Cell Cancer",
-    "Urethral Cancer",
-    "Uterine Cancer",
-    "Uterine Sarcoma",
-    "Vaginal Cancer",
-    "Vascular Tumors",
-    "Vulvar Cancer",
-    "Waldenstrom Macroglobulinemia",
-    "Wilms Tumor"
-  ];
-
-  // Generate case name when cancer type changes
-  useEffect(() => {
-    if (formData.cancerType) {
-      generateCaseName(formData.cancerType);
-    }
-  }, [formData.cancerType]);
-
-  const generateCaseName = async (cancerType: string) => {
-    if (!cancerType) return;
-    
-    const today = new Date();
-    const day = String(today.getDate()).padStart(2, '0');
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const year = today.getFullYear();
-    const dateStr = `${day}${month}${year}`;
-    
-    const baseName = `${cancerType.replace(/\s+/g, '')}-${dateStr}`;
-    
-    const { data } = await supabase
+  // The case name is the type's abbreviation plus 5 random digits, e.g.
+  // "ILC80981". It is generated here and never shown or edited on this
+  // screen. Generates a few at once and keeps the first one not already
+  // taken.
+  const generateCaseName = async (abbreviation: string): Promise<string> => {
+    const candidates = Array.from({ length: 5 }, () => buildCaseName(abbreviation));
+    const { data, error: lookupError } = await supabase
       .from('cases')
       .select('case_name')
-      .ilike('case_name', `${baseName}%`);
-    
-    let suffix = 1;
-    if (data && data.length > 0) {
-      const existingNumbers = data
-        .map(c => {
-          const match = c.case_name.match(new RegExp(`${baseName}-(\\d+)`));
-          return match ? parseInt(match[1], 10) : 0;
-        })
-        .filter(n => n > 0);
-      
-      if (existingNumbers.length > 0) {
-        suffix = Math.max(...existingNumbers) + 1;
-      }
+      .in('case_name', candidates);
+    if (lookupError) {
+      console.error('Error checking case names:', lookupError);
+      return candidates[0];
     }
-    
-    const generatedName = `${baseName}-${suffix}`;
-    setFormData(prev => ({ ...prev, caseName: generatedName }));
+    const taken = new Set((data ?? []).map(c => c.case_name));
+    return candidates.find(name => !taken.has(name)) ?? buildCaseName(abbreviation);
+  };
+
+  const handleCancerTypeChange = async (type: CancerType | null) => {
+    setCancerType(type);
+    if (type?.id !== OTHER_CANCER_TYPE_ID) setOtherDetail('');
+    if (!type) {
+      setFormData(prev => ({ ...prev, cancerType: '', caseName: '' }));
+      return;
+    }
+    setFormData(prev => ({ ...prev, cancerType: type.name }));
+    const caseName = await generateCaseName(type.abbreviation);
+    setFormData(prev => ({ ...prev, caseName }));
   };
 
   const isCaseNameUnique = async (caseName: string): Promise<boolean> => {
@@ -425,11 +301,12 @@ export default function NewCaseStep1() {
     setArrivedId(id);
     setShowPreview(true);
     setAnnouncement('Sample report added.');
-    // The demo case's summary is about lung cancer.
+    // The demo case's summary is about lung adenocarcinoma.
     const current = formData.cancerType.trim();
     if (current !== SAMPLE_CANCER_TYPE) {
       if (current) setNotice(`Cancer type set to ${SAMPLE_CANCER_TYPE} to match the sample.`);
-      setFormData(prev => ({ ...prev, cancerType: SAMPLE_CANCER_TYPE }));
+      const sampleType = findCancerTypeByName(SAMPLE_CANCER_TYPE);
+      if (sampleType) await handleCancerTypeChange(sampleType);
     }
   });
 
@@ -439,14 +316,25 @@ export default function NewCaseStep1() {
     setLoading(true);
 
     try {
-      const isUnique = await isCaseNameUnique(formData.caseName);
-      if (!isUnique) {
-        setError('This case name already exists. Please choose a different name.');
+      if (!cancerType) {
+        setError('Please choose a cancer type from the list.');
         return;
       }
-      
-      // Save to context
-      setStep1Data(formData);
+
+      // The name is generated, so a collision just means generating another.
+      let caseName = formData.caseName || (await generateCaseName(cancerType.abbreviation));
+      if (!(await isCaseNameUnique(caseName))) {
+        caseName = await generateCaseName(cancerType.abbreviation);
+      }
+
+      // "Other" keeps what the user typed; everything else keeps the list's
+      // own wording.
+      const typed = otherDetail.trim();
+      const cancerTypeValue = isOther && typed ? typed : cancerType.name;
+
+      const step1 = { ...formData, caseName, cancerType: cancerTypeValue };
+      setFormData(step1);
+      setStep1Data(step1);
       navigate('/cases/new/step-2');
     } catch (err: any) {
       setError(err?.message || 'Failed to validate case name');
@@ -464,10 +352,10 @@ export default function NewCaseStep1() {
         </div>
 
         {error && (
-          <div className={`mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3 ${isMobile ? 'text-xs p-3' : 'text-sm'}`}>
-            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-            <p className="text-red-700 flex-1">{error}</p>
-            <DismissButton onClick={() => setError(null)} label="Dismiss error" className="text-red-700" />
+          <div className={`mb-4 p-4 bg-danger-bg border border-danger-border rounded-lg flex items-start gap-3 ${isMobile ? 'text-xs p-3' : 'text-sm'}`}>
+            <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+            <p className="text-danger-text flex-1">{error}</p>
+            <DismissButton onClick={() => setError(null)} label="Dismiss error" className="text-danger-text" />
           </div>
         )}
 
@@ -503,25 +391,41 @@ export default function NewCaseStep1() {
 
                 <div data-tour="cancer-type">
                   <label htmlFor="cancerType" className="block text-sm font-medium mb-2 text-text">
-                    Cancer Type <span className="text-red-500">*</span>
+                    Cancer Type <span className="text-danger">*</span>
                   </label>
-                  <input
+                  <CancerTypeSelect
                     id="cancerType"
-                    type="text"
-                    list="cancerTypesList"
                     value={formData.cancerType}
-                    onChange={(e) => setFormData({ ...formData, cancerType: e.target.value })}
-                    className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
-                    placeholder="Type or select cancer type"
+                    onChange={type => void handleCancerTypeChange(type)}
                     required
                   />
-                  <datalist id="cancerTypesList">
-                    {cancerTypes.map((type) => (
-                      <option key={type} value={type} />
-                    ))}
-                  </datalist>
+                  {cancerType && !isOther && (
+                    <p className="mt-1.5 text-xs text-text-muted">
+                      Abbreviation <span className="font-mono font-semibold text-text">{cancerType.abbreviation}</span> · {cancerType.category}
+                    </p>
+                  )}
                 </div>
               </div>
+
+              {isOther && (
+                <div>
+                  <label htmlFor="cancerTypeOther" className="block text-sm font-medium mb-2 text-text">
+                    Which cancer type? <span className="text-text-muted font-normal">(optional)</span>
+                  </label>
+                  <input
+                    id="cancerTypeOther"
+                    type="text"
+                    value={otherDetail}
+                    onChange={e => setOtherDetail(e.target.value)}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-surface text-text placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-primary"
+                    style={{ fontSize: '16px' }}
+                    placeholder="Describe it in your own words"
+                  />
+                  <p className="mt-1.5 text-xs text-text-muted">
+                    The case is named with <span className="font-mono font-semibold text-text">OTHER</span>.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Upload Documents */}
@@ -551,7 +455,7 @@ export default function NewCaseStep1() {
               >
                 <Upload className={`w-8 h-8 group-hover:text-primary flex-shrink-0 ${dragActive ? 'text-primary' : 'text-text-muted'}`} />
                 <div className={isMobile ? '' : 'text-left'}>
-                  <p className={`text-sm font-medium group-hover:text-primary ${dragActive ? 'text-primary' : 'text-text'}`}>
+                  <p className={`text-sm font-medium group-hover:text-link ${dragActive ? 'text-link' : 'text-text'}`}>
                     {dragActive ? 'Drop to upload' : isMobile ? 'Tap to upload files' : 'Click or drag files here'}
                   </p>
                   <p className="text-xs text-text-muted mt-0.5">PNG, JPG, DOC, DOCX, PPT, PPTX, PDF, TXT — max 50 pages per PDF</p>
@@ -605,7 +509,7 @@ export default function NewCaseStep1() {
                           type="button"
                           onClick={() => removeFile(doc.id)}
                           aria-label={`Remove ${doc.name}`}
-                          className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                          className="text-danger hover:text-danger-text ml-2 flex-shrink-0"
                         >
                           <X className="w-5 h-5" />
                         </button>
@@ -640,7 +544,7 @@ export default function NewCaseStep1() {
                 clearAll();
                 navigate('/my-cases');
               }}
-              className={`px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${isMobile ? 'w-full' : ''}`}
+              className={`px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-surface-hover transition-colors ${isMobile ? 'w-full' : ''}`}
             >
               Cancel
             </button>
@@ -648,7 +552,7 @@ export default function NewCaseStep1() {
               type="submit"
               disabled={loading}
               data-tour="step1-continue"
-              className={`px-4 py-2 text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full' : ''}`}
+              className={`px-4 py-2 text-on-solid bg-primary-solid rounded-lg hover:bg-primary-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full' : ''}`}
             >
               {loading ? 'Validating...' : 'Continue'}
             </button>

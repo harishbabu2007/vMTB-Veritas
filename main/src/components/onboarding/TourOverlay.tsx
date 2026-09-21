@@ -503,7 +503,7 @@ function TourRun({ groupId, start }: { groupId: TourGroupId; start: number }) {
               type="button"
               onClick={primary}
               disabled={running}
-              className={`inline-flex items-center gap-1.5 text-sm font-medium text-white bg-primary hover:bg-primary-hover rounded-lg transition-colors disabled:opacity-70 ${buttonSize} ${focusRing}`}
+              className={`inline-flex items-center gap-1.5 text-sm font-medium text-on-solid bg-primary-solid hover:bg-primary-solid-hover rounded-lg transition-colors disabled:opacity-70 ${buttonSize} ${focusRing}`}
             >
               {running && <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />}
               {primaryLabel}

@@ -109,6 +109,14 @@ function App() {
               containerStyle={{ zIndex: 130000 }}
               toastOptions={{
                 className: 'toast-slide-up',
+                // Themed defaults for every toast, including direct toast() calls.
+                style: {
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text)',
+                  border: '1px solid var(--color-border)',
+                },
+                success: { iconTheme: { primary: 'var(--color-success)', secondary: 'var(--color-surface)' } },
+                error: { iconTheme: { primary: 'var(--color-danger)', secondary: 'var(--color-surface)' } },
               }}
             >
               {(t) => (

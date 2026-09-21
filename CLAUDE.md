@@ -43,7 +43,7 @@ Run these from inside each service's directory (there is no root-level install/b
 
 To run a single test file with vitest: `npm test -- path/to/file.test.ts`. To run a single pytest test: `uv run python -m pytest tests/test_streaming.py::test_name -q`.
 
-`main/` has no test suite — verification there is `npm run typecheck` + `npm run lint` + manual/browser checking.
+`main/` has no test suite — verification there is `npm run typecheck` + `npm run lint` + `npm run check:theme` (fails on hardcoded colours / `dark:` variants and checks AA token contrast — see "Theme" in `docs/AUTH_AND_NOTIFICATIONS.md`) + manual/browser checking. Style with the semantic colour tokens (`bg-surface`, `text-text-muted`, `text-danger`, …), never raw palette classes or hex. The theme defaults to light and is a per-user saved preference.
 
 ## Architecture
 
@@ -53,6 +53,7 @@ To run a single test file with vitest: `npm test -- path/to/file.test.ts`. To ru
 - `src/context/` — `AuthContext`, `CasesContext`, `CaseCreationContext` hold cross-page state. Detail: `docs/AUTH_AND_NOTIFICATIONS.md`, `docs/CASE_AND_MTB_WORKFLOW.md`.
 - `src/services/` — `meeting.ts` (meeting orchestration calls out to `jitsi-activation-backend` — though the wired-up "Start Meeting" button actually bypasses it, see `docs/CASE_AND_MTB_WORKFLOW.md`), `whatsappOtp.ts` (Gupshup OTP via Supabase Edge Functions), `voiceTranscriptionService.ts` (see "Do not touch" below).
 - `src/Supabase/client.ts` — the single Supabase client instance.
+- `src/data/cancerTypes.json` — the 418 cancer types (32 body regions, each with a standard abbreviation) offered when creating a case; replace this file to change the list. `src/data/cancerTypes.ts` wraps it with search and the case-name builder (abbreviation + 5 random digits, e.g. `ILC80981`). Detail: `docs/CASE_AND_MTB_WORKFLOW.md`.
 - Backend: Supabase (Auth, Postgres, Storage, Edge Functions, Realtime, RLS). Full table-by-table reference, including which tables actually enforce RLS: `docs/DATABASE_SCHEMA.md`.
 - `main/supabase/functions/` and `main/Supabase Edge Functions/` (Deno) — `verify_whatsapp_otp`, `send_whatsapp_otp`, `notify_case_created`, `notify_meeting`, `notify_opinion_added`. Detail: `docs/AUTH_AND_NOTIFICATIONS.md`.
 - `main/Cloud Functions/` (AWS Lambda + GCP Cloud Functions, currently git-untracked) — the document-processing backend behind `Reports.tsx`: presigned S3 uploads, PDF→PNG conversion, OCR/anonymization, and AI extraction/summarization of uploaded case documents. This is a separate pipeline from the meeting-transcription one below — don't conflate them. Full detail: `docs/DOCUMENT_AI_PIPELINE.md`.

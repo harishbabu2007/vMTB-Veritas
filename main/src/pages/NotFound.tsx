@@ -32,7 +32,7 @@ export function NotFound() {
         {window.history.length > 1 && (
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-border rounded-lg text-text bg-surface hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-border rounded-lg text-text bg-surface hover:bg-surface-hover transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Go back</span>
@@ -40,7 +40,7 @@ export function NotFound() {
         )}
         <button
           onClick={() => navigate(homePath, { replace: true })}
-          className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors"
+          className="px-4 py-2 text-sm font-medium text-on-solid bg-primary-solid rounded-lg hover:bg-primary-solid-hover transition-colors"
         >
           {homeLabel}
         </button>

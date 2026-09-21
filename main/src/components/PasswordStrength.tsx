@@ -46,11 +46,11 @@ export function PasswordStrength({ password, isFocused }: PasswordStrengthProps)
       {rules.map((rule, idx) => (
         <div key={idx} className="flex items-center space-x-2">
           {rule.met ? (
-            <Check className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+            <Check className="w-3.5 h-3.5 text-success flex-shrink-0" />
           ) : (
-            <X className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+            <X className="w-3.5 h-3.5 text-danger flex-shrink-0" />
           )}
-          <span className={`text-xs font-medium ${rule.met ? 'text-emerald-700' : 'text-red-600'}`}>
+          <span className={`text-xs font-medium ${rule.met ? 'text-success' : 'text-danger'}`}>
             {rule.label}
           </span>
         </div>

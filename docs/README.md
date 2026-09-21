@@ -18,15 +18,17 @@ repo is structured as a monorepo.
 ## Application (`main/`)
 
 - **[`DATABASE_SCHEMA.md`](DATABASE_SCHEMA.md)** — every Postgres table and
-  view, column-by-column, plus which tables actually enforce RLS (only 3 of
-  19) and a flagged committed-secret finding.
+  view, column-by-column, plus which tables actually enforce RLS (a handful;
+  `profiles` was found enabled live on 2026-09-21) and a flagged
+  committed-secret finding.
 - **[`DOCUMENT_AI_PIPELINE.md`](DOCUMENT_AI_PIPELINE.md)** — how an uploaded
   case document becomes an anonymized, AI-summarized report: the AWS Lambda
   chain, S3 layout, Bedrock models, exactly where files/summaries end up
   stored, and how owner edits are committed and processed as pipeline runs.
 - **[`AUTH_AND_NOTIFICATIONS.md`](AUTH_AND_NOTIFICATIONS.md)** — Google
-  OAuth / phone+password / WhatsApp OTP login flows, and the notification
-  Edge Functions.
+  OAuth / phone+password / WhatsApp OTP login flows, the notification Edge
+  Functions, and the per-user light/dark theme (engine, semantic colour
+  tokens, the `check:theme` guard).
 - **[`CASE_AND_MTB_WORKFLOW.md`](CASE_AND_MTB_WORKFLOW.md)** — the case
   creation wizard, case viewing/collaboration, MTB pages, and meeting
   launch. Also where patient age/sex come from (the documents, not the

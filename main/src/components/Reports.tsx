@@ -761,22 +761,22 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
   const showBlockingProcessing = isProcessing && !hasCachedReports;
 
   const statusLine = (filename: string, pending: boolean) => {
-    if (pending) return { text: 'Added, not uploaded yet', className: 'text-amber-700' };
-    if (session.deletes.includes(filename)) return { text: 'Will be removed', className: 'text-red-600' };
+    if (pending) return { text: 'Added, not uploaded yet', className: 'text-warning' };
+    if (session.deletes.includes(filename)) return { text: 'Will be removed', className: 'text-danger' };
     if (updatingFilenames.has(filename)) return { text: 'Updating…', className: 'text-text-muted' };
-    if (session.editedFilenames.has(filename)) return { text: 'Edited', className: 'text-green-700' };
+    if (session.editedFilenames.has(filename)) return { text: 'Edited', className: 'text-success' };
     return {
       text: caseData.createdDate
         ? new Date(caseData.createdDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
         : 'Report',
-      className: 'text-gray-400',
+      className: 'text-text-subtle',
     };
   };
 
   return (
     <div className="w-full flex flex-col gap-4">
       {isOwner && session.recovered && (
-        <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-2.5 rounded-lg border border-blue-200 bg-blue-50 text-sm text-blue-900" role="status">
+        <div className="flex items-center justify-between gap-3 flex-wrap px-4 py-2.5 rounded-lg border border-info-border bg-info-bg text-sm text-info-text" role="status">
           <p>
             {session.recovered === 'restored'
               ? 'Your unsaved changes were restored. They are not saved yet.'
@@ -787,24 +787,24 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
       )}
 
       {showBlockingProcessing && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6 text-center">
-          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
-          <p className="text-sm text-blue-800 font-medium">
+        <div className="bg-info-bg border border-info-border rounded-lg p-6 text-center">
+          <Loader2 className="w-8 h-8 text-info mx-auto mb-3 animate-spin" />
+          <p className="text-sm text-info-text font-medium">
             Documents are being anonymized. They'll appear here shortly.
           </p>
         </div>
       )}
 
       {error && !showBlockingProcessing && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-          <AlertTriangle className="w-6 h-6 text-red-600 mx-auto mb-2" />
-          <p className="text-sm text-red-800">{error}</p>
+        <div className="bg-danger-bg border border-danger-border rounded-lg p-4 text-center">
+          <AlertTriangle className="w-6 h-6 text-danger mx-auto mb-2" />
+          <p className="text-sm text-danger-text">{error}</p>
         </div>
       )}
 
       {loading && !showBlockingProcessing && (
         <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
-          <Loader2 className="w-8 h-8 text-blue-600 mx-auto mb-3 animate-spin" />
+          <Loader2 className="w-8 h-8 text-info mx-auto mb-3 animate-spin" />
           <p className="text-sm text-text-muted">Loading reports…</p>
         </div>
       )}
@@ -818,7 +818,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                 All Reports
               </h2>
               {isProcessing && hasCachedReports && (
-                <span className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                <span className="flex items-center gap-1.5 px-2 py-1 text-xs font-medium rounded-full bg-info-bg text-info-text border border-info-border">
                   <Loader2 className="w-3 h-3 animate-spin" />
                   Reprocessing documents…
                 </span>
@@ -872,7 +872,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
             <div className="flex items-center justify-between gap-3 px-4 py-2 rounded-lg border border-border bg-surface text-sm" role="status">
               <span className="text-text-muted">This case was changed in another tab.</span>
               <div className="flex items-center gap-3">
-                <button onClick={() => { runState.dismissChangedElsewhere(); loadReports(); }} className="font-medium text-primary">
+                <button onClick={() => { runState.dismissChangedElsewhere(); loadReports(); }} className="font-medium text-link">
                   Show latest
                 </button>
                 <DismissButton onClick={runState.dismissChangedElsewhere} label="Dismiss this notice" className="text-text-muted" />
@@ -889,15 +889,15 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
               {displayedAdditional ? (
                 <button
                   type="button"
-                  className="group text-left rounded-xl border-2 border-border hover:border-blue-300 hover:shadow-lg transition-all bg-surface overflow-hidden"
+                  className="group text-left rounded-xl border-2 border-border hover:border-info-border hover:shadow-lg transition-all bg-surface overflow-hidden"
                   onClick={openAdditionalData}
                 >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-green-50 to-green-100 flex items-center justify-center">
-                    <StickyNote className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-green-400`} />
+                  <div className="aspect-[4/3] bg-gradient-to-br from-success-bg to-success-bg-strong flex items-center justify-center">
+                    <StickyNote className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} text-success`} />
                   </div>
                   <div className="px-3 py-2 border-t border-border">
                     <p className={`font-medium text-text truncate ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>{displayedAdditional.title}</p>
-                    <p className={`mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'} ${session.additionalData ? 'text-amber-700' : 'text-gray-400'}`}>
+                    <p className={`mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'} ${session.additionalData ? 'text-warning' : 'text-text-subtle'}`}>
                       {session.additionalData ? 'Edited, not saved yet' : 'Your data'}
                     </p>
                   </div>
@@ -914,7 +914,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                     key={doc.filename}
                     data-tour={docIndex === 0 ? 'report-card' : undefined}
                     className={`group relative rounded-xl border-2 transition-all overflow-hidden ${
-                      deleted ? 'border-dashed border-red-300 bg-red-50/40' : 'border-border hover:border-blue-300 hover:shadow-lg bg-surface'
+                      deleted ? 'border-dashed border-danger-border bg-danger-bg' : 'border-border hover:border-info-border hover:shadow-lg bg-surface'
                     }`}
                   >
                     <button
@@ -923,7 +923,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                       className="block w-full text-left"
                       aria-label={`Open ${doc.displayName}`}
                     >
-                      <div className={`aspect-[4/3] bg-gray-100 flex items-center justify-center overflow-hidden relative ${deleted ? 'opacity-50' : ''}`}>
+                      <div className={`aspect-[4/3] bg-surface-muted flex items-center justify-center overflow-hidden relative ${deleted ? 'opacity-50' : ''}`}>
                         {doc.thumbnail ? (
                           <img
                             src={doc.thumbnail}
@@ -933,8 +933,8 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                           />
                         ) : (
                           <div className="flex flex-col items-center justify-center gap-1">
-                            <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} ${doc.kind === 'pdf' ? 'text-red-300' : 'text-gray-300'}`} />
-                            <span className="text-[10px] text-gray-400 uppercase">{getFileExtension(doc.displayName)}</span>
+                            <FileText className={`${isMobile ? 'w-7 h-7' : 'w-10 h-10'} ${doc.kind === 'pdf' ? 'text-danger' : 'text-text-faint'}`} />
+                            <span className="text-[10px] text-text-subtle uppercase">{getFileExtension(doc.displayName)}</span>
                           </div>
                         )}
                         {updating && (
@@ -944,13 +944,13 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                           </div>
                         )}
                         {session.editedFilenames.has(doc.filename) && !deleted && !updating && (
-                          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-green-600 text-white flex items-center justify-center shadow" aria-hidden="true">
+                          <span className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-success-solid text-on-solid flex items-center justify-center shadow" aria-hidden="true">
                             <Check className="w-3 h-3" />
                           </span>
                         )}
                       </div>
                       <div className={`px-3 py-2 border-t border-border ${isOwner && (pending || deleted) ? 'pr-12' : ''}`}>
-                        <p className={`font-medium truncate ${deleted ? 'text-red-400 line-through' : 'text-text'} ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>
+                        <p className={`font-medium truncate ${deleted ? 'text-danger line-through' : 'text-text'} ${isMobile ? 'text-xs' : 'text-sm leading-tight'}`}>
                           {doc.displayName}
                         </p>
                         <p className={`mt-0.5 ${isMobile ? 'text-[10px]' : 'text-xs'} ${status.className}`}>{status.text}</p>
@@ -970,7 +970,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                     {isOwner && deleted && (
                       <button
                         onClick={() => session.toggleDelete(doc.filename)}
-                        className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-full bg-surface shadow border border-red-200 hover:bg-red-50 text-xs font-medium text-red-600"
+                        className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-full bg-surface shadow border border-danger-border hover:bg-danger-bg text-xs font-medium text-danger"
                       >
                         <Undo2 className="w-3.5 h-3.5" />
                         Keep
@@ -984,7 +984,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                 <button
                   type="button"
                   onClick={openAdditionalData}
-                  className="rounded-xl border-2 border-dashed border-border text-text-muted hover:border-green-400 hover:text-green-700 hover:bg-green-50/50 transition-colors flex flex-col items-center justify-center gap-2 min-h-[140px]"
+                  className="rounded-xl border-2 border-dashed border-border text-text-muted hover:border-success hover:text-success hover:bg-success-bg transition-colors flex flex-col items-center justify-center gap-2 min-h-[140px]"
                 >
                   <Plus className="w-6 h-6" />
                   <span className="text-sm font-medium">Add your data</span>
@@ -993,7 +993,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
             </div>
           ) : (
             <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
-              <FileText className={`text-gray-200 mx-auto mb-4 ${isMobile ? 'w-12 h-12' : 'w-16 h-16'}`} />
+              <FileText className={`text-text-faint mx-auto mb-4 ${isMobile ? 'w-12 h-12' : 'w-16 h-16'}`} />
               <p className="text-text-muted font-medium">No reports available for this case.</p>
             </div>
           )}
@@ -1017,13 +1017,13 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
       {emptyPrompt && (
         <div className="fixed inset-0 z-[120000] flex items-center justify-center px-4" role="alertdialog" aria-modal="true" aria-labelledby="empty-case-title">
           {/* Dismissing the question archives, as agreed: walking away from an empty case archives it. */}
-          <div className="absolute inset-0 bg-gray-900/40" onClick={archiveEmptyCase} aria-hidden="true" />
+          <div className="absolute inset-0 bg-overlay" onClick={archiveEmptyCase} aria-hidden="true" />
           <div className="relative w-full max-w-md rounded-xl bg-surface shadow-xl p-6">
             <div className="flex items-start justify-between gap-4">
               <h3 id="empty-case-title" className="text-base font-semibold text-text-muted">
                 This case would have no documents or notes
               </h3>
-              <button onClick={archiveEmptyCase} className="p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="Close and archive the case">
+              <button onClick={archiveEmptyCase} className="p-1 rounded hover:bg-surface-muted" aria-label="Close and archive the case">
                 <X className="w-4 h-4 text-text-muted" />
               </button>
             </div>
@@ -1047,7 +1047,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
               <button
                 onClick={archiveEmptyCase}
                 disabled={committing}
-                className="px-4 py-2 text-sm font-medium rounded-lg text-white bg-gray-800 hover:bg-gray-900 disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium rounded-lg text-on-solid bg-neutral-solid hover:bg-neutral-solid-hover disabled:opacity-50"
               >
                 {committing ? 'Archiving…' : 'Archive case'}
               </button>
@@ -1062,7 +1062,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
             <ul className="text-sm text-text space-y-1 max-h-60 overflow-y-auto">
               {uploadingFiles.map((file, idx) => (
                 <li key={idx} className="flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-gray-400" />
+                  <FileText className="w-4 h-4 text-text-faint" />
                   <span className="flex-1 truncate">{file.name}</span>
                   <span className="text-text-muted text-xs">{(file.size / (1024 * 1024)).toFixed(2)} MB</span>
                 </li>
@@ -1083,7 +1083,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
               </button>
               <button
                 onClick={handleConfirmUpload}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary"
+                className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary-solid"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add {uploadingFiles.length === 1 ? 'document' : `${uploadingFiles.length} documents`}</span>
@@ -1109,7 +1109,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                   type="text"
                   value={additionalDataTitle}
                   onChange={(e) => setAdditionalDataTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
                 />
               </div>
               <div>
@@ -1147,7 +1147,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                   value={additionalDataContent}
                   onChange={(e) => setAdditionalDataContent(e.target.value)}
                   rows={20}
-                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm"
+                  className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary font-mono text-sm"
                 />
               </div>
               <div className="flex justify-end gap-3 mt-6">
@@ -1159,7 +1159,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                 </button>
                 <button
                   onClick={handleSaveAdditionalData}
-                  className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary"
+                  className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2 bg-primary-solid"
                 >
                   <Check className="w-4 h-4" />
                   <span>Save</span>

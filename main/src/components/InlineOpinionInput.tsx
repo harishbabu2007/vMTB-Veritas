@@ -110,7 +110,7 @@ export function InlineOpinionInput({
           <button
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
-            className="px-4 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ml-auto bg-primary"
+            className="px-4 py-1.5 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ml-auto bg-primary-solid"
           >
             {submitting ? 'Posting...' : submitLabel}
           </button>
@@ -144,7 +144,7 @@ export function InlineOpinionInput({
         <button
           onClick={handleSubmit}
           disabled={submitting || !content.trim()}
-          className="px-3 py-1 text-xs font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+          className="px-3 py-1 text-xs font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
         >
           {submitting ? 'Posting...' : submitLabel}
         </button>

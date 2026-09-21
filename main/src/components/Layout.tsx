@@ -381,7 +381,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
               <div className="relative" ref={notificationRef}>
                 <button
                   onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
-                  className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors relative"
+                  className="p-2 rounded-full hover:bg-surface-muted transition-colors relative"
                 >
                   <Bell className="w-5 h-5 text-text-muted" />
                 </button>
@@ -405,7 +405,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={() => setShowDropdown(!showDropdown)}
-                  className="flex items-center space-x-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  className="flex items-center space-x-2 p-1 rounded-full hover:bg-surface-muted transition-colors"
                 >
                   <Avatar avatarKey={user?.avatarKey} name={user?.name} email={user?.email} sizeClassName="w-9 h-9 text-sm font-semibold" />
                   <ChevronDown className={`w-4 h-4 transition-transform text-text-muted ${showDropdown ? 'rotate-180' : ''}`} />
@@ -418,7 +418,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                         setShowDropdown(false);
                         setShowProfileModal(true);
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
                     >
                       <Settings className="w-4 h-4" />
                       <span>Profile</span>
@@ -428,7 +428,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                         setShowDropdown(false);
                         setShowFeedbackModal(true);
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
                     >
                       <MessageSquare className="w-4 h-4" />
                       <span>Feedback</span>
@@ -438,7 +438,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                         setShowDropdown(false);
                         navigate('/my-cases?view=archived');
                       }}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
                     >
                       <Archive className="w-4 h-4" />
                       <span>Archived cases</span>
@@ -446,7 +446,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                     <hr className="my-1.5 border-border" />
                     <div className="px-4 py-2">
                       <p className="text-xs font-medium text-text-muted mb-1.5">Theme</p>
-                      <div className="flex gap-1 bg-bg rounded-lg p-1">
+                      <div className="flex gap-1 bg-bg rounded-lg p-1" role="group" aria-label="Theme">
                         {([
                           { value: 'light' as const, label: 'Light', Icon: Sun },
                           { value: 'dark' as const, label: 'Dark', Icon: Moon },
@@ -456,6 +456,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                             key={value}
                             onClick={() => setTheme(value)}
                             aria-label={label}
+                            aria-pressed={theme === value}
                             title={label}
                             className={`flex-1 flex items-center justify-center py-1.5 rounded-md transition-colors ${
                               theme === value ? 'bg-surface text-text shadow-sm' : 'text-text-muted hover:text-text'
@@ -469,7 +470,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                     <hr className="my-1.5 border-border" />
                     <button
                       onClick={handleLogout}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
+                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-danger hover:bg-danger-bg transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
                       <span>Logout</span>
@@ -511,13 +512,13 @@ export function Layout({ children, wide = false }: LayoutProps) {
               <button
                 onClick={() => photoInputRef.current?.click()}
                 disabled={photoUploading}
-                className="flex items-center space-x-2 px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center space-x-2 px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Upload className="w-4 h-4" />
                 <span>{photoUploading ? 'Uploading...' : 'Upload Photo'}</span>
               </button>
               <p className="text-xs text-text-muted mt-1.5">JPG, PNG or GIF (max 2MB)</p>
-              {photoError && <p className="text-xs text-red-600 mt-1">{photoError}</p>}
+              {photoError && <p className="text-xs text-danger mt-1">{photoError}</p>}
             </div>
           </div>
 
@@ -533,7 +534,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Full Name <span className="text-red-500">*</span>
+                Full Name <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -543,14 +544,14 @@ export function Layout({ children, wide = false }: LayoutProps) {
                   setProfileError(null);
                 }}
                 className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
-                  !profileName.trim() && profileError ? 'border-red-300' : 'border-border'
+                  !profileName.trim() && profileError ? 'border-danger-border' : 'border-border'
                 }`}
                 placeholder="Dr. John Doe"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Profession <span className="text-red-500">*</span>
+                Profession <span className="text-danger">*</span>
               </label>
               <select
                 value={profileProfession}
@@ -559,7 +560,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                   setProfileError(null);
                 }}
                 className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
-                  !profileProfession.trim() && profileError ? 'border-red-300' : 'border-border'
+                  !profileProfession.trim() && profileError ? 'border-danger-border' : 'border-border'
                 }`}
               >
                 <option value="">Select profession</option>
@@ -595,7 +596,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                Hospital / Institution <span className="text-red-500">*</span>
+                Hospital / Institution <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
@@ -605,14 +606,14 @@ export function Layout({ children, wide = false }: LayoutProps) {
                   setProfileError(null);
                 }}
                 className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
-                  !profileHospital.trim() && profileError ? 'border-red-300' : 'border-border'
+                  !profileHospital.trim() && profileError ? 'border-danger-border' : 'border-border'
                 }`}
                 placeholder="City Cancer Hospital"
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-text mb-2">
-                WhatsApp Number <span className="text-red-500">*</span>
+                WhatsApp Number <span className="text-danger">*</span>
               </label>
               {whatsappStep === 'idle' ? (
                 <>
@@ -624,7 +625,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                       setProfileError(null);
                     }}
                     className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
-                      !profileWhatsapp.trim() && profileError ? 'border-red-300' : 'border-border'
+                      !profileWhatsapp.trim() && profileError ? 'border-danger-border' : 'border-border'
                     }`}
                     placeholder="e.g., +91 98765 43210"
                   />
@@ -655,14 +656,14 @@ export function Layout({ children, wide = false }: LayoutProps) {
                       type="button"
                       onClick={handleResendWhatsappOtp}
                       disabled={whatsappResendCooldown > 0}
-                      className={`text-xs font-medium transition ${whatsappResendCooldown > 0 ? 'text-gray-400' : 'text-primary'}`}
+                      className={`text-xs font-medium transition ${whatsappResendCooldown > 0 ? 'text-text-subtle' : 'text-link'}`}
                     >
                       {whatsappResendCooldown > 0 ? `Resend in ${whatsappResendCooldown}s` : 'Resend OTP'}
                     </button>
                     <button
                       type="button"
                       onClick={handleChangeWhatsappNumber}
-                      className="text-xs font-medium transition text-primary"
+                      className="text-xs font-medium transition text-link"
                     >
                       Change number
                     </button>
@@ -673,7 +674,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           </div>
 
           {(profileError || whatsappOtpError) && (
-            <div className="flex items-start justify-between gap-3 text-sm text-red-600 bg-red-50 p-3 rounded-lg border border-red-200" role="alert">
+            <div className="flex items-start justify-between gap-3 text-sm text-danger bg-danger-bg p-3 rounded-lg border border-danger-border" role="alert">
               <span>{profileError || whatsappOtpError}</span>
               <DismissButton
                 onClick={() => { setProfileError(null); setWhatsappOtpError(null); }}
@@ -689,7 +690,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                 setProfileError(null);
                 resetWhatsappOtpState();
               }}
-              className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
             >
               Cancel
             </button>
@@ -697,7 +698,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
               <button
                 onClick={handleVerifyWhatsappOtp}
                 disabled={whatsappOtpLoading || whatsappOtp.join('').length !== 6}
-                className="px-5 py-2.5 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+                className="px-5 py-2.5 text-on-solid rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                               >
                 {whatsappOtpLoading ? 'Verifying...' : profileSaved ? 'Saved!' : 'Verify & Save'}
               </button>
@@ -705,7 +706,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
             <button
               onClick={handleSaveProfile}
               disabled={profileLoading || !isProfileValid}
-              className="px-5 py-2.5 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+              className="px-5 py-2.5 text-on-solid rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                           >
               {profileLoading ? 'Saving...' : profileSaved ? 'Saved!' : 'Save Changes'}
             </button>
@@ -732,7 +733,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Feedback Type <span className="text-red-500">*</span>
+              Feedback Type <span className="text-danger">*</span>
             </label>
             <select
               value={feedbackType}
@@ -750,7 +751,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           
           <div>
             <label className="block text-sm font-medium text-text mb-2">
-              Your Feedback <span className="text-red-500">*</span>
+              Your Feedback <span className="text-danger">*</span>
             </label>
             <div className="relative">
               <textarea
@@ -777,14 +778,14 @@ export function Layout({ children, wide = false }: LayoutProps) {
                 setFeedbackType('');
                 setFeedbackText('');
               }}
-              className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className="px-5 py-2.5 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={handleSendFeedback}
               disabled={feedbackLoading || !feedbackText.trim() || !feedbackType}
-              className="px-5 py-2.5 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+              className="px-5 py-2.5 text-on-solid rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                           >
               {feedbackLoading ? 'Sending...' : feedbackSent ? 'Sent!' : 'Send Feedback'}
             </button>

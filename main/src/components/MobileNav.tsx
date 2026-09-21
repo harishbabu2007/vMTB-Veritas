@@ -70,7 +70,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
           <button
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             data-tour="mobile-menu"
-            className="p-2 rounded-md text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            className="p-2 rounded-md text-text-muted hover:bg-surface-muted transition-colors"
             aria-label="Toggle menu"
           >
             {isMenuOpen ? (
@@ -85,7 +85,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
       {/* Mobile Menu Overlay */}
       {isMenuOpen && (
         <div 
-          className="mobile-menu-overlay fixed inset-0 bg-black bg-opacity-50 z-40"
+          className="mobile-menu-overlay fixed inset-0 bg-overlay z-40"
           onClick={() => setIsMenuOpen(false)}
         />
       )}
@@ -107,7 +107,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
           </div>
           <button
             onClick={() => setIsMenuOpen(false)}
-            className="p-2 rounded-md text-text-muted hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="p-2 rounded-md text-text-muted hover:bg-surface-muted"
           >
             <X className="w-5 h-5" />
           </button>
@@ -126,7 +126,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
             className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
               isActive('/my-cases')
                 ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
-                : 'text-text hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'text-text hover:bg-surface-hover'
             }`}
           >
             <Home className="w-5 h-5" />
@@ -140,7 +140,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
             className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
               isActive('/mtbs')
                 ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
-                : 'text-text hover:bg-gray-50 dark:hover:bg-gray-800'
+                : 'text-text hover:bg-surface-hover'
             }`}
           >
             <Users className="w-5 h-5" />
@@ -158,7 +158,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
               setIsMenuOpen(false);
               onProfileClick();
             }}
-            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
           >
             <Settings className="w-5 h-5" />
             <span className="font-medium">Profile</span>
@@ -168,7 +168,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
               setIsMenuOpen(false);
               onFeedbackClick();
             }}
-            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
           >
             <MessageSquare className="w-5 h-5" />
             <span className="font-medium">Feedback</span>
@@ -178,7 +178,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
               setIsMenuOpen(false);
               navigate('/my-cases?view=archived');
             }}
-            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
           >
             <Archive className="w-5 h-5" />
             <span className="font-medium">Archived cases</span>
@@ -189,7 +189,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
         <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-border bg-surface">
           <button
             onClick={handleLogout}
-            className="flex items-center justify-center space-x-2 w-full py-3 bg-red-50 dark:bg-red-950 text-red-600 rounded-lg hover:bg-red-100 dark:hover:bg-red-900 transition-colors font-medium"
+            className="flex items-center justify-center space-x-2 w-full py-3 bg-danger-bg text-danger rounded-lg hover:bg-danger-bg-strong transition-colors font-medium"
           >
             <LogOut className="w-5 h-5" />
             <span>Logout</span>

@@ -59,10 +59,10 @@ function elapsed(since: string, now: number) {
 type Tone = 'amber' | 'blue' | 'red' | 'green';
 
 const TONES: Record<Tone, string> = {
-  amber: 'bg-amber-50 border-amber-200 text-amber-900',
-  blue: 'bg-blue-50 border-blue-200 text-blue-900',
-  red: 'bg-red-50 border-red-200 text-red-900',
-  green: 'bg-green-50 border-green-200 text-green-900',
+  amber: 'bg-warning-bg border-warning-border text-warning-text',
+  blue: 'bg-info-bg border-info-border text-info-text',
+  red: 'bg-danger-bg border-danger-border text-danger-text',
+  green: 'bg-success-bg border-success-border text-success-text',
 };
 
 function Button({ onClick, children, primary, disabled }: { onClick?: () => void; children: React.ReactNode; primary?: boolean; disabled?: boolean }) {
@@ -71,9 +71,8 @@ function Button({ onClick, children, primary, disabled }: { onClick?: () => void
       onClick={onClick}
       disabled={disabled}
       className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 whitespace-nowrap ${
-        primary ? 'text-white hover:opacity-90' : 'text-text bg-surface border border-border hover:bg-gray-50 dark:hover:bg-gray-800'
+        primary ? 'text-on-solid bg-primary-solid hover:opacity-90' : 'text-text bg-surface border border-border hover:bg-surface-hover'
       }`}
-      style={primary ? { backgroundColor: '#4A90E2' } : undefined}
     >
       {children}
     </button>

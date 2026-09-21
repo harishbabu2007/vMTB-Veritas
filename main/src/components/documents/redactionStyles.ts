@@ -1,5 +1,7 @@
 import type { RedactionStyle } from '../../services/redactionService';
 
+// theme-allow-start: these are drawn on the document page itself (white paper in
+// both themes), so they are the document's colours, not the app's.
 /** Stroke colours are the editor's legend — the changes panel uses the same swatches. */
 export const REGION_COLORS = {
   automated: '#F97316',
@@ -20,6 +22,10 @@ export function styleFill(style: RedactionStyle): string {
       return '#ffffff';
   }
 }
+
+/** Faint tint over a region whose redaction is being revealed. */
+export const REVEALED_FILL = 'rgba(239,68,68,0.06)';
+// theme-allow-end
 
 let localIdCounter = 0;
 export function nextLocalId(prefix: string) {

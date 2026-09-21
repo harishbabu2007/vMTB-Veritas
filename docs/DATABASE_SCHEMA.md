@@ -38,7 +38,7 @@ confusion.
 | `meeting_participants` | Per-participant attendance within a session | `meeting_session_id` → `meeting_sessions`, `participant_id`, `display_name`, `joined_at`/`left_at`, `duration_seconds`, `left_reason` |
 | `meeting_transcripts` | One row per transcribed meeting — see `docs/MEETING_TRANSCRIPTION_PIPELINE.md` | keyed by `meeting_id` (**the opaque JVB/Jicofo session id — NOT `meeting_sessions.id` and NOT `mtb_id`**), `mtb_id` nullable FK (always NULL in the MVP), `status` (`PENDING`→`PROCESSING`→`COMPLETED`/`FAILED`), `transcript_object_key` (GCS path), `mom` (JSONB minutes-of-meeting) |
 | `meeting_transcript_segments` | Individual FINAL transcript segments | `meeting_id` → `meeting_transcripts`, `participant_id`, `start_time`/`end_time`, `text`, `provider`; in the `supabase_realtime` publication for a future live-transcript UI |
-| `profiles` | User profile, PK = `auth.users.id` | `full_name`, `profession`, `hospital`, `whatsapp_number`, `whatsapp_opt_in`, `whatsapp_verified`, `avatar_key`, `theme_preference`, `onboarding_seen` (jsonb, default `{}` — walkthrough parts finished or closed, `{"<part>": "<timestamp>"}`), `onboarding_ended_at` (timestamptz, nullable — walkthrough over: stopped, all parts seen, or the account predates it; `20260918_profiles_onboarding.sql` backfilled every existing row). TEMPORARY (testing, `20260919_onboarding_test_restart.sql`): `onboarding_test_restart` (bool, default false — restart the walkthrough on every new login) and `onboarding_test_reset_for` (timestamptz — the sign-in it last restarted for). See "Onboarding walkthrough" in `docs/CASE_AND_MTB_WORKFLOW.md`. |
+| `profiles` | User profile, PK = `auth.users.id` | `full_name`, `profession`, `hospital`, `whatsapp_number`, `whatsapp_opt_in`, `whatsapp_verified`, `avatar_key`, `theme_preference` (nullable text, CHECK `light`/`dark`/`system`; **NULL = never chosen → the app shows light**; column applied live as migration `20260918105458`; see "Theme" in `docs/AUTH_AND_NOTIFICATIONS.md`), `onboarding_seen` (jsonb, default `{}` — walkthrough parts finished or closed, `{"<part>": "<timestamp>"}`), `onboarding_ended_at` (timestamptz, nullable — walkthrough over: stopped, all parts seen, or the account predates it; `20260918_profiles_onboarding.sql` backfilled every existing row). TEMPORARY (testing, `20260919_onboarding_test_restart.sql`): `onboarding_test_restart` (bool, default false — restart the walkthrough on every new login) and `onboarding_test_reset_for` (timestamptz — the sign-in it last restarted for). See "Onboarding walkthrough" in `docs/CASE_AND_MTB_WORKFLOW.md`. |
 | `feedback` | User feedback submissions | `content`, `status` (CHECK: `pending`/`reviewed`/`resolved`/`dismissed`) |
 | `whatsapp_otps` | OTP records backing the WhatsApp OTP Edge Functions | `phone`, `otp_hash` (never the raw code), `expires_at`, `verified`, `attempts`/`max_attempts` |
 | `speech_transcriptions` | Backs the **legacy voice-dictation pipeline** (`voiceTranscriptionService.ts`) | **Not present in either migration file** — it must have been created directly against the live database (dashboard, or a migration never committed here), so its schema isn't visible in this repo. Treat as untracked; don't assume its columns without checking the live project. Its `source` CHECK constraint (`speech_transcriptions_source_check`) is the one piece now managed by a tracked migration (`20260916_case_archive_and_feedback_voice.sql`): `step2`, `general_opinion`, `question`, `answer`, `reply`, `feedback`. |
@@ -58,7 +58,19 @@ control today is enforced almost entirely in **application code**
 (`CasesContext`/`AuthContext` ownership checks like `.eq('owner_id',
 user.id)`), not the database.
 
-**RLS enabled (3 tables):**
+**RLS enabled (`profiles` + the 3 below):**
+- `profiles` — **RLS is enabled live** (checked against the live project on
+  2026-09-21; the older revision of this doc said it was not). Policies:
+  select-all (`Users can view all profiles`, also `profiles_select_own`),
+  and own-row (`id = auth.uid()`) INSERT / UPDATE / DELETE — several
+  overlapping duplicates. So one user cannot write another user's row
+  (including `theme_preference`) through the API, and `anon` matches no write
+  policy. The `profiles_*_own` policies exist only live: the tracked baseline
+  migration (`20260801155807_remote_schema.sql`) has just the four older
+  `Users can …` policies, so the repo has drifted from the live database
+  here. **Not re-checked this session:** whether the other tables listed as
+  RLS-off below still are, so treat the "3 of 22" / "16 of 19" counts in this
+  doc, `docs/README.md` and `docs/LEGACY_AND_KNOWN_ISSUES.md` as unverified.
 - `feedback` — insert-own, select-own policies actually apply.
 - `meeting_transcripts`, `meeting_transcript_segments` — MTB-member-scoped
   SELECT policies apply, but are currently inert in practice because
@@ -73,8 +85,9 @@ user.id)`), not the database.
   none of those policies actually run. Any authenticated (or, per the
   blanket grant, even `anon`) client can read/write these tables directly,
   relying purely on the app not doing anything malicious client-side.
-- `profiles` — same pattern; `whatsapp_number` (PII) has a defined
-  self-insert/self-update/view-all policy set but no enforcement.
+- `profiles` — **no longer in this group**: verified RLS-enabled live (see
+  above). Note `whatsapp_number` (PII) is still readable by every signed-in
+  user through the view-all SELECT policy.
 - `case_additional_documents`, `case_follow_ups`, `case_treatment_plans`,
   `case_treatment_followups`, `opinion_answers`, `whatsapp_otps` — **no
   policies defined at all**, and no RLS — fully open via the blanket grants.

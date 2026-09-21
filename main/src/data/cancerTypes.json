@@ -1,0 +1,3092 @@
+{
+  "version": "1.0",
+  "total": 418,
+  "categories": [
+    {
+      "category": "Breast",
+      "items": [
+        {
+          "id": "CT0001",
+          "cancer_type": "Invasive Ductal Carcinoma (No Special Type)",
+          "abbreviation": "IDC",
+          "abbreviation_basis": "Standard",
+          "notes": "Also IDC-NST"
+        },
+        {
+          "id": "CT0002",
+          "cancer_type": "Invasive Lobular Carcinoma",
+          "abbreviation": "ILC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0003",
+          "cancer_type": "Ductal Carcinoma In Situ",
+          "abbreviation": "DCIS",
+          "abbreviation_basis": "Standard",
+          "notes": "Non-invasive (stage 0)"
+        },
+        {
+          "id": "CT0004",
+          "cancer_type": "Lobular Carcinoma In Situ",
+          "abbreviation": "LCIS",
+          "abbreviation_basis": "Standard",
+          "notes": "Non-invasive; high-risk lesion"
+        },
+        {
+          "id": "CT0005",
+          "cancer_type": "Inflammatory Breast Cancer",
+          "abbreviation": "IBC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0006",
+          "cancer_type": "Paget Disease of the Breast",
+          "abbreviation": "BR-PAGET",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0007",
+          "cancer_type": "Mucinous (Colloid) Carcinoma of the Breast",
+          "abbreviation": "BR-MUC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0008",
+          "cancer_type": "Tubular Carcinoma of the Breast",
+          "abbreviation": "BR-TUB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0009",
+          "cancer_type": "Metaplastic Breast Carcinoma",
+          "abbreviation": "BR-META",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0010",
+          "cancer_type": "Malignant Phyllodes Tumor",
+          "abbreviation": "BR-PHYL",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0011",
+          "cancer_type": "Male Breast Cancer",
+          "abbreviation": "BR-MALE",
+          "abbreviation_basis": "Assigned",
+          "notes": "Sex-specific; may be captured via a sex field instead"
+        },
+        {
+          "id": "CT0012",
+          "cancer_type": "Breast Cancer, Not Otherwise Specified",
+          "abbreviation": "BR-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Lung & Thoracic",
+      "items": [
+        {
+          "id": "CT0013",
+          "cancer_type": "Non-Small Cell Lung Cancer, NOS",
+          "abbreviation": "NSCLC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0014",
+          "cancer_type": "Lung Adenocarcinoma",
+          "abbreviation": "LUAD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0015",
+          "cancer_type": "Lung Squamous Cell Carcinoma",
+          "abbreviation": "LUSC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0016",
+          "cancer_type": "Large Cell Lung Carcinoma",
+          "abbreviation": "LCLC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0017",
+          "cancer_type": "Large Cell Neuroendocrine Carcinoma of the Lung",
+          "abbreviation": "LCNEC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0018",
+          "cancer_type": "Adenosquamous Carcinoma of the Lung",
+          "abbreviation": "LU-ADSQ",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0019",
+          "cancer_type": "Sarcomatoid / Pleomorphic Carcinoma of the Lung",
+          "abbreviation": "LU-SARC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0020",
+          "cancer_type": "Small Cell Lung Cancer",
+          "abbreviation": "SCLC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0021",
+          "cancer_type": "Pleural Mesothelioma",
+          "abbreviation": "MPM",
+          "abbreviation_basis": "Standard",
+          "notes": "Malignant pleural mesothelioma"
+        },
+        {
+          "id": "CT0022",
+          "cancer_type": "Peritoneal Mesothelioma",
+          "abbreviation": "MPeM",
+          "abbreviation_basis": "Standard",
+          "notes": "Malignant peritoneal mesothelioma"
+        },
+        {
+          "id": "CT0023",
+          "cancer_type": "Pericardial Mesothelioma",
+          "abbreviation": "MESO-PC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0024",
+          "cancer_type": "Tunica Vaginalis Mesothelioma",
+          "abbreviation": "MESO-TV",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0025",
+          "cancer_type": "Thymoma",
+          "abbreviation": "THYM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0026",
+          "cancer_type": "Thymic Carcinoma",
+          "abbreviation": "THYC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0027",
+          "cancer_type": "Thymic Epithelial Tumor, NOS",
+          "abbreviation": "TET",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0028",
+          "cancer_type": "Lung Cancer, Not Otherwise Specified",
+          "abbreviation": "LU-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Head & Neck",
+      "items": [
+        {
+          "id": "CT0029",
+          "cancer_type": "Head and Neck Squamous Cell Carcinoma, NOS",
+          "abbreviation": "HNSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0030",
+          "cancer_type": "Oral Cavity Squamous Cell Carcinoma",
+          "abbreviation": "OSCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Includes oral tongue"
+        },
+        {
+          "id": "CT0031",
+          "cancer_type": "Lip Squamous Cell Carcinoma",
+          "abbreviation": "HN-LIP",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0032",
+          "cancer_type": "Oropharyngeal Squamous Cell Carcinoma",
+          "abbreviation": "OPSCC",
+          "abbreviation_basis": "Standard",
+          "notes": "HPV-positive or HPV-negative"
+        },
+        {
+          "id": "CT0033",
+          "cancer_type": "Nasopharyngeal Carcinoma",
+          "abbreviation": "NPC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0034",
+          "cancer_type": "Laryngeal Squamous Cell Carcinoma",
+          "abbreviation": "LSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0035",
+          "cancer_type": "Hypopharyngeal Squamous Cell Carcinoma",
+          "abbreviation": "HPSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0036",
+          "cancer_type": "Sinonasal Squamous Cell Carcinoma",
+          "abbreviation": "SNSCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Nasal cavity / paranasal sinus"
+        },
+        {
+          "id": "CT0037",
+          "cancer_type": "Sinonasal Undifferentiated Carcinoma",
+          "abbreviation": "SNUC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0038",
+          "cancer_type": "Esthesioneuroblastoma (Olfactory Neuroblastoma)",
+          "abbreviation": "ENB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0039",
+          "cancer_type": "NUT Carcinoma (NUT Midline Carcinoma)",
+          "abbreviation": "NMC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0040",
+          "cancer_type": "Salivary Gland Cancer, NOS",
+          "abbreviation": "SGC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0041",
+          "cancer_type": "Mucoepidermoid Carcinoma",
+          "abbreviation": "MEC",
+          "abbreviation_basis": "Standard",
+          "notes": "Usually salivary gland"
+        },
+        {
+          "id": "CT0042",
+          "cancer_type": "Adenoid Cystic Carcinoma",
+          "abbreviation": "AdCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Usually salivary gland"
+        },
+        {
+          "id": "CT0043",
+          "cancer_type": "Acinic Cell Carcinoma",
+          "abbreviation": "AciCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Usually salivary gland"
+        },
+        {
+          "id": "CT0044",
+          "cancer_type": "Salivary Duct Carcinoma",
+          "abbreviation": "SDC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0045",
+          "cancer_type": "Carcinoma Ex Pleomorphic Adenoma",
+          "abbreviation": "CXPA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0046",
+          "cancer_type": "Head and Neck Cancer, Not Otherwise Specified",
+          "abbreviation": "HN-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Esophagus & Stomach",
+      "items": [
+        {
+          "id": "CT0047",
+          "cancer_type": "Esophageal Squamous Cell Carcinoma",
+          "abbreviation": "ESCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0048",
+          "cancer_type": "Esophageal Adenocarcinoma",
+          "abbreviation": "EAC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0049",
+          "cancer_type": "Esophagogastric Junction Adenocarcinoma",
+          "abbreviation": "EGJAC",
+          "abbreviation_basis": "Standard",
+          "notes": "Also GEJ adenocarcinoma"
+        },
+        {
+          "id": "CT0050",
+          "cancer_type": "Esophageal Cancer, Not Otherwise Specified",
+          "abbreviation": "ES-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0051",
+          "cancer_type": "Gastric Adenocarcinoma",
+          "abbreviation": "GAC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0052",
+          "cancer_type": "Gastric Signet Ring Cell Carcinoma",
+          "abbreviation": "GA-SRC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0053",
+          "cancer_type": "Gastric Cancer, Not Otherwise Specified",
+          "abbreviation": "GC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Small Bowel & GI Stromal",
+      "items": [
+        {
+          "id": "CT0054",
+          "cancer_type": "Small Bowel Adenocarcinoma",
+          "abbreviation": "SBA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0055",
+          "cancer_type": "Gastrointestinal Stromal Tumor",
+          "abbreviation": "GIST",
+          "abbreviation_basis": "Standard",
+          "notes": "Any GI site"
+        },
+        {
+          "id": "CT0056",
+          "cancer_type": "Small Bowel Cancer, Not Otherwise Specified",
+          "abbreviation": "SB-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Liver, Biliary & Pancreas",
+      "items": [
+        {
+          "id": "CT0057",
+          "cancer_type": "Hepatocellular Carcinoma",
+          "abbreviation": "HCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0058",
+          "cancer_type": "Fibrolamellar Hepatocellular Carcinoma",
+          "abbreviation": "FLHCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0059",
+          "cancer_type": "Combined Hepatocellular-Cholangiocarcinoma",
+          "abbreviation": "cHCC-CCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0060",
+          "cancer_type": "Intrahepatic Cholangiocarcinoma",
+          "abbreviation": "iCCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0061",
+          "cancer_type": "Perihilar Cholangiocarcinoma",
+          "abbreviation": "pCCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0062",
+          "cancer_type": "Distal Cholangiocarcinoma",
+          "abbreviation": "dCCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0063",
+          "cancer_type": "Cholangiocarcinoma, NOS",
+          "abbreviation": "CCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0064",
+          "cancer_type": "Gallbladder Cancer",
+          "abbreviation": "GBC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0065",
+          "cancer_type": "Ampullary Adenocarcinoma",
+          "abbreviation": "AMP-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0066",
+          "cancer_type": "Biliary Tract Cancer, NOS",
+          "abbreviation": "BTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0067",
+          "cancer_type": "Liver Cancer, Not Otherwise Specified",
+          "abbreviation": "LI-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0068",
+          "cancer_type": "Pancreatic Ductal Adenocarcinoma",
+          "abbreviation": "PDAC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0069",
+          "cancer_type": "Pancreatic Acinar Cell Carcinoma",
+          "abbreviation": "PACC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0070",
+          "cancer_type": "Pancreatic Adenosquamous Carcinoma",
+          "abbreviation": "PA-ASC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0071",
+          "cancer_type": "Solid Pseudopapillary Neoplasm of the Pancreas",
+          "abbreviation": "SPN",
+          "abbreviation_basis": "Standard",
+          "notes": "Low-grade malignant potential"
+        },
+        {
+          "id": "CT0072",
+          "cancer_type": "Pancreatic Cancer, Not Otherwise Specified",
+          "abbreviation": "PA-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Colorectal & Anal",
+      "items": [
+        {
+          "id": "CT0073",
+          "cancer_type": "Colon Adenocarcinoma",
+          "abbreviation": "COAD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0074",
+          "cancer_type": "Rectal Adenocarcinoma",
+          "abbreviation": "READ",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0075",
+          "cancer_type": "Colorectal Cancer, NOS",
+          "abbreviation": "CRC",
+          "abbreviation_basis": "Standard",
+          "notes": "Colon and/or rectum"
+        },
+        {
+          "id": "CT0076",
+          "cancer_type": "Mucinous Adenocarcinoma of the Colorectum",
+          "abbreviation": "CRC-MUC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0077",
+          "cancer_type": "Signet Ring Cell Carcinoma of the Colorectum",
+          "abbreviation": "CRC-SRC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0078",
+          "cancer_type": "Colon Cancer, Not Otherwise Specified",
+          "abbreviation": "CO-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0079",
+          "cancer_type": "Rectal Cancer, Not Otherwise Specified",
+          "abbreviation": "RE-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0080",
+          "cancer_type": "Appendiceal Adenocarcinoma",
+          "abbreviation": "APP-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0081",
+          "cancer_type": "Goblet Cell Adenocarcinoma of the Appendix",
+          "abbreviation": "GCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0082",
+          "cancer_type": "Low-Grade Appendiceal Mucinous Neoplasm",
+          "abbreviation": "LAMN",
+          "abbreviation_basis": "Standard",
+          "notes": "Borderline / low malignant potential"
+        },
+        {
+          "id": "CT0083",
+          "cancer_type": "High-Grade Appendiceal Mucinous Neoplasm",
+          "abbreviation": "HAMN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0084",
+          "cancer_type": "Pseudomyxoma Peritonei",
+          "abbreviation": "PMP",
+          "abbreviation_basis": "Standard",
+          "notes": "Usually appendiceal origin"
+        },
+        {
+          "id": "CT0085",
+          "cancer_type": "Anal Squamous Cell Carcinoma",
+          "abbreviation": "SCCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0086",
+          "cancer_type": "Anal Adenocarcinoma",
+          "abbreviation": "AN-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0087",
+          "cancer_type": "Anal Cancer, Not Otherwise Specified",
+          "abbreviation": "AN-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Kidney & Upper Urinary Tract",
+      "items": [
+        {
+          "id": "CT0088",
+          "cancer_type": "Renal Cell Carcinoma, NOS",
+          "abbreviation": "RCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Kidney cancer, most common type"
+        },
+        {
+          "id": "CT0089",
+          "cancer_type": "Clear Cell Renal Cell Carcinoma",
+          "abbreviation": "ccRCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0090",
+          "cancer_type": "Papillary Renal Cell Carcinoma",
+          "abbreviation": "pRCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0091",
+          "cancer_type": "Chromophobe Renal Cell Carcinoma",
+          "abbreviation": "chRCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0092",
+          "cancer_type": "Collecting Duct Carcinoma",
+          "abbreviation": "CDC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0093",
+          "cancer_type": "Renal Medullary Carcinoma",
+          "abbreviation": "RMC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0094",
+          "cancer_type": "Translocation Renal Cell Carcinoma (MiT Family)",
+          "abbreviation": "tRCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0095",
+          "cancer_type": "Unclassified Renal Cell Carcinoma",
+          "abbreviation": "uRCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0096",
+          "cancer_type": "Upper Tract Urothelial Carcinoma (Renal Pelvis / Ureter)",
+          "abbreviation": "UTUC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Bladder & Urethra",
+      "items": [
+        {
+          "id": "CT0097",
+          "cancer_type": "Urothelial Carcinoma of the Bladder",
+          "abbreviation": "UCB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0098",
+          "cancer_type": "Bladder Squamous Cell Carcinoma",
+          "abbreviation": "BL-SCC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0099",
+          "cancer_type": "Bladder Adenocarcinoma",
+          "abbreviation": "BL-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0100",
+          "cancer_type": "Small Cell Carcinoma of the Bladder",
+          "abbreviation": "BL-SMCC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0101",
+          "cancer_type": "Urachal Carcinoma",
+          "abbreviation": "UR-URACH",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0102",
+          "cancer_type": "Urethral Cancer",
+          "abbreviation": "UR-URETH",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0103",
+          "cancer_type": "Bladder Cancer, Not Otherwise Specified",
+          "abbreviation": "BLCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Prostate",
+      "items": [
+        {
+          "id": "CT0104",
+          "cancer_type": "Prostate Adenocarcinoma (Acinar)",
+          "abbreviation": "PRAD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0105",
+          "cancer_type": "Ductal Adenocarcinoma of the Prostate",
+          "abbreviation": "PR-DUCT",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0106",
+          "cancer_type": "Neuroendocrine / Small Cell Prostate Cancer",
+          "abbreviation": "NEPC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0107",
+          "cancer_type": "Prostate Cancer, Not Otherwise Specified",
+          "abbreviation": "PCa",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Testis & Penis",
+      "items": [
+        {
+          "id": "CT0108",
+          "cancer_type": "Germ Cell Tumor, NOS",
+          "abbreviation": "GCT",
+          "abbreviation_basis": "Standard",
+          "notes": "May arise in testis, ovary, mediastinum, CNS"
+        },
+        {
+          "id": "CT0109",
+          "cancer_type": "Seminoma",
+          "abbreviation": "SEM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0110",
+          "cancer_type": "Non-Seminomatous Germ Cell Tumor",
+          "abbreviation": "NSGCT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0111",
+          "cancer_type": "Embryonal Carcinoma",
+          "abbreviation": "TE-EMB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0112",
+          "cancer_type": "Yolk Sac Tumor",
+          "abbreviation": "YST",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0113",
+          "cancer_type": "Choriocarcinoma (Non-Gestational)",
+          "abbreviation": "TE-CHORIO",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0114",
+          "cancer_type": "Teratoma",
+          "abbreviation": "TE-TER",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0115",
+          "cancer_type": "Extragonadal Germ Cell Tumor",
+          "abbreviation": "EGCT",
+          "abbreviation_basis": "Standard",
+          "notes": "Mediastinal / retroperitoneal"
+        },
+        {
+          "id": "CT0116",
+          "cancer_type": "Testicular Sex Cord-Stromal Tumor",
+          "abbreviation": "TE-SCST",
+          "abbreviation_basis": "Assigned",
+          "notes": "Leydig / Sertoli cell"
+        },
+        {
+          "id": "CT0117",
+          "cancer_type": "Testicular Cancer, Not Otherwise Specified",
+          "abbreviation": "TE-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0118",
+          "cancer_type": "Penile Squamous Cell Carcinoma",
+          "abbreviation": "PSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0119",
+          "cancer_type": "Penile Cancer, Not Otherwise Specified",
+          "abbreviation": "PeCa",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Cervix",
+      "items": [
+        {
+          "id": "CT0120",
+          "cancer_type": "Cervical Squamous Cell Carcinoma",
+          "abbreviation": "CX-SCC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0121",
+          "cancer_type": "Cervical Adenocarcinoma",
+          "abbreviation": "CX-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0122",
+          "cancer_type": "Cervical Adenosquamous Carcinoma",
+          "abbreviation": "CX-ASC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0123",
+          "cancer_type": "Cervical Small Cell Neuroendocrine Carcinoma",
+          "abbreviation": "CX-NEC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0124",
+          "cancer_type": "Cervical Cancer, Not Otherwise Specified",
+          "abbreviation": "CxCa",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Uterus",
+      "items": [
+        {
+          "id": "CT0125",
+          "cancer_type": "Endometrioid Endometrial Carcinoma",
+          "abbreviation": "EEC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0126",
+          "cancer_type": "Uterine Serous Carcinoma",
+          "abbreviation": "USC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0127",
+          "cancer_type": "Clear Cell Carcinoma of the Endometrium",
+          "abbreviation": "UT-CC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0128",
+          "cancer_type": "Dedifferentiated / Undifferentiated Endometrial Carcinoma",
+          "abbreviation": "DDEC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0129",
+          "cancer_type": "Uterine Carcinosarcoma",
+          "abbreviation": "UCS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0130",
+          "cancer_type": "Uterine Leiomyosarcoma",
+          "abbreviation": "uLMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0131",
+          "cancer_type": "Low-Grade Endometrial Stromal Sarcoma",
+          "abbreviation": "LG-ESS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0132",
+          "cancer_type": "High-Grade Endometrial Stromal Sarcoma",
+          "abbreviation": "HG-ESS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0133",
+          "cancer_type": "Uterine Adenosarcoma",
+          "abbreviation": "UT-AS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0134",
+          "cancer_type": "Uterine Sarcoma, NOS",
+          "abbreviation": "UT-SARC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0135",
+          "cancer_type": "Endometrial Carcinoma, NOS",
+          "abbreviation": "EC",
+          "abbreviation_basis": "Standard",
+          "notes": "Endometrial cancer"
+        },
+        {
+          "id": "CT0136",
+          "cancer_type": "Uterine Neoplasm, Not Otherwise Specified",
+          "abbreviation": "UT-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Ovary, Fallopian Tube & Peritoneum",
+      "items": [
+        {
+          "id": "CT0137",
+          "cancer_type": "High-Grade Serous Carcinoma",
+          "abbreviation": "HGSC",
+          "abbreviation_basis": "Standard",
+          "notes": "Ovary / tube / peritoneum"
+        },
+        {
+          "id": "CT0138",
+          "cancer_type": "Low-Grade Serous Carcinoma",
+          "abbreviation": "LGSC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0139",
+          "cancer_type": "Endometrioid Ovarian Carcinoma",
+          "abbreviation": "EnOC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0140",
+          "cancer_type": "Clear Cell Ovarian Carcinoma",
+          "abbreviation": "CCOC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0141",
+          "cancer_type": "Mucinous Ovarian Carcinoma",
+          "abbreviation": "MOC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0142",
+          "cancer_type": "Ovarian Carcinosarcoma",
+          "abbreviation": "OCS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0143",
+          "cancer_type": "Borderline Ovarian Tumor",
+          "abbreviation": "BOT",
+          "abbreviation_basis": "Standard",
+          "notes": "Low malignant potential"
+        },
+        {
+          "id": "CT0144",
+          "cancer_type": "Ovarian Germ Cell Tumor",
+          "abbreviation": "OGCT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0145",
+          "cancer_type": "Ovarian Dysgerminoma",
+          "abbreviation": "OV-DYS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0146",
+          "cancer_type": "Ovarian Immature Teratoma",
+          "abbreviation": "OV-IT",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0147",
+          "cancer_type": "Sex Cord-Stromal Tumor of the Ovary",
+          "abbreviation": "SCST",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0148",
+          "cancer_type": "Adult Granulosa Cell Tumor",
+          "abbreviation": "AGCT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0149",
+          "cancer_type": "Sertoli-Leydig Cell Tumor",
+          "abbreviation": "SLCT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0150",
+          "cancer_type": "Small Cell Carcinoma of the Ovary, Hypercalcemic Type",
+          "abbreviation": "SCCOHT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0151",
+          "cancer_type": "Fallopian Tube Carcinoma",
+          "abbreviation": "FT-CA",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0152",
+          "cancer_type": "Primary Peritoneal Carcinoma",
+          "abbreviation": "PPC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0153",
+          "cancer_type": "Epithelial Ovarian Cancer, NOS",
+          "abbreviation": "EOC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0154",
+          "cancer_type": "Ovarian Cancer, Not Otherwise Specified",
+          "abbreviation": "OC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Vulva & Vagina",
+      "items": [
+        {
+          "id": "CT0155",
+          "cancer_type": "Vulvar Squamous Cell Carcinoma",
+          "abbreviation": "VSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0156",
+          "cancer_type": "Vulvar Adenocarcinoma",
+          "abbreviation": "VU-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0157",
+          "cancer_type": "Bartholin Gland Carcinoma",
+          "abbreviation": "VU-BART",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0158",
+          "cancer_type": "Vulvar Cancer, Not Otherwise Specified",
+          "abbreviation": "VU-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0159",
+          "cancer_type": "Vaginal Squamous Cell Carcinoma",
+          "abbreviation": "VA-SCC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0160",
+          "cancer_type": "Vaginal Adenocarcinoma",
+          "abbreviation": "VA-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0161",
+          "cancer_type": "Vaginal Cancer, Not Otherwise Specified",
+          "abbreviation": "VA-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Gestational Trophoblastic",
+      "items": [
+        {
+          "id": "CT0162",
+          "cancer_type": "Gestational Trophoblastic Neoplasia, NOS",
+          "abbreviation": "GTN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0163",
+          "cancer_type": "Hydatidiform Mole",
+          "abbreviation": "HM",
+          "abbreviation_basis": "Standard",
+          "notes": "Premalignant; precursor to GTN"
+        },
+        {
+          "id": "CT0164",
+          "cancer_type": "Invasive Hydatidiform Mole",
+          "abbreviation": "GTN-IM",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0165",
+          "cancer_type": "Gestational Choriocarcinoma",
+          "abbreviation": "GTN-CC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0166",
+          "cancer_type": "Placental Site Trophoblastic Tumor",
+          "abbreviation": "PSTT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0167",
+          "cancer_type": "Epithelioid Trophoblastic Tumor",
+          "abbreviation": "ETT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Skin",
+      "items": [
+        {
+          "id": "CT0168",
+          "cancer_type": "Basal Cell Carcinoma",
+          "abbreviation": "BCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0169",
+          "cancer_type": "Basosquamous Carcinoma",
+          "abbreviation": "SK-BSC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0170",
+          "cancer_type": "Cutaneous Squamous Cell Carcinoma",
+          "abbreviation": "cSCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0171",
+          "cancer_type": "Squamous Cell Carcinoma In Situ (Bowen Disease)",
+          "abbreviation": "SCCIS",
+          "abbreviation_basis": "Standard",
+          "notes": "Non-invasive"
+        },
+        {
+          "id": "CT0172",
+          "cancer_type": "Cutaneous Melanoma, NOS",
+          "abbreviation": "CM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0173",
+          "cancer_type": "Superficial Spreading Melanoma",
+          "abbreviation": "SSM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0174",
+          "cancer_type": "Nodular Melanoma",
+          "abbreviation": "NM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0175",
+          "cancer_type": "Lentigo Maligna Melanoma",
+          "abbreviation": "LMM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0176",
+          "cancer_type": "Acral Lentiginous Melanoma",
+          "abbreviation": "ALM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0177",
+          "cancer_type": "Desmoplastic Melanoma",
+          "abbreviation": "MEL-DESM",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0178",
+          "cancer_type": "Mucosal Melanoma",
+          "abbreviation": "MEL-MUC",
+          "abbreviation_basis": "Assigned",
+          "notes": "Head/neck, anorectal, vulvovaginal"
+        },
+        {
+          "id": "CT0179",
+          "cancer_type": "Melanoma of Unknown Primary",
+          "abbreviation": "MUP",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0180",
+          "cancer_type": "Merkel Cell Carcinoma",
+          "abbreviation": "MCC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0181",
+          "cancer_type": "Dermatofibrosarcoma Protuberans",
+          "abbreviation": "DFSP",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0182",
+          "cancer_type": "Kaposi Sarcoma",
+          "abbreviation": "KS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0183",
+          "cancer_type": "Extramammary Paget Disease",
+          "abbreviation": "EMPD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0184",
+          "cancer_type": "Sebaceous Carcinoma",
+          "abbreviation": "SK-SEB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0185",
+          "cancer_type": "Adnexal Carcinoma (Sweat Gland / Porocarcinoma)",
+          "abbreviation": "SK-ADN",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0186",
+          "cancer_type": "Atypical Fibroxanthoma",
+          "abbreviation": "AFX",
+          "abbreviation_basis": "Standard",
+          "notes": "Borderline / low-grade"
+        },
+        {
+          "id": "CT0187",
+          "cancer_type": "Skin Cancer, Not Otherwise Specified",
+          "abbreviation": "SK-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Thyroid",
+      "items": [
+        {
+          "id": "CT0188",
+          "cancer_type": "Papillary Thyroid Carcinoma",
+          "abbreviation": "PTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0189",
+          "cancer_type": "Papillary Thyroid Microcarcinoma",
+          "abbreviation": "PTMC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0190",
+          "cancer_type": "Follicular Thyroid Carcinoma",
+          "abbreviation": "FTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0191",
+          "cancer_type": "Oncocytic (Hurthle Cell) Thyroid Carcinoma",
+          "abbreviation": "OTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0192",
+          "cancer_type": "Differentiated Thyroid Carcinoma, NOS",
+          "abbreviation": "DTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0193",
+          "cancer_type": "Poorly Differentiated Thyroid Carcinoma",
+          "abbreviation": "PDTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0194",
+          "cancer_type": "Medullary Thyroid Carcinoma",
+          "abbreviation": "MTC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0195",
+          "cancer_type": "Anaplastic Thyroid Carcinoma",
+          "abbreviation": "ATC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0196",
+          "cancer_type": "Thyroid Carcinoma, Not Otherwise Specified",
+          "abbreviation": "THCA",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Adrenal, Parathyroid & Pituitary",
+      "items": [
+        {
+          "id": "CT0197",
+          "cancer_type": "Adrenocortical Carcinoma",
+          "abbreviation": "ACC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0198",
+          "cancer_type": "Pheochromocytoma",
+          "abbreviation": "PCC",
+          "abbreviation_basis": "Standard",
+          "notes": "Malignant / metastatic"
+        },
+        {
+          "id": "CT0199",
+          "cancer_type": "Paraganglioma",
+          "abbreviation": "PGL",
+          "abbreviation_basis": "Standard",
+          "notes": "Malignant / metastatic"
+        },
+        {
+          "id": "CT0200",
+          "cancer_type": "Pheochromocytoma / Paraganglioma, NOS",
+          "abbreviation": "PPGL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0201",
+          "cancer_type": "Parathyroid Carcinoma",
+          "abbreviation": "PARA-CA",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0202",
+          "cancer_type": "Pituitary Neuroendocrine Tumor, Aggressive",
+          "abbreviation": "PitNET",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0203",
+          "cancer_type": "Pituitary Carcinoma",
+          "abbreviation": "PIT-CA",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0204",
+          "cancer_type": "Adrenal Cancer, Not Otherwise Specified",
+          "abbreviation": "AD-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Neuroendocrine",
+      "items": [
+        {
+          "id": "CT0205",
+          "cancer_type": "Neuroendocrine Neoplasm, NOS",
+          "abbreviation": "NEN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0206",
+          "cancer_type": "Neuroendocrine Tumor, NOS",
+          "abbreviation": "NET",
+          "abbreviation_basis": "Standard",
+          "notes": "Well-differentiated"
+        },
+        {
+          "id": "CT0207",
+          "cancer_type": "Neuroendocrine Carcinoma, NOS",
+          "abbreviation": "NEC",
+          "abbreviation_basis": "Standard",
+          "notes": "Poorly differentiated"
+        },
+        {
+          "id": "CT0208",
+          "cancer_type": "Small Cell Neuroendocrine Carcinoma (Extrapulmonary)",
+          "abbreviation": "NEC-SC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0209",
+          "cancer_type": "Large Cell Neuroendocrine Carcinoma (Extrapulmonary)",
+          "abbreviation": "NEC-LC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0210",
+          "cancer_type": "Mixed Neuroendocrine-Non-Neuroendocrine Neoplasm",
+          "abbreviation": "MiNEN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0211",
+          "cancer_type": "Pancreatic Neuroendocrine Tumor",
+          "abbreviation": "PanNET",
+          "abbreviation_basis": "Standard",
+          "notes": "Functional or non-functional"
+        },
+        {
+          "id": "CT0212",
+          "cancer_type": "Small Intestinal Neuroendocrine Tumor",
+          "abbreviation": "SI-NET",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0213",
+          "cancer_type": "Gastric Neuroendocrine Tumor",
+          "abbreviation": "NET-GA",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0214",
+          "cancer_type": "Duodenal Neuroendocrine Tumor",
+          "abbreviation": "NET-DU",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0215",
+          "cancer_type": "Appendiceal Neuroendocrine Tumor",
+          "abbreviation": "NET-AP",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0216",
+          "cancer_type": "Colonic Neuroendocrine Tumor",
+          "abbreviation": "NET-CO",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0217",
+          "cancer_type": "Rectal Neuroendocrine Tumor",
+          "abbreviation": "NET-RE",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0218",
+          "cancer_type": "Lung Neuroendocrine Tumor, Typical Carcinoid",
+          "abbreviation": "LNET-TC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0219",
+          "cancer_type": "Lung Neuroendocrine Tumor, Atypical Carcinoid",
+          "abbreviation": "LNET-AC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0220",
+          "cancer_type": "Thymic Neuroendocrine Tumor",
+          "abbreviation": "NET-THY",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0221",
+          "cancer_type": "Neuroendocrine Tumor of Unknown Primary",
+          "abbreviation": "NET-UP",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Central Nervous System",
+      "items": [
+        {
+          "id": "CT0222",
+          "cancer_type": "Glioblastoma",
+          "abbreviation": "GBM",
+          "abbreviation_basis": "Standard",
+          "notes": "IDH-wildtype"
+        },
+        {
+          "id": "CT0223",
+          "cancer_type": "Astrocytoma, IDH-Mutant",
+          "abbreviation": "CNS-ASTR",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0224",
+          "cancer_type": "Oligodendroglioma, IDH-Mutant and 1p/19q-Codeleted",
+          "abbreviation": "CNS-OLIG",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0225",
+          "cancer_type": "Diffuse Midline Glioma, H3 K27-Altered",
+          "abbreviation": "DMG",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0226",
+          "cancer_type": "Diffuse Intrinsic Pontine Glioma",
+          "abbreviation": "DIPG",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0227",
+          "cancer_type": "Pilocytic Astrocytoma",
+          "abbreviation": "CNS-PA",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0228",
+          "cancer_type": "Optic Pathway Glioma",
+          "abbreviation": "OPG",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0229",
+          "cancer_type": "Low-Grade Glioma, NOS",
+          "abbreviation": "LGG",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0230",
+          "cancer_type": "High-Grade Glioma, NOS",
+          "abbreviation": "HGG",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0231",
+          "cancer_type": "Glioma, Not Otherwise Specified",
+          "abbreviation": "CNS-GLIO",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0232",
+          "cancer_type": "Ependymoma",
+          "abbreviation": "EPN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0233",
+          "cancer_type": "Medulloblastoma",
+          "abbreviation": "MB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0234",
+          "cancer_type": "Atypical Teratoid/Rhabdoid Tumor",
+          "abbreviation": "ATRT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0235",
+          "cancer_type": "Embryonal Tumor with Multilayered Rosettes",
+          "abbreviation": "ETMR",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0236",
+          "cancer_type": "Meningioma",
+          "abbreviation": "MNG",
+          "abbreviation_basis": "Standard",
+          "notes": "WHO grade 1-3"
+        },
+        {
+          "id": "CT0237",
+          "cancer_type": "Choroid Plexus Carcinoma",
+          "abbreviation": "CPC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0238",
+          "cancer_type": "Craniopharyngioma",
+          "abbreviation": "CP",
+          "abbreviation_basis": "Standard",
+          "notes": "Non-malignant but managed by oncology"
+        },
+        {
+          "id": "CT0239",
+          "cancer_type": "Pineoblastoma",
+          "abbreviation": "CNS-PINB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0240",
+          "cancer_type": "Intracranial Germ Cell Tumor",
+          "abbreviation": "CNS-GCT",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0241",
+          "cancer_type": "Hemangioblastoma",
+          "abbreviation": "CNS-HGB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0242",
+          "cancer_type": "CNS Cancer, Not Otherwise Specified",
+          "abbreviation": "CNS-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Bone Sarcoma",
+      "items": [
+        {
+          "id": "CT0243",
+          "cancer_type": "Osteosarcoma",
+          "abbreviation": "OS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0244",
+          "cancer_type": "Ewing Sarcoma",
+          "abbreviation": "EWS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0245",
+          "cancer_type": "Chondrosarcoma",
+          "abbreviation": "CS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0246",
+          "cancer_type": "Chordoma",
+          "abbreviation": "BN-CHORD",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0247",
+          "cancer_type": "Giant Cell Tumor of Bone",
+          "abbreviation": "GCTB",
+          "abbreviation_basis": "Standard",
+          "notes": "Locally aggressive"
+        },
+        {
+          "id": "CT0248",
+          "cancer_type": "Bone Cancer, Not Otherwise Specified",
+          "abbreviation": "BN-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Soft Tissue Sarcoma",
+      "items": [
+        {
+          "id": "CT0249",
+          "cancer_type": "Leiomyosarcoma",
+          "abbreviation": "LMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0250",
+          "cancer_type": "Liposarcoma, NOS",
+          "abbreviation": "LPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0251",
+          "cancer_type": "Well-Differentiated Liposarcoma",
+          "abbreviation": "WDLPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0252",
+          "cancer_type": "Dedifferentiated Liposarcoma",
+          "abbreviation": "DDLPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0253",
+          "cancer_type": "Myxoid Liposarcoma",
+          "abbreviation": "MLPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0254",
+          "cancer_type": "Pleomorphic Liposarcoma",
+          "abbreviation": "PLPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0255",
+          "cancer_type": "Undifferentiated Pleomorphic Sarcoma",
+          "abbreviation": "UPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0256",
+          "cancer_type": "Synovial Sarcoma",
+          "abbreviation": "SS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0257",
+          "cancer_type": "Malignant Peripheral Nerve Sheath Tumor",
+          "abbreviation": "MPNST",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0258",
+          "cancer_type": "Angiosarcoma",
+          "abbreviation": "STS-ANG",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0259",
+          "cancer_type": "Epithelioid Sarcoma",
+          "abbreviation": "STS-EPI",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0260",
+          "cancer_type": "Epithelioid Hemangioendothelioma",
+          "abbreviation": "EHE",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0261",
+          "cancer_type": "Rhabdomyosarcoma, NOS",
+          "abbreviation": "RMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0262",
+          "cancer_type": "Embryonal Rhabdomyosarcoma",
+          "abbreviation": "ERMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0263",
+          "cancer_type": "Alveolar Rhabdomyosarcoma",
+          "abbreviation": "ARMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0264",
+          "cancer_type": "Pleomorphic Rhabdomyosarcoma",
+          "abbreviation": "PRMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0265",
+          "cancer_type": "Spindle Cell / Sclerosing Rhabdomyosarcoma",
+          "abbreviation": "STS-SSRMS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0266",
+          "cancer_type": "Alveolar Soft Part Sarcoma",
+          "abbreviation": "ASPS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0267",
+          "cancer_type": "Clear Cell Sarcoma of Soft Tissue",
+          "abbreviation": "CCS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0268",
+          "cancer_type": "Desmoplastic Small Round Cell Tumor",
+          "abbreviation": "DSRCT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0269",
+          "cancer_type": "Fibrosarcoma",
+          "abbreviation": "STS-FIB",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0270",
+          "cancer_type": "Myxofibrosarcoma",
+          "abbreviation": "MFS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0271",
+          "cancer_type": "Low-Grade Fibromyxoid Sarcoma",
+          "abbreviation": "LGFMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0272",
+          "cancer_type": "Solitary Fibrous Tumor",
+          "abbreviation": "SFT",
+          "abbreviation_basis": "Standard",
+          "notes": "Malignant / dedifferentiated"
+        },
+        {
+          "id": "CT0273",
+          "cancer_type": "Extraskeletal Myxoid Chondrosarcoma",
+          "abbreviation": "EMC",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0274",
+          "cancer_type": "Extraskeletal Osteosarcoma",
+          "abbreviation": "STS-EOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0275",
+          "cancer_type": "Desmoid Tumor (Aggressive Fibromatosis)",
+          "abbreviation": "DT",
+          "abbreviation_basis": "Standard",
+          "notes": "Locally aggressive; non-metastasizing"
+        },
+        {
+          "id": "CT0276",
+          "cancer_type": "Perivascular Epithelioid Cell Tumor",
+          "abbreviation": "PEComa",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0277",
+          "cancer_type": "Inflammatory Myofibroblastic Tumor",
+          "abbreviation": "IMT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0278",
+          "cancer_type": "Undifferentiated Round Cell Sarcoma (CIC / BCOR)",
+          "abbreviation": "STS-URCS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0279",
+          "cancer_type": "Retroperitoneal Sarcoma",
+          "abbreviation": "RPS",
+          "abbreviation_basis": "Standard",
+          "notes": "Site-based grouping"
+        },
+        {
+          "id": "CT0280",
+          "cancer_type": "Soft Tissue Sarcoma, NOS",
+          "abbreviation": "STS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Pediatric Embryonal & Childhood",
+      "items": [
+        {
+          "id": "CT0281",
+          "cancer_type": "Neuroblastoma",
+          "abbreviation": "NB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0282",
+          "cancer_type": "Ganglioneuroblastoma",
+          "abbreviation": "GNB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0283",
+          "cancer_type": "Wilms Tumor (Nephroblastoma)",
+          "abbreviation": "WT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0284",
+          "cancer_type": "Clear Cell Sarcoma of the Kidney",
+          "abbreviation": "CCSK",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0285",
+          "cancer_type": "Malignant Rhabdoid Tumor",
+          "abbreviation": "MRT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0286",
+          "cancer_type": "Hepatoblastoma",
+          "abbreviation": "HB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0287",
+          "cancer_type": "Pleuropulmonary Blastoma",
+          "abbreviation": "PPB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0288",
+          "cancer_type": "Pancreatoblastoma",
+          "abbreviation": "PA-BLAST",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0289",
+          "cancer_type": "Infantile Fibrosarcoma",
+          "abbreviation": "PED-IFS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Leukemia",
+      "items": [
+        {
+          "id": "CT0290",
+          "cancer_type": "Acute Lymphoblastic Leukemia, NOS",
+          "abbreviation": "ALL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0291",
+          "cancer_type": "B-Cell Acute Lymphoblastic Leukemia",
+          "abbreviation": "B-ALL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0292",
+          "cancer_type": "T-Cell Acute Lymphoblastic Leukemia",
+          "abbreviation": "T-ALL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0293",
+          "cancer_type": "Early T-Cell Precursor ALL",
+          "abbreviation": "ETP-ALL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0294",
+          "cancer_type": "Mixed Phenotype Acute Leukemia",
+          "abbreviation": "MPAL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0295",
+          "cancer_type": "Acute Myeloid Leukemia, NOS",
+          "abbreviation": "AML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0296",
+          "cancer_type": "Acute Promyelocytic Leukemia",
+          "abbreviation": "APL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0297",
+          "cancer_type": "AML, Myelodysplasia-Related",
+          "abbreviation": "AML-MR",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0298",
+          "cancer_type": "Therapy-Related AML",
+          "abbreviation": "tAML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0299",
+          "cancer_type": "Myeloid Sarcoma (Extramedullary AML)",
+          "abbreviation": "AML-MS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0300",
+          "cancer_type": "Chronic Lymphocytic Leukemia",
+          "abbreviation": "CLL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0301",
+          "cancer_type": "B-Cell Prolymphocytic Leukemia",
+          "abbreviation": "B-PLL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0302",
+          "cancer_type": "T-Cell Prolymphocytic Leukemia",
+          "abbreviation": "T-PLL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0303",
+          "cancer_type": "Hairy Cell Leukemia",
+          "abbreviation": "HCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0304",
+          "cancer_type": "Hairy Cell Leukemia Variant",
+          "abbreviation": "HCL-V",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0305",
+          "cancer_type": "T-Cell Large Granular Lymphocytic Leukemia",
+          "abbreviation": "T-LGLL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0306",
+          "cancer_type": "Aggressive NK-Cell Leukemia",
+          "abbreviation": "ANKL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0307",
+          "cancer_type": "Blastic Plasmacytoid Dendritic Cell Neoplasm",
+          "abbreviation": "BPDCN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0308",
+          "cancer_type": "Chronic Myeloid Leukemia",
+          "abbreviation": "CML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0309",
+          "cancer_type": "Leukemia, Not Otherwise Specified",
+          "abbreviation": "LEUK-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Lymphoma",
+      "items": [
+        {
+          "id": "CT0310",
+          "cancer_type": "Hodgkin Lymphoma, NOS",
+          "abbreviation": "HL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0311",
+          "cancer_type": "Classical Hodgkin Lymphoma",
+          "abbreviation": "cHL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0312",
+          "cancer_type": "Nodular Lymphocyte-Predominant Hodgkin Lymphoma",
+          "abbreviation": "NLPHL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0313",
+          "cancer_type": "Diffuse Large B-Cell Lymphoma",
+          "abbreviation": "DLBCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0314",
+          "cancer_type": "High-Grade B-Cell Lymphoma",
+          "abbreviation": "HGBL",
+          "abbreviation_basis": "Standard",
+          "notes": "MYC and BCL2 and/or BCL6 rearranged"
+        },
+        {
+          "id": "CT0315",
+          "cancer_type": "Primary Mediastinal Large B-Cell Lymphoma",
+          "abbreviation": "PMBCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0316",
+          "cancer_type": "Primary CNS Lymphoma",
+          "abbreviation": "PCNSL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0317",
+          "cancer_type": "Intravascular Large B-Cell Lymphoma",
+          "abbreviation": "IVLBCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0318",
+          "cancer_type": "T-Cell/Histiocyte-Rich Large B-Cell Lymphoma",
+          "abbreviation": "THRLBCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0319",
+          "cancer_type": "Primary Effusion Lymphoma",
+          "abbreviation": "PEL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0320",
+          "cancer_type": "Plasmablastic Lymphoma",
+          "abbreviation": "PBL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0321",
+          "cancer_type": "Burkitt Lymphoma",
+          "abbreviation": "BL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0322",
+          "cancer_type": "Follicular Lymphoma",
+          "abbreviation": "FL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0323",
+          "cancer_type": "Mantle Cell Lymphoma",
+          "abbreviation": "MCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0324",
+          "cancer_type": "Marginal Zone Lymphoma, NOS",
+          "abbreviation": "MZL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0325",
+          "cancer_type": "Splenic Marginal Zone Lymphoma",
+          "abbreviation": "SMZL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0326",
+          "cancer_type": "Nodal Marginal Zone Lymphoma",
+          "abbreviation": "NMZL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0327",
+          "cancer_type": "Extranodal Marginal Zone Lymphoma (MALT)",
+          "abbreviation": "MALT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0328",
+          "cancer_type": "Small Lymphocytic Lymphoma",
+          "abbreviation": "SLL",
+          "abbreviation_basis": "Standard",
+          "notes": "Same disease as CLL, nodal presentation"
+        },
+        {
+          "id": "CT0329",
+          "cancer_type": "Lymphoplasmacytic Lymphoma",
+          "abbreviation": "LPL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0330",
+          "cancer_type": "Waldenstrom Macroglobulinemia",
+          "abbreviation": "WM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0331",
+          "cancer_type": "Post-Transplant Lymphoproliferative Disorder",
+          "abbreviation": "PTLD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0332",
+          "cancer_type": "Lymphoblastic Lymphoma, NOS",
+          "abbreviation": "LBL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0333",
+          "cancer_type": "B-Lymphoblastic Lymphoma",
+          "abbreviation": "B-LBL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0334",
+          "cancer_type": "T-Lymphoblastic Lymphoma",
+          "abbreviation": "T-LBL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0335",
+          "cancer_type": "Peripheral T-Cell Lymphoma, NOS",
+          "abbreviation": "PTCL-NOS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0336",
+          "cancer_type": "Angioimmunoblastic T-Cell Lymphoma",
+          "abbreviation": "AITL",
+          "abbreviation_basis": "Standard",
+          "notes": "Nodal TFH-cell lymphoma, angioimmunoblastic type"
+        },
+        {
+          "id": "CT0337",
+          "cancer_type": "Anaplastic Large Cell Lymphoma, ALK-Positive",
+          "abbreviation": "ALCL-ALKP",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0338",
+          "cancer_type": "Anaplastic Large Cell Lymphoma, ALK-Negative",
+          "abbreviation": "ALCL-ALKN",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0339",
+          "cancer_type": "Breast Implant-Associated ALCL",
+          "abbreviation": "BIA-ALCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0340",
+          "cancer_type": "Extranodal NK/T-Cell Lymphoma, Nasal Type",
+          "abbreviation": "ENKTL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0341",
+          "cancer_type": "Monomorphic Epitheliotropic Intestinal T-Cell Lymphoma",
+          "abbreviation": "MEITL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0342",
+          "cancer_type": "Enteropathy-Associated T-Cell Lymphoma",
+          "abbreviation": "EATL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0343",
+          "cancer_type": "Hepatosplenic T-Cell Lymphoma",
+          "abbreviation": "HSTCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0344",
+          "cancer_type": "Adult T-Cell Leukemia/Lymphoma",
+          "abbreviation": "ATLL",
+          "abbreviation_basis": "Standard",
+          "notes": "HTLV-1 associated"
+        },
+        {
+          "id": "CT0345",
+          "cancer_type": "Subcutaneous Panniculitis-Like T-Cell Lymphoma",
+          "abbreviation": "SPTCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0346",
+          "cancer_type": "Cutaneous T-Cell Lymphoma, NOS",
+          "abbreviation": "CTCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0347",
+          "cancer_type": "Mycosis Fungoides",
+          "abbreviation": "MF",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0348",
+          "cancer_type": "Sezary Syndrome",
+          "abbreviation": "SzS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0349",
+          "cancer_type": "Primary Cutaneous Anaplastic Large Cell Lymphoma",
+          "abbreviation": "pcALCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0350",
+          "cancer_type": "Lymphomatoid Papulosis",
+          "abbreviation": "LyP",
+          "abbreviation_basis": "Standard",
+          "notes": "CD30+ lymphoproliferative disorder; indolent"
+        },
+        {
+          "id": "CT0351",
+          "cancer_type": "Primary Cutaneous B-Cell Lymphoma, NOS",
+          "abbreviation": "PCBCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0352",
+          "cancer_type": "Primary Cutaneous Follicle Center Lymphoma",
+          "abbreviation": "PCFCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0353",
+          "cancer_type": "Primary Cutaneous Marginal Zone Lymphoma",
+          "abbreviation": "PCMZL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0354",
+          "cancer_type": "Primary Cutaneous Diffuse Large B-Cell Lymphoma, Leg Type",
+          "abbreviation": "PCLBCL-LT",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0355",
+          "cancer_type": "Castleman Disease, NOS",
+          "abbreviation": "CD",
+          "abbreviation_basis": "Standard",
+          "notes": "Lymphoproliferative disorder; not always malignant"
+        },
+        {
+          "id": "CT0356",
+          "cancer_type": "Unicentric Castleman Disease",
+          "abbreviation": "UCD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0357",
+          "cancer_type": "Multicentric Castleman Disease",
+          "abbreviation": "MCD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0358",
+          "cancer_type": "Idiopathic Multicentric Castleman Disease",
+          "abbreviation": "iMCD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0359",
+          "cancer_type": "B-Cell Non-Hodgkin Lymphoma, NOS",
+          "abbreviation": "B-NHL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0360",
+          "cancer_type": "T-Cell Lymphoma, NOS",
+          "abbreviation": "TCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0361",
+          "cancer_type": "Non-Hodgkin Lymphoma, NOS",
+          "abbreviation": "NHL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0362",
+          "cancer_type": "Lymphoma, Not Otherwise Specified",
+          "abbreviation": "LYMPH-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Plasma Cell Disorders",
+      "items": [
+        {
+          "id": "CT0363",
+          "cancer_type": "Multiple Myeloma",
+          "abbreviation": "MM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0364",
+          "cancer_type": "Smoldering Multiple Myeloma",
+          "abbreviation": "SMM",
+          "abbreviation_basis": "Standard",
+          "notes": "Premalignant / asymptomatic"
+        },
+        {
+          "id": "CT0365",
+          "cancer_type": "Monoclonal Gammopathy of Undetermined Significance",
+          "abbreviation": "MGUS",
+          "abbreviation_basis": "Standard",
+          "notes": "Premalignant"
+        },
+        {
+          "id": "CT0366",
+          "cancer_type": "Solitary Plasmacytoma of Bone",
+          "abbreviation": "SPB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0367",
+          "cancer_type": "Extramedullary Plasmacytoma",
+          "abbreviation": "EMP",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0368",
+          "cancer_type": "Plasma Cell Leukemia",
+          "abbreviation": "PCL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0369",
+          "cancer_type": "Systemic Light Chain (AL) Amyloidosis",
+          "abbreviation": "AL",
+          "abbreviation_basis": "Standard",
+          "notes": "Clonal plasma cell disorder"
+        },
+        {
+          "id": "CT0370",
+          "cancer_type": "POEMS Syndrome",
+          "abbreviation": "POEMS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Myeloid Neoplasms (MDS / MPN / Mastocytosis)",
+      "items": [
+        {
+          "id": "CT0371",
+          "cancer_type": "Myelodysplastic Syndrome, NOS",
+          "abbreviation": "MDS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0372",
+          "cancer_type": "MDS with Low Blasts",
+          "abbreviation": "MDS-LB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0373",
+          "cancer_type": "MDS with Increased Blasts",
+          "abbreviation": "MDS-IB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0374",
+          "cancer_type": "MDS with Isolated del(5q)",
+          "abbreviation": "MDS-del5q",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0375",
+          "cancer_type": "MDS with SF3B1 Mutation",
+          "abbreviation": "MDS-SF3B1",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0376",
+          "cancer_type": "Chronic Myelomonocytic Leukemia",
+          "abbreviation": "CMML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0377",
+          "cancer_type": "Atypical Chronic Myeloid Leukemia (BCR::ABL1-Negative)",
+          "abbreviation": "aCML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0378",
+          "cancer_type": "Juvenile Myelomonocytic Leukemia",
+          "abbreviation": "JMML",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0379",
+          "cancer_type": "MDS/MPN with Ring Sideroblasts and Thrombocytosis",
+          "abbreviation": "MDS-MPN-RST",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0380",
+          "cancer_type": "MDS/MPN, Unclassifiable",
+          "abbreviation": "MDS-MPN-U",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0381",
+          "cancer_type": "Myeloproliferative Neoplasm, NOS",
+          "abbreviation": "MPN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0382",
+          "cancer_type": "Polycythemia Vera",
+          "abbreviation": "PV",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0383",
+          "cancer_type": "Essential Thrombocythemia",
+          "abbreviation": "ET",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0384",
+          "cancer_type": "Primary Myelofibrosis",
+          "abbreviation": "PMF",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0385",
+          "cancer_type": "Post-Polycythemia Vera Myelofibrosis",
+          "abbreviation": "PPV-MF",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0386",
+          "cancer_type": "Post-Essential Thrombocythemia Myelofibrosis",
+          "abbreviation": "PET-MF",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0387",
+          "cancer_type": "Chronic Neutrophilic Leukemia",
+          "abbreviation": "CNL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0388",
+          "cancer_type": "Chronic Eosinophilic Leukemia",
+          "abbreviation": "CEL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0389",
+          "cancer_type": "MPN, Unclassifiable",
+          "abbreviation": "MPN-U",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0390",
+          "cancer_type": "Myeloid/Lymphoid Neoplasm with Eosinophilia and TK Gene Fusion",
+          "abbreviation": "MLN-TK",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0391",
+          "cancer_type": "Systemic Mastocytosis, NOS",
+          "abbreviation": "SM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0392",
+          "cancer_type": "Indolent Systemic Mastocytosis",
+          "abbreviation": "ISM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0393",
+          "cancer_type": "Aggressive Systemic Mastocytosis",
+          "abbreviation": "ASM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0394",
+          "cancer_type": "Advanced Systemic Mastocytosis",
+          "abbreviation": "AdvSM",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0395",
+          "cancer_type": "Systemic Mastocytosis with Associated Hematologic Neoplasm",
+          "abbreviation": "SM-AHN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0396",
+          "cancer_type": "Mast Cell Leukemia",
+          "abbreviation": "SM-MCL",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Histiocytic & Dendritic Cell",
+      "items": [
+        {
+          "id": "CT0397",
+          "cancer_type": "Langerhans Cell Histiocytosis",
+          "abbreviation": "LCH",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0398",
+          "cancer_type": "Erdheim-Chester Disease",
+          "abbreviation": "ECD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0399",
+          "cancer_type": "Rosai-Dorfman-Destombes Disease",
+          "abbreviation": "RDD",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0400",
+          "cancer_type": "Histiocytic Sarcoma",
+          "abbreviation": "HS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0401",
+          "cancer_type": "Follicular Dendritic Cell Sarcoma",
+          "abbreviation": "FDCS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0402",
+          "cancer_type": "Interdigitating Dendritic Cell Sarcoma",
+          "abbreviation": "IDCS",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0403",
+          "cancer_type": "Histiocytic Neoplasm, Not Otherwise Specified",
+          "abbreviation": "HIST-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Eye & Orbit",
+      "items": [
+        {
+          "id": "CT0404",
+          "cancer_type": "Uveal Melanoma",
+          "abbreviation": "UM",
+          "abbreviation_basis": "Standard",
+          "notes": "Choroid / ciliary body / iris"
+        },
+        {
+          "id": "CT0405",
+          "cancer_type": "Conjunctival Melanoma",
+          "abbreviation": "MEL-CONJ",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0406",
+          "cancer_type": "Retinoblastoma",
+          "abbreviation": "RB",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0407",
+          "cancer_type": "Ocular Surface Squamous Neoplasia",
+          "abbreviation": "OSSN",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0408",
+          "cancer_type": "Ocular Adnexal Lymphoma",
+          "abbreviation": "OAL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0409",
+          "cancer_type": "Primary Vitreoretinal Lymphoma",
+          "abbreviation": "PVRL",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0410",
+          "cancer_type": "Lacrimal Gland Carcinoma",
+          "abbreviation": "EYE-LAC",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0411",
+          "cancer_type": "Eye Cancer, Not Otherwise Specified",
+          "abbreviation": "EYE-NOS",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Unknown Primary",
+      "items": [
+        {
+          "id": "CT0412",
+          "cancer_type": "Cancer of Unknown Primary, NOS",
+          "abbreviation": "CUP",
+          "abbreviation_basis": "Standard",
+          "notes": ""
+        },
+        {
+          "id": "CT0413",
+          "cancer_type": "Adenocarcinoma of Unknown Primary",
+          "abbreviation": "CUP-AD",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0414",
+          "cancer_type": "Squamous Cell Carcinoma of Unknown Primary",
+          "abbreviation": "CUP-SCC",
+          "abbreviation_basis": "Assigned",
+          "notes": "Includes cervical node presentation"
+        },
+        {
+          "id": "CT0415",
+          "cancer_type": "Poorly Differentiated Carcinoma of Unknown Primary",
+          "abbreviation": "CUP-PD",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        },
+        {
+          "id": "CT0416",
+          "cancer_type": "Neuroendocrine Carcinoma of Unknown Primary",
+          "abbreviation": "CUP-NE",
+          "abbreviation_basis": "Assigned",
+          "notes": ""
+        }
+      ]
+    },
+    {
+      "category": "Other / Unspecified",
+      "items": [
+        {
+          "id": "CT0417",
+          "cancer_type": "Other Cancer Type (Not Listed)",
+          "abbreviation": "OTHER",
+          "abbreviation_basis": "Assigned",
+          "notes": "Pair with a free-text field"
+        },
+        {
+          "id": "CT0418",
+          "cancer_type": "Cancer Type Not Yet Determined",
+          "abbreviation": "UNK",
+          "abbreviation_basis": "Assigned",
+          "notes": "Suspected malignancy; diagnosis pending"
+        }
+      ]
+    }
+  ]
+}

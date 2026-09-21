@@ -211,7 +211,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
       {
         target: 'cancer-type',
         title: 'Cancer type',
-        body: 'Required. Type it or pick from the list; it names the case.',
+        body: 'Required. Search by name or abbreviation; it names the case.',
       },
       {
         target: 'upload-documents',

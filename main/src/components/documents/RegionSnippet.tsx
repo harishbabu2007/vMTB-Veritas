@@ -56,5 +56,5 @@ export function RegionSnippet({ pageUrl, bbox }: { pageUrl: string; bbox: Redact
     };
   }, [pageUrl, bbox.x0, bbox.y0, bbox.x1, bbox.y1]);
 
-  return <canvas ref={canvasRef} className="block rounded-sm bg-gray-100" style={{ height: HEIGHT, width: 60 }} aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="block rounded-sm bg-surface-muted" style={{ height: HEIGHT, width: 60 }} aria-hidden="true" />;
 }

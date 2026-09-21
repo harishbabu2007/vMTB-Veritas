@@ -46,7 +46,7 @@ export function Avatar({ avatarKey, name, email, sizeClassName, className = '' }
 
   return (
     <div
-      className={`rounded-full flex items-center justify-center text-white font-bold bg-primary ${sizeClassName} ${className}`}
+      className={`rounded-full flex items-center justify-center text-on-solid font-bold bg-primary-solid ${sizeClassName} ${className}`}
     >
       {initial}
     </div>

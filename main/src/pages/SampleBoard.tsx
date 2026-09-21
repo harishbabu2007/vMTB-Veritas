@@ -50,20 +50,20 @@ export function SampleBoard() {
               <h1 className={`font-bold text-text mb-2 ${isMobile ? 'text-lg' : 'text-2xl'}`}>{SAMPLE_BOARD.name}</h1>
               <div className="flex items-center gap-4 flex-wrap text-sm text-text-muted">
                 <div className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-gray-400" />
+                  <Users className="w-4 h-4 text-text-faint" />
                   <span className="font-medium">{SAMPLE_BOARD.experts}</span>
                   <span>Experts</span>
                 </div>
-                <span className="text-gray-300">•</span>
+                <span className="text-text-faint">•</span>
                 <div className="flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-gray-400" />
+                  <FileText className="w-4 h-4 text-text-faint" />
                   <span className="font-medium">{SAMPLE_BOARD.cases.length}</span>
                   <span>Cases</span>
                 </div>
-                <span className="text-gray-300">•</span>
+                <span className="text-text-faint">•</span>
                 <div data-tour="mtb-invite" className="flex items-center gap-2">
                   <span>Invite Code:</span>
-                  <code className="font-mono font-semibold text-sm px-2 py-0.5 bg-status-processing-bg rounded border border-blue-200 dark:border-blue-900 text-primary">
+                  <code className="font-mono font-semibold text-sm px-2 py-0.5 bg-status-processing-bg rounded border border-info-border text-link">
                     {SAMPLE_BOARD.inviteCode}
                   </code>
                 </div>
@@ -74,7 +74,7 @@ export function SampleBoard() {
                 type="button"
                 onClick={sampleOnly}
                 data-tour="mtb-meeting"
-                className={`flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors ${buttonSize}`}
+                className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors ${buttonSize}`}
               >
                 <Video className="w-4 h-4" />
                 <span>Meeting</span>
@@ -83,7 +83,7 @@ export function SampleBoard() {
                 type="button"
                 onClick={sampleOnly}
                 data-tour="mtb-add-case"
-                className={`flex items-center justify-center gap-2 text-white rounded-lg hover:opacity-90 transition-opacity bg-primary ${buttonSize}`}
+                className={`flex items-center justify-center gap-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${buttonSize}`}
               >
                 <Plus className="w-4 h-4" />
                 <span>{isMobile ? 'Add' : 'Add Case'}</span>

@@ -194,7 +194,7 @@ export function MyCases() {
           <button
             onClick={() => navigate('/cases/new/step-1')}
             data-tour="add-case"
-            className="flex items-center justify-center space-x-2 text-white rounded-lg transition px-4 py-2 font-medium bg-primary hover:bg-primary-hover"
+            className="flex items-center justify-center space-x-2 text-on-solid rounded-lg transition px-4 py-2 font-medium bg-primary-solid hover:bg-primary-solid-hover"
           >
             <Plus className="w-5 h-5" />
             <span>Add New Case</span>
@@ -205,7 +205,7 @@ export function MyCases() {
         {!isMobile && (
           <div className="flex gap-3 items-center">
             <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-text-faint" />
               <input
                 type="text"
                 placeholder="Search by case name, patient name, or cancer type..."

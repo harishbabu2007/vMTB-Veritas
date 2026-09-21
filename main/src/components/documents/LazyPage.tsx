@@ -44,7 +44,7 @@ export function LazyPage({ width, height, pageIndex, onVisible, children }: Lazy
     <div
       ref={ref}
       data-page-index={pageIndex}
-      className="relative bg-white shadow-sm ring-1 ring-black/5 mx-auto"
+      className="relative bg-paper shadow-sm ring-1 ring-border mx-auto"
       style={{ width, height }}
     >
       {active && children(active)}

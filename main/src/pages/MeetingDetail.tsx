@@ -130,8 +130,8 @@ export function MeetingDetail() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <Loader2 className="w-6 h-6 text-gray-400 animate-spin mx-auto mb-3" />
-          <p className="text-sm text-gray-500">Loading meeting details...</p>
+          <Loader2 className="w-6 h-6 text-text-faint animate-spin mx-auto mb-3" />
+          <p className="text-sm text-text-subtle">Loading meeting details...</p>
         </div>
       </Layout>
     );
@@ -141,10 +141,10 @@ export function MeetingDetail() {
     return (
       <Layout>
         <div className="text-center py-12">
-          <p className="text-sm text-red-500">{error || 'Meeting not found'}</p>
+          <p className="text-sm text-danger">{error || 'Meeting not found'}</p>
           <button
             onClick={() => navigate(`/mtb/${mtbId}`)}
-            className="mt-3 text-sm text-blue-600 hover:text-blue-700"
+            className="mt-3 text-sm text-info hover:text-info-text"
           >
             Back to MTB
           </button>
@@ -161,90 +161,90 @@ export function MeetingDetail() {
         {/* Back button */}
         <button
           onClick={() => navigate(`/mtb/${mtbId}`)}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
+          className="flex items-center gap-1.5 text-sm text-text-subtle hover:text-text transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to MTB
         </button>
 
         {/* Meeting metadata */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-          <h1 className={`font-bold ${isMobile ? 'text-lg' : 'text-xl'} mb-4`} style={{ color: '#4A5565' }}>
+        <div className="bg-surface rounded-xl shadow-sm border border-border p-6">
+          <h1 className={`font-bold ${isMobile ? 'text-lg' : 'text-xl'} mb-4 text-text-muted`}>
             Meeting Details
           </h1>
           <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-4'} gap-4`}>
             <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <CalendarDays className="w-4 h-4 text-text-faint flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Date</p>
-                <p className="text-sm font-medium text-gray-900">{formatDate(session.started_at)}</p>
+                <p className="text-xs text-text-subtle">Date</p>
+                <p className="text-sm font-medium text-text">{formatDate(session.started_at)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <Clock className="w-4 h-4 text-text-faint flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Time</p>
-                <p className="text-sm font-medium text-gray-900">{formatTime(session.started_at)}</p>
+                <p className="text-xs text-text-subtle">Time</p>
+                <p className="text-sm font-medium text-text">{formatTime(session.started_at)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <Clock className="w-4 h-4 text-text-faint flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Duration</p>
-                <p className="text-sm font-medium text-gray-900">{formatDuration(session.total_duration_seconds)}</p>
+                <p className="text-xs text-text-subtle">Duration</p>
+                <p className="text-sm font-medium text-text">{formatDuration(session.total_duration_seconds)}</p>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Users className="w-4 h-4 text-gray-400 flex-shrink-0" />
+              <Users className="w-4 h-4 text-text-faint flex-shrink-0" />
               <div>
-                <p className="text-xs text-gray-500">Max Participants</p>
-                <p className="text-sm font-medium text-gray-900">{session.max_participants}</p>
+                <p className="text-xs text-text-subtle">Max Participants</p>
+                <p className="text-sm font-medium text-text">{session.max_participants}</p>
               </div>
             </div>
           </div>
           {session.status === 'active' && (
             <div className="mt-4 flex items-center gap-2">
-              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span className="text-sm font-medium text-green-700">Meeting in progress</span>
+              <span className="w-2 h-2 bg-success-solid rounded-full animate-pulse" />
+              <span className="text-sm font-medium text-success">Meeting in progress</span>
             </div>
           )}
         </div>
 
         {/* Minutes of Meeting */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+        <div className="bg-surface rounded-xl shadow-sm border border-border p-6">
           <div className="flex items-center gap-2 mb-4">
-            <ClipboardList className="w-5 h-5" style={{ color: '#4A90E2' }} />
-            <h2 className={`font-bold ${isMobile ? 'text-base' : 'text-lg'}`} style={{ color: '#4A5565' }}>
+            <ClipboardList className="w-5 h-5 text-primary" />
+            <h2 className={`font-bold ${isMobile ? 'text-base' : 'text-lg'} text-text-muted`}>
               Minutes of Meeting
             </h2>
           </div>
 
           {/* MoM Status: Pending / Processing */}
           {(momStatus === 'pending' || momStatus === 'processing') && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 text-center">
-              <Loader2 className="w-8 h-8 text-yellow-500 animate-spin mx-auto mb-3" />
-              <p className="text-sm font-medium text-yellow-800">Minutes of Meeting are being generated</p>
-              <p className="text-xs text-yellow-600 mt-1">This page will refresh automatically every minute.</p>
+            <div className="bg-warning-bg border border-warning-border rounded-lg p-6 text-center">
+              <Loader2 className="w-8 h-8 text-warning animate-spin mx-auto mb-3" />
+              <p className="text-sm font-medium text-warning-text">Minutes of Meeting are being generated</p>
+              <p className="text-xs text-warning mt-1">This page will refresh automatically every minute.</p>
             </div>
           )}
 
           {/* MoM Status: Failed */}
           {momStatus === 'failed' && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-              <AlertCircle className="w-8 h-8 text-red-400 mx-auto mb-3" />
-              <p className="text-sm font-medium text-red-800">MoM generation failed</p>
+            <div className="bg-danger-bg border border-danger-border rounded-lg p-6 text-center">
+              <AlertCircle className="w-8 h-8 text-danger mx-auto mb-3" />
+              <p className="text-sm font-medium text-danger-text">MoM generation failed</p>
               {transcript?.error_message && (
-                <p className="text-xs text-red-600 mt-1">{transcript.error_message}</p>
+                <p className="text-xs text-danger mt-1">{transcript.error_message}</p>
               )}
             </div>
           )}
 
           {/* MoM Status: None (no transcript) */}
           {momStatus === 'none' && (
-            <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-              <FileText className="w-8 h-8 text-gray-300 mx-auto mb-3" />
-              <p className="text-sm text-gray-500">No transcript available for this meeting.</p>
-              <p className="text-xs text-gray-400 mt-1">Transcripts are only available for meetings with live transcription enabled.</p>
+            <div className="bg-bg border border-border rounded-lg p-6 text-center">
+              <FileText className="w-8 h-8 text-text-faint mx-auto mb-3" />
+              <p className="text-sm text-text-subtle">No transcript available for this meeting.</p>
+              <p className="text-xs text-text-subtle mt-1">Transcripts are only available for meetings with live transcription enabled.</p>
             </div>
           )}
 
@@ -253,18 +253,18 @@ export function MeetingDetail() {
             <div className="space-y-5">
               {/* Summary */}
               <div>
-                <h3 className="text-sm font-semibold text-gray-700 mb-2">Summary</h3>
-                <p className="text-sm text-gray-600 leading-relaxed whitespace-pre-wrap">{transcript.mom.summary}</p>
+                <h3 className="text-sm font-semibold text-text-muted mb-2">Summary</h3>
+                <p className="text-sm text-text-muted leading-relaxed whitespace-pre-wrap">{transcript.mom.summary}</p>
               </div>
 
               {/* Decisions */}
               {transcript.mom.decisions && transcript.mom.decisions.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Decisions</h3>
+                  <h3 className="text-sm font-semibold text-text-muted mb-2">Decisions</h3>
                   <ul className="space-y-1.5">
                     {transcript.mom.decisions.map((decision, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                        <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0 mt-0.5" />
+                      <li key={i} className="flex items-start gap-2 text-sm text-text-muted">
+                        <CheckCircle2 className="w-4 h-4 text-success flex-shrink-0 mt-0.5" />
                         <span>{decision}</span>
                       </li>
                     ))}
@@ -275,15 +275,15 @@ export function MeetingDetail() {
               {/* Action Items */}
               {transcript.mom.action_items && transcript.mom.action_items.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Action Items</h3>
+                  <h3 className="text-sm font-semibold text-text-muted mb-2">Action Items</h3>
                   <ul className="space-y-1.5">
                     {transcript.mom.action_items.map((item, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                        <span className="w-4 h-4 rounded border border-blue-300 flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-medium text-blue-600">
+                      <li key={i} className="flex items-start gap-2 text-sm text-text-muted">
+                        <span className="w-4 h-4 rounded border border-info-border flex-shrink-0 mt-0.5 flex items-center justify-center text-[10px] font-medium text-info">
                           {i + 1}
                         </span>
                         <span>
-                          {item.owner && <span className="font-medium text-gray-800">{item.owner}: </span>}
+                          {item.owner && <span className="font-medium text-text">{item.owner}: </span>}
                           {item.task}
                         </span>
                       </li>
@@ -295,11 +295,11 @@ export function MeetingDetail() {
               {/* Discussion Points */}
               {transcript.mom.discussion_points && transcript.mom.discussion_points.length > 0 && (
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-700 mb-2">Discussion Points</h3>
+                  <h3 className="text-sm font-semibold text-text-muted mb-2">Discussion Points</h3>
                   <ul className="space-y-1.5">
                     {transcript.mom.discussion_points.map((point, i) => (
-                      <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                        <span className="w-1 h-1 bg-gray-400 rounded-full flex-shrink-0 mt-2" />
+                      <li key={i} className="flex items-start gap-2 text-sm text-text-muted">
+                        <span className="w-1 h-1 bg-text-faint rounded-full flex-shrink-0 mt-2" />
                         <span>{point}</span>
                       </li>
                     ))}
@@ -308,8 +308,8 @@ export function MeetingDetail() {
               )}
 
               {/* Metadata */}
-              <div className="pt-3 border-t border-gray-100">
-                <p className="text-xs text-gray-400">
+              <div className="pt-3 border-t border-border">
+                <p className="text-xs text-text-subtle">
                   Generated {formatDate(transcript.mom.generated_at)} at {formatTime(transcript.mom.generated_at)}
                   {transcript.mom.model && ` · Model: ${transcript.mom.model}`}
                 </p>
