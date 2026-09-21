@@ -61,14 +61,14 @@ export function OpinionModal({
           <button
             onClick={handleClose}
             disabled={submitting}
-            className={`border border-border rounded-md text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2.5 text-sm' : 'px-4 py-2'}`}
+            className={`border border-border rounded-md text-text-muted hover:bg-surface-hover transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2.5 text-sm' : 'px-4 py-2'}`}
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
             disabled={submitting || !content.trim()}
-            className={`bg-primary text-white rounded-md hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2.5 text-sm' : 'px-6 py-2'}`}
+            className={`bg-primary-solid text-on-solid rounded-md hover:bg-primary-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2.5 text-sm' : 'px-6 py-2'}`}
           >
             {submitting ? 'Submitting...' : 'Submit Opinion'}
           </button>

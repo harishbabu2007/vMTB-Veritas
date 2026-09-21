@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
 import { supabase } from '../Supabase/client';
+import { THEME_CACHE_PREFIX } from '../utils/themeStorage';
 
 type AuthUser = { id: string; email: string | null; name?: string; avatarKey?: string | null };
 
@@ -369,7 +370,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
         for (let i = window.localStorage.length - 1; i >= 0; i--) {
           const key = window.localStorage.key(i);
-          if (key && (key.startsWith('sb-') || key.includes('supabase') || key.includes('vmtb'))) {
+          // Per-user theme hints stay: they're keyed by user id, so they can't
+          // reach another person, and keeping them stops the returning user's
+          // theme flashing light while their profile loads.
+          if (key && !key.startsWith(THEME_CACHE_PREFIX) && (key.startsWith('sb-') || key.includes('supabase') || key.includes('vmtb'))) {
             window.localStorage.removeItem(key);
           }
         }

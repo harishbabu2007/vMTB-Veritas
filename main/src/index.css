@@ -4,18 +4,83 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens (primitive -> semantic). Redefined under :root.dark for dark
-   mode. Consumed via Tailwind color classes (bg-bg, text-text, etc, see
-   tailwind.config.js) and directly as CSS vars in plain-CSS rules below. */
+/* Design tokens (semantic layer). Every colour a component uses comes from here
+   and is redefined under :root.dark, so a theme is one class on <html> and
+   components never carry `dark:` variants or raw colours (npm run check:theme
+   enforces that and checks the AA contrast of the pairs below). Consumed via
+   Tailwind colour classes (bg-surface, text-danger, ... see tailwind.config.js)
+   and as CSS vars in plain-CSS rules.
+
+   Naming: a family's bare name is its foreground on a plain surface
+   (text-danger); -text reads on the family's own tint (-bg); -solid is a filled
+   control that takes text-on-solid. */
 :root {
+	color-scheme: light;
+
+	/* Surfaces */
 	--color-bg: #f9fafb;
 	--color-surface: #ffffff;
+	--color-surface-hover: #f9fafb;
+	--color-surface-muted: #f3f4f6;
+	--color-overlay: rgba(17, 24, 39, 0.5);
+	/* A document page: stays white in both themes, like paper on a dark desk. */
+	--color-paper: #ffffff;
+
+	/* Text. text-subtle is the lightest that is still readable text; text-faint
+	   is for decoration only (separators, empty-state art, disabled controls). */
 	--color-text: #111827;
 	--color-text-muted: #4A5565;
+	--color-text-subtle: #667085;
+	--color-text-faint: #9ca3af;
+	--color-on-solid: #ffffff;
+
+	/* Lines */
 	--color-border: #e5e7eb;
+	--color-border-strong: #d1d5db;
+
+	/* Brand */
 	--color-primary: #4A90E2;
 	--color-primary-hover: #357ABD;
+	--color-primary-solid: #4A90E2;
+	--color-primary-solid-hover: #357ABD;
+	--color-link: #2f6fc4;
+	--color-neutral-solid: #1f2937;
+	--color-neutral-solid-hover: #111827;
+	--color-selection: rgba(74, 144, 226, 0.25);
 
+	/* Feedback families */
+	--color-danger: #c81e1e;
+	--color-danger-text: #b91c1c;
+	--color-danger-bg: #fef2f2;
+	--color-danger-bg-strong: #fee2e2;
+	--color-danger-border: #fecaca;
+	--color-danger-solid: #dc2626;
+	--color-danger-solid-hover: #b91c1c;
+
+	--color-success: #15803d;
+	--color-success-text: #166534;
+	--color-success-bg: #f0fdf4;
+	--color-success-bg-strong: #dcfce7;
+	--color-success-border: #bbf7d0;
+	--color-success-solid: #15803d;
+	--color-success-solid-hover: #166534;
+
+	--color-info: #1f5ce0;
+	--color-info-text: #1d4ed8;
+	--color-info-bg: #eff6ff;
+	--color-info-bg-strong: #dbeafe;
+	--color-info-border: #bfdbfe;
+	--color-info-solid: #2563eb;
+	--color-info-solid-hover: #1d4ed8;
+
+	--color-warning: #b45309;
+	--color-warning-text: #92400e;
+	--color-warning-bg: #fffbeb;
+	--color-warning-bg-strong: #fef3c7;
+	--color-warning-border: #fde68a;
+	--color-warning-solid: #eab308;
+
+	/* Case / document status badges */
 	--color-status-processing-bg: #eff6ff;
 	--color-status-processing-text: #1d4ed8;
 	--color-status-pending-bg: #fefce8;
@@ -34,13 +99,65 @@
    uniform darken of the light values) so the 5 statuses stay mutually
    distinguishable on a dark surface, not just individually readable. */
 :root.dark {
+	color-scheme: dark;
+
 	--color-bg: #0f1115;
 	--color-surface: #1a1d23;
+	--color-surface-hover: #1f2937;
+	--color-surface-muted: #252a32;
+	--color-overlay: rgba(0, 0, 0, 0.7);
+	--color-paper: #ffffff;
+
 	--color-text: #f3f4f6;
 	--color-text-muted: #9ca3af;
+	--color-text-subtle: #8b93a1;
+	--color-text-faint: #5f6673;
+	--color-on-solid: #ffffff;
+
 	--color-border: #2d3138;
+	--color-border-strong: #3d434c;
+
+	/* The light primary is too pale to carry white text on a dark theme, so a
+	   filled control gets a deeper blue while text/icons keep the bright one. */
 	--color-primary: #5b9ee8;
 	--color-primary-hover: #7fb3ff;
+	--color-primary-solid: #2f6fc4;
+	--color-primary-solid-hover: #2660ad;
+	--color-link: #7fb3ff;
+	--color-neutral-solid: #4b5563;
+	--color-neutral-solid-hover: #5b6473;
+	--color-selection: rgba(91, 158, 232, 0.35);
+
+	--color-danger: #f87171;
+	--color-danger-text: #fca5a5;
+	--color-danger-bg: #3a1414;
+	--color-danger-bg-strong: #4a1a1a;
+	--color-danger-border: #5c2323;
+	--color-danger-solid: #dc2626;
+	--color-danger-solid-hover: #b91c1c;
+
+	--color-success: #4ade80;
+	--color-success-text: #86efac;
+	--color-success-bg: #142c1d;
+	--color-success-bg-strong: #1b3d28;
+	--color-success-border: #245c37;
+	--color-success-solid: #15803d;
+	--color-success-solid-hover: #166534;
+
+	--color-info: #7fb3ff;
+	--color-info-text: #93c5fd;
+	--color-info-bg: #17233b;
+	--color-info-bg-strong: #1e3358;
+	--color-info-border: #27407a;
+	--color-info-solid: #2563eb;
+	--color-info-solid-hover: #1d4ed8;
+
+	--color-warning: #fbbf24;
+	--color-warning-text: #f2c94c;
+	--color-warning-bg: #3a2f10;
+	--color-warning-bg-strong: #4a3b12;
+	--color-warning-border: #5f4b16;
+	--color-warning-solid: #eab308;
 
 	--color-status-processing-bg: #17233b;
 	--color-status-processing-text: #7fb3ff;
@@ -57,6 +174,12 @@
 }
 
 @layer base {
+	/* Tailwind's preflight paints every bare `border` / `divide-*` with a fixed
+	   light gray (#e5e7eb) — a pale hairline on a dark surface. Use the token. */
+	*, ::before, ::after {
+		border-color: var(--color-border);
+	}
+
 	body {
 		font-family: 'Manrope', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
 		background-color: var(--color-bg);
@@ -69,6 +192,34 @@
 	input, select, textarea {
 		background-color: var(--color-surface);
 		color: var(--color-text);
+	}
+
+	input::placeholder, textarea::placeholder {
+		color: var(--color-text-subtle);
+		opacity: 1;
+	}
+
+	input:disabled, select:disabled, textarea:disabled {
+		background-color: var(--color-surface-muted);
+		color: var(--color-text-subtle);
+	}
+
+	/* Chrome/Safari paint autofilled fields with their own pale blue/yellow,
+	   which is a white box on a dark surface. Paint it with the theme instead
+	   (the long transition keeps the UA background from ever showing). */
+	input:-webkit-autofill,
+	input:-webkit-autofill:hover,
+	input:-webkit-autofill:focus,
+	textarea:-webkit-autofill,
+	select:-webkit-autofill {
+		-webkit-text-fill-color: var(--color-text);
+		caret-color: var(--color-text);
+		box-shadow: 0 0 0 1000px var(--color-surface) inset;
+		transition: background-color 9999s ease-out 0s;
+	}
+
+	::selection {
+		background-color: var(--color-selection);
 	}
 
 	/* Disable browser default password reveal and clear buttons (Edge/Chrome/Safari) */
@@ -347,6 +498,53 @@
 	.dictate-control {
 		min-height: 44px;
 	}
+}
+
+/* Dark-mode colours for the legacy voice recorder. VoiceRecorder.css is
+   light-only and part of the do-not-touch dictation component (CLAUDE.md), so
+   dark mode is adapted from here instead; light mode is exactly as it was.
+   `:root.dark` outranks the component's single-class rules. */
+:root.dark .voice-recorder-bar,
+:root.dark .voice-recorder-loading {
+	background: var(--color-info-bg);
+	border-color: var(--color-info-border);
+}
+
+:root.dark .voice-recorder-cancel {
+	color: var(--color-danger);
+	background: var(--color-danger-bg);
+	border-color: var(--color-danger-border);
+}
+
+:root.dark .voice-recorder-cancel:hover {
+	background: var(--color-danger-bg-strong);
+}
+
+:root.dark .voice-recorder-send {
+	color: var(--color-on-solid);
+	background: var(--color-primary-solid);
+}
+
+:root.dark .voice-recorder-send:hover {
+	background: var(--color-primary-solid-hover);
+}
+
+:root.dark .voice-recorder-timer,
+:root.dark .voice-recorder-loading-text {
+	color: var(--color-primary);
+}
+
+:root.dark .voice-recorder-mic-btn:disabled {
+	color: var(--color-text-faint);
+}
+
+:root.dark .voice-recorder-spinner {
+	border-color: var(--color-info-border);
+	border-top-color: var(--color-primary);
+}
+
+:root.dark .voice-recorder-error {
+	color: var(--color-danger);
 }
 
 /* ============================

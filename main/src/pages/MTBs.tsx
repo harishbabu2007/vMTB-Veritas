@@ -88,7 +88,7 @@ export function MTBs() {
             <button
               onClick={() => setShowJoinModal(true)}
               data-tour="join-mtb"
-              className={`flex items-center justify-center space-x-2 rounded-lg text-white transition-opacity hover:opacity-90 bg-primary ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
+              className={`flex items-center justify-center space-x-2 rounded-lg text-on-solid transition-opacity hover:opacity-90 bg-primary-solid ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
             >
               <Plus className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
               <span>Join MTB</span>
@@ -96,7 +96,7 @@ export function MTBs() {
             <button
               onClick={() => setShowCreateModal(true)}
               data-tour="create-mtb"
-              className={`flex items-center justify-center space-x-2 rounded-lg text-white transition-opacity hover:opacity-90 bg-primary ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
+              className={`flex items-center justify-center space-x-2 rounded-lg text-on-solid transition-opacity hover:opacity-90 bg-primary-solid ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
             >
               <Plus className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
               <span>Create MTB</span>
@@ -106,7 +106,7 @@ export function MTBs() {
 
         <div className={isMobile ? 'space-y-2' : 'flex items-center gap-3'}>
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-4 h-4 text-text-faint absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
@@ -214,19 +214,19 @@ export function MTBs() {
               Help others understand the purpose and focus area of this board.
             </p>
           </div>
-          {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+          {error && <div className="text-danger text-sm bg-danger-bg px-3 py-2 rounded-lg">{error}</div>}
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={() => setShowCreateModal(false)}
               disabled={submitting}
-              className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleCreateMTB}
               disabled={submitting || !mtbName.trim()}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+              className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
             >
               {submitting ? 'Creating...' : 'Create MTB'}
             </button>
@@ -256,19 +256,19 @@ export function MTBs() {
               Ask the MTB owner for the invitation code to join.
             </p>
           </div>
-          {error && <div className="text-red-600 text-sm bg-red-50 px-3 py-2 rounded-lg">{error}</div>}
+          {error && <div className="text-danger text-sm bg-danger-bg px-3 py-2 rounded-lg">{error}</div>}
           <div className="flex justify-end gap-3 pt-2">
             <button
               onClick={() => setShowJoinModal(false)}
               disabled={submitting}
-              className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleJoinMTB}
               disabled={submitting || !mtbCode.trim()}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+              className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
             >
               {submitting ? 'Joining...' : 'Join MTB'}
             </button>

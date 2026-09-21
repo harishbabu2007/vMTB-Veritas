@@ -75,6 +75,52 @@ standalone re-verification page for phone numbers not collected at signup),
 generic "check your email" confirmation screen) also exists but is not
 routed or imported anywhere — see `docs/LEGACY_AND_KNOWN_ISSUES.md`.
 
+### Theme (light / dark / system)
+
+A per-user preference, `profiles.theme_preference` (nullable; `light`,
+`dark`, `system`). **The default is light**: a signed-out visitor, a new
+signup, a new device and anyone whose value is NULL get light, whatever their
+OS prefers. The OS is consulted only for a user who explicitly picked
+"System" (the picker in the `Layout.tsx` profile menu). The choice is saved
+to the user's own row only and follows them across devices.
+
+- **Engine:** `src/context/ThemeContext.tsx` (mounted inside `AuthProvider`),
+  helpers in `src/utils/themeStorage.ts`. It toggles the `dark` class on
+  `<html>`; nothing else in the app reads the theme.
+- **First paint:** the inline script in `main/index.html` applies the class
+  before React loads. It reads the cached user id (`vmtb.auth.user`, the same
+  key `AuthContext` uses) and that user's hint `vmtb-theme:<userId>`; no
+  stored user → light. The script, `themeStorage.ts` and `ThemeContext` must
+  agree — change all three together. The hint is only a hint; the profile
+  row is the source of truth and is re-read after login. Hints are per user
+  so a shared computer never shows one person's theme to another; logout in
+  `AuthContext` deliberately keeps them. The old global `vmtb-theme-last` key
+  is deleted on load.
+- **Saving:** `setTheme` applies immediately, then writes in order through a
+  queue (`.update(...).select('id')`, falling back to an upsert when the
+  profile row doesn't exist yet). A write that fails or matches no row is
+  reverted with an error toast — never silently kept. A profile read that
+  started before the user's choice is ignored, so a fresh choice can't be
+  overwritten. Supabase query builders are lazy: an un-awaited `.update()`
+  sends nothing (the earlier version's saves never reached the database).
+  Other tabs follow through the `storage` event on the hint key.
+- **Colours are semantic tokens.** `src/index.css` defines them under `:root`
+  and `:root.dark` (surfaces, text incl. `text-subtle`/`text-faint`, borders,
+  `primary-solid`, `link`, `overlay`, `paper`, and four feedback families
+  `danger`/`success`/`info`/`warning` with `-text`/`-bg`/`-bg-strong`/
+  `-border`/`-solid`); `tailwind.config.js` maps them to classes
+  (`bg-surface`, `text-danger`, `bg-danger-solid`, …). Components use no raw
+  palette classes, hex/rgb literals or `dark:` colour variants. A document
+  page stays white (`bg-paper`) in both themes.
+- **Guard:** `npm run check:theme` (in `main/`, `scripts/check-theme.mjs`)
+  fails on any of those in `src/` and checks AA contrast of the token pairs
+  in both themes. A literal that must stay is allowed with a
+  `theme-allow: <reason>` comment (or a `theme-allow-start` /
+  `theme-allow-end` block); current uses are the Google logo, the redaction
+  overlay colours in `components/documents/redactionStyles.ts`, and a toast
+  shadow. `VoiceRecorder.*` and the dead backup files are skipped — see
+  `docs/LEGACY_AND_KNOWN_ISSUES.md`.
+
 ### Legacy/unused auth code — flagged, not removed
 
 `AuthContext.tsx` also defines several methods no current page appears to

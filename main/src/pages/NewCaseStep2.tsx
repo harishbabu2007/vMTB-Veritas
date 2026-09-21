@@ -162,7 +162,7 @@ Questions for the board:
             <button
               type="submit"
               data-tour="step2-continue"
-              className={`px-4 py-2 text-white rounded-lg hover:opacity-90 transition-opacity bg-primary ${isMobile ? 'w-full' : ''}`}
+              className={`px-4 py-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${isMobile ? 'w-full' : ''}`}
             >
               Continue to Review
             </button>

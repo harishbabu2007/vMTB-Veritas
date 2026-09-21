@@ -446,7 +446,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
               <button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover disabled:opacity-50 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary-solid text-on-solid rounded-lg hover:bg-primary-solid-hover disabled:opacity-50 transition-colors"
               >
                 <Save className="w-4 h-4" />
                 {saving ? 'Saving...' : 'Save'}
@@ -465,7 +465,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-text-muted mb-1">
-                  vMTB Discussion Date <span className="text-red-500">*</span>
+                  vMTB Discussion Date <span className="text-danger">*</span>
                 </label>
                 <input
                   type="date"
@@ -492,7 +492,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                     <button
                       type="button"
                       onClick={handleAddParticipant}
-                      className="px-3 py-2 bg-gray-100 border border-border rounded-lg text-sm hover:bg-gray-200 transition-colors"
+                      className="px-3 py-2 bg-surface-muted border border-border rounded-lg text-sm hover:bg-border transition-colors"
                     >
                       Add
                     </button>
@@ -501,13 +501,13 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                 {formData.participants.length > 0 && (
                   <div className="flex flex-wrap gap-2 mt-2">
                     {formData.participants.map((p, idx) => (
-                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">
+                      <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-info-bg-strong text-info-text text-xs rounded-full">
                         {p}
                         {!isReadOnly && (
                           <button
                             type="button"
                             onClick={() => handleRemoveParticipant(p)}
-                            className="hover:text-blue-600"
+                            className="hover:text-info"
                           >
                             <X className="w-3 h-3" />
                           </button>
@@ -616,7 +616,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             
             <div>
               <label className="block text-sm font-medium text-text-muted mb-2">
-                Was the vMTB-Recommended Treatment Plan Implemented? <span className="text-red-500">*</span>
+                Was the vMTB-Recommended Treatment Plan Implemented? <span className="text-danger">*</span>
               </label>
               <div className="flex items-center gap-6">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -660,7 +660,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
             {/* YES fields */}
             {formData.is_treatment_implemented === true && (
-              <div className="pl-4 border-l-2 border-green-200 space-y-4">
+              <div className="pl-4 border-l-2 border-success-border space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-text-muted mb-1">Date of Treatment Initiation</label>
@@ -702,7 +702,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
             {/* NO fields */}
             {formData.is_treatment_implemented === false && (
-              <div className="pl-4 border-l-2 border-red-200 space-y-4">
+              <div className="pl-4 border-l-2 border-danger-border space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-text-muted mb-2">Reason for Non-Implementation</label>
                   <div className="space-y-2">
@@ -791,7 +791,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             <button
               onClick={openAddFollowUpModal}
               data-tour="add-follow-up"
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary-solid text-on-solid rounded-lg hover:bg-primary-solid-hover transition-colors"
             >
               <Plus className="w-4 h-4" />
               Add Follow-Up
@@ -828,8 +828,8 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                         {fu.current_patient_status ? (
                           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                             fu.current_patient_status === 'Alive' 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
+                              ? 'bg-success-bg-strong text-success-text' 
+                              : 'bg-surface-muted text-text'
                           }`}>
                             {fu.current_patient_status}
                           </span>
@@ -846,14 +846,14 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                           <div className="flex items-center justify-end gap-2">
                             <button
                               onClick={() => openEditFollowUpModal(fu)}
-                              className="p-1 text-text-muted hover:text-blue-600 transition-colors"
+                              className="p-1 text-text-muted hover:text-info transition-colors"
                               title="Edit"
                             >
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => setDeleteFollowUpId(fu.id)}
-                              className="p-1 text-text-muted hover:text-red-600 transition-colors"
+                              className="p-1 text-text-muted hover:text-danger transition-colors"
                               title="Delete"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -883,7 +883,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-text-muted mb-1">
-              Follow-up Date <span className="text-red-500">*</span>
+              Follow-up Date <span className="text-danger">*</span>
             </label>
             <input
               type="date"
@@ -954,7 +954,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             <button
               onClick={handleSaveFollowUp}
               disabled={savingFollowUp}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-primary-solid text-on-solid rounded-lg hover:bg-primary-solid-hover transition-colors disabled:opacity-50"
             >
               {savingFollowUp ? 'Saving...' : editingFollowUpId ? 'Update' : 'Add'}
             </button>
@@ -983,7 +983,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
             <button
               onClick={handleDeleteFollowUp}
               disabled={deletingFollowUp}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50"
             >
               {deletingFollowUp ? 'Deleting...' : 'Delete'}
             </button>

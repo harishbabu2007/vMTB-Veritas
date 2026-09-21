@@ -146,9 +146,9 @@ export function SampleCase() {
                     isMobile ? 'py-2.5 px-2 text-xs' : 'py-3 px-0.5 text-sm'
                   } ${
                     locked
-                      ? 'border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'
+                      ? 'border-transparent text-text-faint cursor-not-allowed'
                       : activeTab === id
-                      ? 'text-blue-600 border-blue-500'
+                      ? 'text-info border-info'
                       : 'border-transparent text-text-muted hover:text-text hover:border-border'
                   }`}
                 >
@@ -178,7 +178,7 @@ export function SampleCase() {
                 type="button"
                 onClick={() => leave('/mtbs')}
                 data-tour="sample-continue"
-                className="px-3 py-1.5 text-sm font-medium rounded-lg text-white bg-primary hover:bg-primary-hover transition-colors"
+                className="px-3 py-1.5 text-sm font-medium rounded-lg text-on-solid bg-primary-solid hover:bg-primary-solid-hover transition-colors"
               >
                 Continue to MTBs
               </button>
@@ -213,7 +213,7 @@ export function SampleCase() {
                         type="button"
                         onClick={() => setShowVerify(true)}
                         data-tour="sample-verify"
-                        className="px-3 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity bg-primary"
+                        className="px-3 py-1.5 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid"
                       >
                         Verify Case
                       </button>
@@ -221,7 +221,7 @@ export function SampleCase() {
                         type="button"
                         onClick={() => setEditing(true)}
                         data-tour="case-edit"
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-surface-muted transition-colors"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                         <span>Edit</span>
@@ -233,7 +233,7 @@ export function SampleCase() {
                       <button
                         type="button"
                         onClick={saveEdits}
-                        className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                        className="px-4 py-1.5 bg-info-solid text-on-solid text-sm font-medium rounded-lg hover:bg-info-solid-hover transition-colors"
                       >
                         Save Changes
                       </button>
@@ -243,7 +243,7 @@ export function SampleCase() {
                           saveEdits();
                           setShowVerify(true);
                         }}
-                        className="flex items-center gap-1.5 px-4 py-1.5 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity bg-primary"
+                        className="flex items-center gap-1.5 px-4 py-1.5 text-on-solid text-sm font-medium rounded-lg hover:opacity-90 transition-opacity bg-primary-solid"
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
                         <span>Save &amp; Verify</span>
@@ -272,13 +272,13 @@ export function SampleCase() {
                       contentEditable={editing}
                       suppressContentEditableWarning
                       onPaste={editing ? handlePaste : undefined}
-                      className={`summary-editor bg-bg p-6 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[200px] ${
+                      className={`summary-editor bg-bg p-6 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px] ${
                         editing ? 'rounded-t-none cursor-text' : ''
                       }`}
                       dangerouslySetInnerHTML={summaryContent}
                     />
                     {verified && (
-                      <p className="mt-5 pt-4 border-t border-border text-xs text-gray-400">
+                      <p className="mt-5 pt-4 border-t border-border text-xs text-text-subtle">
                         Verified by <span className="text-text-muted font-medium">you</span>
                       </p>
                     )}
@@ -450,7 +450,7 @@ export function SampleCase() {
 function Field({ label, value, className = '', strong = false }: { label: string; value: string; className?: string; strong?: boolean }) {
   return (
     <div className={className}>
-      <p className="text-xs text-gray-400">{label}</p>
+      <p className="text-xs text-text-subtle">{label}</p>
       <p className={`text-sm truncate text-text-muted ${strong ? 'font-semibold' : 'font-medium'}`} title={value}>{value}</p>
     </div>
   );
@@ -474,9 +474,9 @@ function SettingRow({ title, body, action, primary = false, danger = false }: {
   danger?: boolean;
 }) {
   return (
-    <section className={`bg-surface rounded-xl shadow-sm border p-6 flex items-start justify-between gap-4 ${danger ? 'border-red-200 dark:border-red-900' : 'border-border'}`}>
+    <section className={`bg-surface rounded-xl shadow-sm border p-6 flex items-start justify-between gap-4 ${danger ? 'border-danger-border' : 'border-border'}`}>
       <div className="min-w-0">
-        <h3 className={`text-base font-semibold ${danger ? 'text-red-700 dark:text-red-400' : 'text-text-muted'}`}>{title}</h3>
+        <h3 className={`text-base font-semibold ${danger ? 'text-danger-text' : 'text-text-muted'}`}>{title}</h3>
         <p className="text-sm text-text-muted mt-1">{body}</p>
       </div>
       <button
@@ -484,7 +484,7 @@ function SettingRow({ title, body, action, primary = false, danger = false }: {
         disabled
         title="Not available on the sample"
         className={`flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg flex-shrink-0 opacity-50 cursor-not-allowed ${
-          danger ? 'bg-red-600 text-white' : primary ? 'bg-primary text-white' : 'border border-border text-text'
+          danger ? 'bg-danger-solid text-on-solid' : primary ? 'bg-primary-solid text-on-solid' : 'border border-border text-text'
         }`}
       >
         {action}

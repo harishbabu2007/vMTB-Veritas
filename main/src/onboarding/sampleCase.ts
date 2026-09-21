@@ -8,7 +8,7 @@ export const SAMPLE_PDF_URL = '/sample/sample-case-report.pdf';
 export const SAMPLE_FILE_NAME = 'sample-case-report.pdf';
 export const SAMPLE_PAGE_COUNT = 3;
 
-export const SAMPLE_CANCER_TYPE = 'Lung Cancer';
+export const SAMPLE_CANCER_TYPE = 'Lung Adenocarcinoma'; // LUAD, from src/data/cancerTypes.json
 export const SAMPLE_AGE = 58;
 export const SAMPLE_SEX = 'Male';
 
@@ -74,8 +74,8 @@ export const SAMPLE_BOARD = {
   cases: [
     {
       id: 'sample-board-case-1',
-      caseName: 'LungCancer-sample',
-      cancerType: 'Lung Cancer',
+      caseName: 'LUAD41207',
+      cancerType: 'Lung Adenocarcinoma',
       owner: 'Dr. Demo Oncologist',
       opinions: 3,
     },

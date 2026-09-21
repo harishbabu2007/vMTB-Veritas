@@ -5,7 +5,7 @@ import type { RedactionBBox, RedactionRecord, RedactionStyle } from '../../servi
 import type { LocalChange } from '../../hooks/useDocumentEditSession';
 import type { RedactionSource } from './useRedactionSource';
 import { LazyPage } from './LazyPage';
-import { REGION_COLORS, nextLocalId, styleFill } from './redactionStyles';
+import { REGION_COLORS, REVEALED_FILL, nextLocalId, styleFill } from './redactionStyles';
 
 export type RedactionTool = 'box' | 'freehand';
 
@@ -121,7 +121,7 @@ function RedactionPage({
         <p>This page couldn't be loaded.</p>
         <button
           onClick={() => { setFailed(false); setAttempt((a) => a + 1); }}
-          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border text-text bg-surface hover:bg-gray-50 dark:hover:bg-gray-800"
+          className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border text-text bg-surface hover:bg-surface-hover"
         >
           Try again
         </button>
@@ -129,7 +129,7 @@ function RedactionPage({
     );
   }
   if (!image) {
-    return <div className="absolute inset-0 animate-pulse bg-gray-100" aria-hidden="true" />;
+    return <div className="absolute inset-0 animate-pulse bg-surface-muted" aria-hidden="true" />;
   }
 
   const naturalW = image.naturalWidth;
@@ -257,7 +257,7 @@ function RedactionPage({
               <Rect
                 key={region.id}
                 {...px(region.bbox)}
-                fill="rgba(239,68,68,0.06)"
+                fill={REVEALED_FILL}
                 stroke={REGION_COLORS.pendingReveal}
                 strokeWidth={hovered ? 3 : 2}
                 strokeScaleEnabled={false}

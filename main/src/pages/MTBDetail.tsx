@@ -259,7 +259,7 @@ export function MTBDetail() {
                       setNewMtbName(mtb.name);
                       setShowRenameModal(true);
                     }}
-                    className="text-gray-400 hover:text-blue-600 transition-colors"
+                    className="text-text-subtle hover:text-info transition-colors"
                     title="Rename MTB"
                   >
                     <Pencil className="w-4 h-4" />
@@ -268,25 +268,25 @@ export function MTBDetail() {
               </div>
               <div className="flex items-center gap-4 text-sm text-text-muted">
                 <div className="flex items-center gap-1.5">
-                  <Users className="w-4 h-4 text-gray-400" />
+                  <Users className="w-4 h-4 text-text-faint" />
                   <span className="font-medium">{mtb.experts}</span>
                   <span className="text-text-muted">Experts</span>
                 </div>
-                <span className="text-gray-300">•</span>
+                <span className="text-text-faint">•</span>
                 <div className="flex items-center gap-1.5">
-                  <FileText className="w-4 h-4 text-gray-400" />
+                  <FileText className="w-4 h-4 text-text-faint" />
                   <span className="font-medium">{mtbCases.length}</span>
                   <span className="text-text-muted">Cases</span>
                 </div>
                 {isOwner && mtb.joinCode && (
                   <>
-                    <span className="text-gray-300">•</span>
+                    <span className="text-text-faint">•</span>
                     <div className="flex items-center gap-2">
                       <span className="text-text-muted">Invite Code:</span>
-                      <code className="font-mono font-semibold text-sm px-2 py-0.5 bg-status-processing-bg rounded border border-blue-200 text-primary">{mtb.joinCode}</code>
+                      <code className="font-mono font-semibold text-sm px-2 py-0.5 bg-status-processing-bg rounded border border-info-border text-link">{mtb.joinCode}</code>
                       <button
                         onClick={handleCopyCode}
-                        className="text-gray-400 hover:text-blue-600 transition-colors"
+                        className="text-text-subtle hover:text-info transition-colors"
                         title="Copy join code"
                       >
                         {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
@@ -306,7 +306,7 @@ export function MTBDetail() {
                 <button
                   onClick={() => setShowLeaveConfirmModal(true)}
                   disabled={leavingMTB}
-                  className={`flex items-center justify-center gap-2 border border-red-300 text-red-600 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50 ${
+                  className={`flex items-center justify-center gap-2 border border-danger-border text-danger rounded-lg hover:bg-danger-bg transition-colors disabled:opacity-50 ${
                     isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
                   }`}
                 >
@@ -321,7 +321,7 @@ export function MTBDetail() {
                   window.open(url, '_blank');
                 }}
                 data-tour="mtb-meeting"
-                className={`flex items-center justify-center gap-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
                   isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
                 }`}
               >
@@ -331,7 +331,7 @@ export function MTBDetail() {
               <button
                 onClick={() => setShowAddCaseModal(true)}
                 data-tour="mtb-add-case"
-                className={`flex items-center justify-center gap-2 text-white rounded-lg hover:opacity-90 transition-opacity bg-primary ${
+                className={`flex items-center justify-center gap-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${
                   isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
                 }`}
               >
@@ -343,7 +343,7 @@ export function MTBDetail() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200">
+        <div className="border-b border-border">
           <nav className="-mb-px flex items-center gap-6">
             {(['cases', 'meetings'] as MTBDetailTab[]).map((tab) => (
               <button
@@ -351,8 +351,8 @@ export function MTBDetail() {
                 onClick={() => setActiveTab(tab)}
                 className={`border-b-2 font-medium transition-colors whitespace-nowrap py-3 px-0.5 text-sm ${
                   activeTab === tab
-                    ? 'text-blue-600 border-blue-500'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    ? 'text-info border-info'
+                    : 'border-transparent text-text-subtle hover:text-text-muted hover:border-border-strong'
                 }`}
               >
                 {tab === 'cases' ? 'Cases' : 'Meetings'}
@@ -371,7 +371,7 @@ export function MTBDetail() {
         ) : mtbCases.length === 0 ? (
           <div className={`bg-surface rounded-xl shadow-sm border border-border text-center ${isMobile ? 'p-6' : 'p-8'}`}>
             <div className="max-w-md mx-auto">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-info-bg flex items-center justify-center">
                 <Plus className="w-8 h-8 text-primary" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-text-muted">
@@ -382,7 +382,7 @@ export function MTBDetail() {
               </p>
               <button
                 onClick={() => setShowAddCaseModal(true)}
-                className="inline-flex items-center justify-center gap-2 text-white rounded-lg px-4 py-2 font-medium hover:opacity-90 transition-opacity bg-primary"
+                className="inline-flex items-center justify-center gap-2 text-on-solid rounded-lg px-4 py-2 font-medium hover:opacity-90 transition-opacity bg-primary-solid"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Your First Case</span>
@@ -560,7 +560,7 @@ export function MTBDetail() {
           <div className="py-8">
             <div className="text-center">
               <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-bg flex items-center justify-center">
-                <FileText className="w-8 h-8 text-gray-400" />
+                <FileText className="w-8 h-8 text-text-faint" />
               </div>
               <p className="text-sm font-medium text-text mb-1">No Cases Available</p>
               <p className="text-sm text-text-muted">
@@ -575,7 +575,7 @@ export function MTBDetail() {
                 {availableCases.map((caseItem) => (
                   <label
                     key={caseItem.id}
-                    className="flex items-start gap-3 p-3.5 bg-bg rounded-lg border border-border hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                    className="flex items-start gap-3 p-3.5 bg-bg rounded-lg border border-border hover:bg-surface-muted cursor-pointer transition-colors"
                   >
                     <input
                       type="checkbox"
@@ -604,14 +604,14 @@ export function MTBDetail() {
             <div className="flex justify-end gap-3 pt-2 border-t border-border">
               <button
                 onClick={() => setShowAddCaseModal(false)}
-                className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={handleAddCases}
                 disabled={selectedCaseIds.length === 0 || addingCases}
-                className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+                className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
               >
                 {addingCases ? 'Adding…' : `Add ${selectedCaseIds.length > 0 ? `${selectedCaseIds.length} ` : ''}Case${selectedCaseIds.length !== 1 ? 's' : ''}`}
               </button>
@@ -643,7 +643,7 @@ export function MTBDetail() {
             <button
               onClick={() => setShowRenameModal(false)}
               disabled={renamingMTB}
-              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -663,7 +663,7 @@ export function MTBDetail() {
                 }
               }}
               disabled={renamingMTB || !newMtbName.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-info-solid text-on-solid rounded-lg hover:bg-info-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {renamingMTB ? 'Saving...' : 'Save'}
             </button>
@@ -685,7 +685,7 @@ export function MTBDetail() {
             <button
               onClick={() => setShowLeaveConfirmModal(false)}
               disabled={leavingMTB}
-              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
@@ -706,7 +706,7 @@ export function MTBDetail() {
                 }
               }}
               disabled={leavingMTB}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {leavingMTB ? 'Leaving...' : 'Leave MTB'}
             </button>

@@ -41,8 +41,8 @@ export function VerifyModal({
       <div className="space-y-5">
         {/* Warning Icon */}
         <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-full bg-orange-100 flex items-center justify-center">
-            <AlertTriangle className="w-6 h-6 text-orange-500" />
+          <div className="w-12 h-12 rounded-full bg-warning-bg-strong flex items-center justify-center">
+            <AlertTriangle className="w-6 h-6 text-warning" />
           </div>
         </div>
 
@@ -59,7 +59,7 @@ export function VerifyModal({
           <ul className="space-y-2">
             {bullets.map((bullet) => (
               <li key={bullet} className="flex items-start gap-3">
-                <span className="text-blue-500 font-bold mt-0.5">•</span>
+                <span className="text-info font-bold mt-0.5">•</span>
                 <span className="text-sm text-text-muted">
                   {bullet}
                 </span>
@@ -78,14 +78,14 @@ export function VerifyModal({
           <button
             onClick={onCancel}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-text bg-surface border border-border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+            className="px-4 py-2 text-sm font-medium text-text bg-surface border border-border rounded-lg hover:bg-surface-hover transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary"
+            className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary-solid"
           >
             {isLoading ? confirmingLabel : confirmLabel}
           </button>

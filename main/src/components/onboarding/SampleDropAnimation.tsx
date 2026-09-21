@@ -75,7 +75,7 @@ export function SampleDropAnimation({ zone, onOver, onDone }: Props) {
       style={{ zIndex: TOUR_LAYER_Z + 1, willChange: 'transform, opacity' }}
     >
       <div className="relative flex items-center gap-2.5 bg-surface border border-border rounded-lg shadow-xl px-3 py-2.5">
-        <FileText className="w-6 h-6 text-red-500 flex-shrink-0" />
+        <FileText className="w-6 h-6 text-danger flex-shrink-0" />
         <div className="min-w-0">
           <p className="text-sm font-medium text-text whitespace-nowrap">{SAMPLE_FILE_NAME}</p>
           <p className="text-xs text-text-muted">PDF, {SAMPLE_PAGE_COUNT} pages</p>

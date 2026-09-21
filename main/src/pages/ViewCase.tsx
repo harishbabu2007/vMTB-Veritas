@@ -799,9 +799,9 @@ export function ViewCase() {
                       isMobile ? 'py-2.5 px-2 text-xs' : 'py-3 px-0.5 text-sm'
                     } ${
                       isLocked
-                        ? 'border-transparent text-gray-300 cursor-not-allowed'
+                        ? 'border-transparent text-text-faint cursor-not-allowed'
                         : activeTab === tab
-                        ? 'text-blue-600' + ' border-blue-500'
+                        ? 'text-info' + ' border-info'
                         : 'border-transparent text-text-muted hover:text-text hover:border-border'
                     }`}
                   >
@@ -874,7 +874,7 @@ export function ViewCase() {
                   {/* MTB members must not read a changed-but-unverified case as
                       the one they reviewed. */}
                   {memberSnapshot && !memberNoticeDismissed && (
-                    <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-amber-50 text-amber-800" role="status">
+                    <div className="flex items-start gap-3 px-4 py-3 rounded-lg bg-warning-bg text-warning-text" role="status">
                       <Info className="w-4 h-4 mt-0.5 flex-shrink-0" aria-hidden="true" />
                       <div className="text-sm">
                         <p className="font-medium">The owner has updated this case. The changes aren’t verified yet</p>
@@ -907,20 +907,20 @@ export function ViewCase() {
                     <div className="flex items-start justify-between gap-4 flex-wrap pb-4 mb-4 border-b border-border">
                       <div className="flex flex-wrap gap-x-6 gap-y-3">
                         <div className="w-40">
-                          <p className="text-xs text-gray-400">Case</p>
+                          <p className="text-xs text-text-subtle">Case</p>
                           {/* System-generated: read-only even while editing */}
                           <p className="text-sm font-semibold truncate text-text-muted" title={caseData.caseName}>{caseData.caseName}</p>
                         </div>
                         {showPatientName && (
                           <div className="w-32">
-                            <p className="text-xs text-gray-400">Patient</p>
+                            <p className="text-xs text-text-subtle">Patient</p>
                             {editingCase ? (
                               <input
                                 type="text"
                                 value={patientForm.patientName}
                                 onChange={(e) => handlePatientFieldChange('patientName', e.target.value)}
                                 placeholder="Anonymous"
-                                className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                                 disabled={savingCase}
                               />
                             ) : (
@@ -929,29 +929,29 @@ export function ViewCase() {
                           </div>
                         )}
                         <div className="w-14">
-                          <p className="text-xs text-gray-400">Age</p>
+                          <p className="text-xs text-text-subtle">Age</p>
                           {editingCase ? (
                             <input
                               type="number"
                               min={1}
                               value={patientForm.age}
                               onChange={(e) => handlePatientFieldChange('age', e.target.value)}
-                              className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                               disabled={savingCase}
                             />
                           ) : (
-                            <p className={`text-sm font-medium truncate ${shownAge != null ? 'text-text-muted' : 'text-gray-400'}`}>
+                            <p className={`text-sm font-medium truncate ${shownAge != null ? 'text-text-muted' : 'text-text-subtle'}`}>
                               {shownAge != null ? `${shownAge}y` : 'Not detected'}
                             </p>
                           )}
                         </div>
                         <div className="w-20">
-                          <p className="text-xs text-gray-400">Sex</p>
+                          <p className="text-xs text-text-subtle">Sex</p>
                           {editingCase ? (
                             <select
                               value={patientForm.sex}
                               onChange={(e) => handlePatientFieldChange('sex', e.target.value)}
-                              className="w-full text-sm px-1 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full text-sm px-1 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                               disabled={savingCase}
                             >
                               <option value="">Select</option>
@@ -960,19 +960,19 @@ export function ViewCase() {
                               <option value="Other">Other</option>
                             </select>
                           ) : (
-                            <p className={`text-sm font-medium truncate ${shownSex ? 'text-text-muted' : 'text-gray-400'}`}>
+                            <p className={`text-sm font-medium truncate ${shownSex ? 'text-text-muted' : 'text-text-subtle'}`}>
                               {shownSex || 'Not detected'}
                             </p>
                           )}
                         </div>
                         <div className="w-40">
-                          <p className="text-xs text-gray-400">Cancer Type</p>
+                          <p className="text-xs text-text-subtle">Cancer Type</p>
                           {editingCase ? (
                             <input
                               type="text"
                               value={patientForm.cancerType}
                               onChange={(e) => handlePatientFieldChange('cancerType', e.target.value)}
-                              className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                               disabled={savingCase}
                             />
                           ) : (
@@ -983,12 +983,12 @@ export function ViewCase() {
 
                       <div className="flex items-center gap-2 flex-wrap flex-shrink-0">
                         {showYouBadge && (
-                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-600">
+                          <span className="px-3 py-1 text-xs font-medium rounded-full bg-info-bg text-info">
                             You
                           </span>
                         )}
                         {caseData?.summaryStatus === 'verified' && (
-                          <span className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200">
+                          <span className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-success-bg text-success border border-success-border">
                             <CheckCircle className="w-3.5 h-3.5" />
                             Verified & Shared
                           </span>
@@ -998,7 +998,7 @@ export function ViewCase() {
                             {isOwner && !isProcessingSummary && (
                               (caseData.summaryRegenerationCount ?? 0) >= 5 ? (
                                 <span
-                                  className="px-3 py-1.5 text-sm font-medium rounded-lg text-gray-400 bg-bg border border-border cursor-not-allowed"
+                                  className="px-3 py-1.5 text-sm font-medium rounded-lg text-text-subtle bg-bg border border-border cursor-not-allowed"
                                   title="This case has used all 5 available summary regenerations."
                                 >
                                   Regeneration limit reached (5/5)
@@ -1007,7 +1007,7 @@ export function ViewCase() {
                                 <button
                                   onClick={handleRegenerateSummary}
                                   disabled={regenerating}
-                                  className="px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
+                                  className="px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-surface-muted transition-colors disabled:opacity-50"
                                   title="Not happy with this summary? Regenerate it from the same documents."
                                 >
                                   {regenerating ? 'Starting…' : `Regenerate Summary (${5 - (caseData.summaryRegenerationCount ?? 0)} left)`}
@@ -1017,7 +1017,7 @@ export function ViewCase() {
                             <button
                               onClick={handleSaveCase}
                               disabled={savingCase}
-                              className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              className="px-4 py-1.5 bg-info-solid text-on-solid text-sm font-medium rounded-lg hover:bg-info-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                               {savingCase ? 'Saving...' : 'Save Changes'}
                             </button>
@@ -1025,7 +1025,7 @@ export function ViewCase() {
                               onClick={handleSaveAndVerify}
                               disabled={savingCase}
                               data-tour="case-verify"
-                              className="flex items-center gap-1.5 px-4 py-1.5 text-white text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+                              className="flex items-center gap-1.5 px-4 py-1.5 text-on-solid text-sm font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
                               title="Save your changes and verify this case"
                             >
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -1045,7 +1045,7 @@ export function ViewCase() {
                               <button
                                 onClick={handleVerifyClick}
                                 data-tour="case-verify"
-                                className="px-3 py-1.5 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity bg-primary"
+                                className="px-3 py-1.5 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid"
                               >
                                 Verify Case
                               </button>
@@ -1053,7 +1053,7 @@ export function ViewCase() {
                             {!isProcessingSummary && isOwner && caseData?.summaryStatus !== 'verified' && (
                               <button
                                 onClick={startEditingCase}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-text-muted bg-bg border border-border hover:bg-surface-muted transition-colors"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                                 <span>Edit</span>
@@ -1065,7 +1065,7 @@ export function ViewCase() {
                     </div>
 
                     {patientDetailsError && (
-                      <div className="mb-4 flex items-start justify-between gap-3 px-3 py-2 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg" role="alert">
+                      <div className="mb-4 flex items-start justify-between gap-3 px-3 py-2 text-sm text-danger-text bg-danger-bg border border-danger-border rounded-lg" role="alert">
                         <span>{patientDetailsError}</span>
                         <DismissButton onClick={() => setPatientDetailsError(null)} label="Dismiss error" />
                       </div>
@@ -1073,11 +1073,11 @@ export function ViewCase() {
 
             {isProcessingSummary ? (
               <div className="space-y-3">
-                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm font-medium text-yellow-800 mb-2">
+                <div className="p-4 bg-warning-bg border border-warning-border rounded-lg">
+                  <p className="text-sm font-medium text-warning-text mb-2">
                     {everVerified ? 'Documents changed. The summary is being regenerated' : '⏳ Summary is being generated'}
                   </p>
-                  <p className="text-sm text-yellow-700">
+                  <p className="text-sm text-warning-text">
                     {everVerified && isOwner
                       ? "This may take up to 5 minutes, and you'll need to verify the new summary. This page updates automatically when it's ready."
                       : 'This may take up to 5 minutes. This page updates automatically when the summary is ready.'}
@@ -1086,7 +1086,7 @@ export function ViewCase() {
                 <button
                   onClick={handleCheckStatusNow}
                   disabled={checkingStatus}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm disabled:opacity-50"
+                  className="px-4 py-2 bg-info-solid text-on-solid rounded-lg hover:bg-info-solid-hover transition-colors text-sm disabled:opacity-50"
                 >
                   {checkingStatus ? 'Checking…' : 'Check now'}
                 </button>
@@ -1102,7 +1102,7 @@ export function ViewCase() {
                   contentEditable={editingCase}
                   suppressContentEditableWarning
                   onPaste={handlePaste}
-                  className={`summary-editor bg-bg p-6 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[200px] ${
+                  className={`summary-editor bg-bg p-6 rounded-lg border border-border focus:outline-none focus:ring-2 focus:ring-primary min-h-[200px] ${
                     editingCase ? 'rounded-t-none' : ''
                   }`}
                   style={{
@@ -1114,12 +1114,12 @@ export function ViewCase() {
                 {/* Verified metadata - Show when verified */}
                 {caseData?.summaryStatus === 'verified' && !editingCase && (
                   <div className="mt-5 pt-4 border-t border-border">
-                    <p className="text-xs text-gray-400">
+                    <p className="text-xs text-text-subtle">
                       {/* Only the owner can verify, and no verifier is stored — this
                           used to print the *viewer's* email. */}
                       Verified by <span className="text-text-muted font-medium">{isOwner ? 'you' : 'the case owner'}</span>
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">
+                    <p className="text-xs text-text-subtle mt-0.5">
                       {caseData.createdDate ? new Date(caseData.createdDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''}
                     </p>
                   </div>
@@ -1154,13 +1154,13 @@ export function ViewCase() {
                             setShowAddToMtbModal(true);
                           }}
                           disabled={!canShareToMtbs}
-                          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+                          className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
                         >
                           <Plus className="w-4 h-4" />
                           <span>Add to MTBs</span>
                         </button>
                         {shareBlockedReason && (
-                          <p className="text-xs text-gray-400">{shareBlockedReason}</p>
+                          <p className="text-xs text-text-subtle">{shareBlockedReason}</p>
                         )}
                       </div>
                     </div>
@@ -1173,11 +1173,11 @@ export function ViewCase() {
                           return (
                             <li key={sharedMtb.id} className="flex items-center justify-between gap-4 px-6 py-3">
                               <div className="flex items-center gap-3 min-w-0">
-                                <Users className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                                <Users className="w-4 h-4 text-text-faint flex-shrink-0" />
                                 <span className="text-sm font-medium truncate text-text-muted">{sharedMtb.name}</span>
                                 {role && (
                                   <span className={`px-2 py-0.5 text-xs font-medium rounded-full flex-shrink-0 ${
-                                    role === 'Owner' ? 'bg-green-50 text-green-700' : 'bg-blue-50 text-blue-700'
+                                    role === 'Owner' ? 'bg-success-bg text-success' : 'bg-info-bg text-info-text'
                                   }`}>
                                     {role}
                                   </span>
@@ -1185,7 +1185,7 @@ export function ViewCase() {
                               </div>
                               <button
                                 onClick={() => setMtbToRemove(sharedMtb)}
-                                className="text-sm font-medium text-text-muted hover:text-red-600 transition-colors flex-shrink-0"
+                                className="text-sm font-medium text-text-muted hover:text-danger transition-colors flex-shrink-0"
                               >
                                 Remove
                               </button>
@@ -1229,16 +1229,16 @@ export function ViewCase() {
                   </section>
 
                   {/* Danger zone */}
-                  <section className="bg-surface rounded-xl shadow-sm border border-red-200 p-6 flex items-start justify-between gap-4">
+                  <section className="bg-surface rounded-xl shadow-sm border border-danger-border p-6 flex items-start justify-between gap-4">
                     <div className="min-w-0">
-                      <h3 className="text-base font-semibold text-red-700">Danger zone</h3>
+                      <h3 className="text-base font-semibold text-danger-text">Danger zone</h3>
                       <p className="text-sm text-text-muted mt-1">
                         Permanently delete this case and all its documents, opinions and questions. This can't be undone.
                       </p>
                     </div>
                     <button
                       onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex-shrink-0"
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors flex-shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Delete case</span>
@@ -1307,8 +1307,8 @@ export function ViewCase() {
                       </div>
                     ) : (
                       <div className="bg-surface rounded-xl border border-border shadow-sm p-8 text-center">
-                        <MessageSquare className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                        <p className="text-sm text-gray-400">No discussions yet in this MTB.</p>
+                        <MessageSquare className="w-8 h-8 text-text-faint mx-auto mb-3" />
+                        <p className="text-sm text-text-subtle">No discussions yet in this MTB.</p>
                       </div>
                     );
                   })()}
@@ -1342,7 +1342,7 @@ export function ViewCase() {
                                     key={mtb.id}
                                     type="button"
                                     onClick={() => handleSelectOpinionMtb(mtb.id)}
-                                    className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-bg ${isActive ? 'text-blue-700 bg-blue-50' : 'text-text'}`}
+                                    className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-bg ${isActive ? 'text-info-text bg-info-bg' : 'text-text'}`}
                                   >
                                     <span className="truncate pr-2">{mtb.name}</span>
                                     {isActive && <Check className="w-3.5 h-3.5 flex-shrink-0" />}
@@ -1358,7 +1358,7 @@ export function ViewCase() {
                         <button
                           onClick={() => setShowAddQuestionModal(true)}
                           data-tour="ask-question"
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-white hover:opacity-90 transition-opacity bg-primary"
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-on-solid hover:opacity-90 transition-opacity bg-primary-solid"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           <span>Ask Question</span>
@@ -1381,8 +1381,8 @@ export function ViewCase() {
                             <div className="px-4 py-3 border-b border-border">
                               <p className="text-sm font-semibold text-text leading-snug">{question.text}</p>
                               <div className="flex items-center gap-2 mt-2">
-                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-blue-50 text-blue-600">Clinical</span>
-                                <span className="text-xs text-gray-400">Asked by Case Owner</span>
+                                <span className="px-2 py-0.5 text-[10px] font-medium rounded-full bg-info-bg text-info">Clinical</span>
+                                <span className="text-xs text-text-subtle">Asked by Case Owner</span>
                               </div>
                             </div>
 
@@ -1405,7 +1405,7 @@ export function ViewCase() {
                                   ))}
                                 </div>
                               ) : (
-                                <p className="text-xs text-gray-400 py-2">No answers yet.</p>
+                                <p className="text-xs text-text-subtle py-2">No answers yet.</p>
                               )}
 
                               {/* Answer Input */}
@@ -1425,8 +1425,8 @@ export function ViewCase() {
                     </div>
                   ) : (
                     <div className="bg-surface rounded-xl border border-border shadow-sm p-8 text-center">
-                      <MessageSquare className="w-8 h-8 text-gray-200 mx-auto mb-3" />
-                      <p className="text-sm text-gray-400">
+                      <MessageSquare className="w-8 h-8 text-text-faint mx-auto mb-3" />
+                      <p className="text-sm text-text-subtle">
                         {isOwner
                           ? 'No questions yet. Add questions to guide expert discussions.'
                           : 'No questions have been added by the case owner yet.'}
@@ -1466,7 +1466,7 @@ export function ViewCase() {
             <button
               onClick={handleDeleteCase}
               disabled={deleting}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50"
             >
               {deleting ? 'Deleting...' : 'Delete Case'}
             </button>
@@ -1502,16 +1502,16 @@ export function ViewCase() {
               <div className="grid grid-cols-2 gap-3 text-sm p-3 bg-bg rounded-lg">
                 {showPatientName && (
                   <div>
-                    <p className="text-xs text-gray-400">Patient</p>
+                    <p className="text-xs text-text-subtle">Patient</p>
                     <p className="font-medium text-text-muted">{caseData.patientName || 'Anonymous'}</p>
                   </div>
                 )}
                 <div>
-                  <p className="text-xs text-gray-400">Age / Sex</p>
+                  <p className="text-xs text-text-subtle">Age / Sex</p>
                   <p className="font-medium text-text-muted">{caseData.age}y, {caseData.sex}</p>
                 </div>
                 <div className="col-span-2">
-                  <p className="text-xs text-gray-400">Cancer Type</p>
+                  <p className="text-xs text-text-subtle">Cancer Type</p>
                   <p className="font-medium text-text-muted">{caseData.cancerType}</p>
                 </div>
               </div>
@@ -1536,7 +1536,7 @@ export function ViewCase() {
               value={newQuestionText}
               onChange={(e) => setNewQuestionText(e.target.value)}
               rows={4}
-              className="w-full px-3 py-2 pr-10 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none transition-all duration-150"
+              className="w-full px-3 py-2 pr-10 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all duration-150"
               placeholder="Enter your question for the experts..."
               autoFocus
             />
@@ -1563,7 +1563,7 @@ export function ViewCase() {
             <button
               onClick={handleAddQuestion}
               disabled={addingQuestion || !newQuestionText.trim()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-info-solid text-on-solid rounded-lg hover:bg-info-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {addingQuestion ? 'Adding...' : 'Add Question'}
             </button>
@@ -1592,7 +1592,7 @@ export function ViewCase() {
             <button
               onClick={handleRemoveFromMTB}
               disabled={removingFromMTB}
-              className="px-4 py-2 text-sm font-medium bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+              className="px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50"
             >
               {removingFromMTB ? 'Removing…' : 'Remove'}
             </button>
@@ -1624,7 +1624,7 @@ export function ViewCase() {
                 onClick={() => setSelectedAddMtbIds(
                   selectedAddMtbIds.length === addableMtbs.length ? [] : addableMtbs.map(m => m.id)
                 )}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700"
+                className="text-sm font-medium text-info hover:text-info-text"
               >
                 {selectedAddMtbIds.length === addableMtbs.length ? 'Clear all' : 'Select all'}
               </button>
@@ -1633,7 +1633,7 @@ export function ViewCase() {
               {addableMtbs.map((mtb) => (
                 <label
                   key={mtb.id}
-                  className="flex items-center gap-3 p-3 bg-bg rounded-lg border border-border hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer transition-colors"
+                  className="flex items-center gap-3 p-3 bg-bg rounded-lg border border-border hover:bg-surface-muted cursor-pointer transition-colors"
                 >
                   <input
                     type="checkbox"
@@ -1666,7 +1666,7 @@ export function ViewCase() {
                 <button
                   onClick={handleAddToMtbs}
                   disabled={addingToMtbs || selectedAddMtbIds.length === 0}
-                  className="px-4 py-2 text-sm whitespace-nowrap font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary"
+                  className="px-4 py-2 text-sm whitespace-nowrap font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
                 >
                   {addingToMtbs
                     ? 'Adding…'
@@ -1709,7 +1709,7 @@ export function ViewCase() {
             <button
               onClick={handleArchiveCase}
               disabled={archiving}
-              className="px-4 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary"
+              className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary-solid"
             >
               {archiving ? 'Archiving…' : 'Archive case'}
             </button>

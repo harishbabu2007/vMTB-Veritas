@@ -9,14 +9,23 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://i.ibb.co/vxP6Cs3c/logo.png" />
     <script>
+      /* First paint, before React. Mirrors src/utils/themeStorage.ts — keep the
+         two in agreement. Default is LIGHT: the OS preference is consulted only
+         for someone who explicitly chose "System". The hint is keyed by the
+         signed-in user's id (read from the same cached-user key AuthContext
+         uses), so on a shared computer one person's theme is never painted for
+         another, and a signed-out visitor always gets light. */
       (function () {
         try {
-          var cached = localStorage.getItem('vmtb-theme-last');
-          var dark =
-            cached === 'dark' ||
-            (cached !== 'light' &&
-              window.matchMedia &&
-              window.matchMedia('(prefers-color-scheme: dark)').matches);
+          var dark = false;
+          var raw = localStorage.getItem('vmtb.auth.user');
+          var id = raw ? JSON.parse(raw).id : null;
+          var pref = id ? localStorage.getItem('vmtb-theme:' + id) : null;
+          if (pref === 'dark') {
+            dark = true;
+          } else if (pref === 'system') {
+            dark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          }
           if (dark) document.documentElement.classList.add('dark');
         } catch (e) {}
       })();

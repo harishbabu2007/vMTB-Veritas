@@ -243,7 +243,7 @@ export function ForgotPassword() {
                   {/* Side-by-Side Country Code + Phone Input */}
                   <div className="flex gap-2">
                     <div className="relative w-28 flex-shrink-0">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm font-medium">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-text-subtle text-sm font-medium">
                         +
                       </span>
                       <input
@@ -272,7 +272,7 @@ export function ForgotPassword() {
                 </div>
 
                 {error && (
-                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <div className="text-sm text-danger bg-danger-bg p-3 rounded-lg">
                     {error}
                   </div>
                 )}
@@ -280,7 +280,7 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+                  className="w-full text-on-solid py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                 >
                   {loading ? 'Sending OTP...' : 'Send WhatsApp OTP'}
                 </button>
@@ -330,7 +330,7 @@ export function ForgotPassword() {
                 </div>
 
                 {error && (
-                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg text-center">
+                  <div className="text-sm text-danger bg-danger-bg p-3 rounded-lg text-center">
                     {error}
                   </div>
                 )}
@@ -338,7 +338,7 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading || otp.join('').length < 6}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+                  className="w-full text-on-solid py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                 >
                   {loading ? 'Verifying...' : 'Verify OTP'}
                 </button>
@@ -353,7 +353,7 @@ export function ForgotPassword() {
                       type="button"
                       onClick={handleResendOTP}
                       disabled={loading}
-                      className="text-xs font-semibold text-primary hover:underline focus:outline-none"
+                      className="text-xs font-semibold text-link hover:underline focus:outline-none"
                     >
                       Resend WhatsApp OTP
                     </button>
@@ -404,7 +404,7 @@ export function ForgotPassword() {
                 </div>
 
                 {error && (
-                  <div className="text-sm text-red-600 bg-red-50 p-3 rounded-lg">
+                  <div className="text-sm text-danger bg-danger-bg p-3 rounded-lg">
                     {error}
                   </div>
                 )}
@@ -412,7 +412,7 @@ export function ForgotPassword() {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full text-white py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary hover:bg-primary-hover"
+                  className="w-full text-on-solid py-2.5 rounded-lg font-medium transition disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid hover:bg-primary-solid-hover"
                 >
                   {loading ? 'Updating Password...' : 'Reset Password'}
                 </button>
@@ -423,8 +423,8 @@ export function ForgotPassword() {
           {/* STEP 4: Success Message */}
           {step === 'success' && (
             <div className="text-center py-4">
-              <div className="inline-flex items-center justify-center bg-green-100 rounded-full mb-6 w-16 h-16">
-                <CheckCircle className="text-green-600 w-8 h-8" />
+              <div className="inline-flex items-center justify-center bg-success-bg-strong rounded-full mb-6 w-16 h-16">
+                <CheckCircle className="text-success w-8 h-8" />
               </div>
               <h2 className="text-2xl font-semibold text-text mb-2">
                 Password Reset Successful!

@@ -378,7 +378,7 @@ export default function ReviewCase() {
               </div>
               <button
                 onClick={() => navigate('/cases/new/step-1')}
-                className="text-sm hover:underline text-primary"
+                className="text-sm hover:underline text-link"
               >
                 Edit
               </button>
@@ -414,7 +414,7 @@ export default function ReviewCase() {
               </div>
               <button
                 onClick={() => navigate('/cases/new/step-2')}
-                className="text-sm hover:underline text-primary"
+                className="text-sm hover:underline text-link"
               >
                 Edit
               </button>
@@ -445,7 +445,7 @@ export default function ReviewCase() {
               </div>
               <button
                 onClick={() => navigate('/cases/new/step-1')}
-                className="text-sm hover:underline text-primary"
+                className="text-sm hover:underline text-link"
               >
                 Edit
               </button>
@@ -471,7 +471,7 @@ export default function ReviewCase() {
                     <span
                       className={`px-2 py-0.5 text-xs rounded-full flex-shrink-0 ml-2 ${
                         doc.type === 'Clinical'
-                          ? 'text-white bg-primary'
+                          ? 'text-on-solid bg-primary-solid'
                           : 'bg-bg text-text-muted border border-border'
                       }`}
                     >
@@ -504,7 +504,7 @@ export default function ReviewCase() {
                   </p>
                   <button
                     onClick={() => removeQuestion(index)}
-                    className="text-red-500 hover:text-red-700 ml-2 flex-shrink-0"
+                    className="text-danger hover:text-danger-text ml-2 flex-shrink-0"
                   >
                     <X className={isMobile ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
                   </button>
@@ -523,7 +523,7 @@ export default function ReviewCase() {
                 <button
                   type="button"
                   onClick={addQuestion}
-                  className={`flex items-center justify-center text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors ${isMobile ? 'px-4 py-2 w-full' : 'px-4 py-2'}`}
+                  className={`flex items-center justify-center text-on-solid bg-primary-solid rounded-lg hover:bg-primary-solid-hover transition-colors ${isMobile ? 'px-4 py-2 w-full' : 'px-4 py-2'}`}
                 >
                   <Plus className="w-4 h-4 mr-1" />
                   <span>Add</span>
@@ -578,10 +578,10 @@ export default function ReviewCase() {
           )}
 
           {error && (
-            <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <p className="text-red-700 text-sm flex-1">{error}</p>
-              <DismissButton onClick={() => setError(null)} label="Dismiss error" className="text-red-700" />
+            <div className="p-4 bg-danger-bg border border-danger-border rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+              <p className="text-danger-text text-sm flex-1">{error}</p>
+              <DismissButton onClick={() => setError(null)} label="Dismiss error" className="text-danger-text" />
             </div>
           )}
 
@@ -590,7 +590,7 @@ export default function ReviewCase() {
             <button
               onClick={() => navigate('/cases/new/step-2')}
               disabled={loading}
-              className={`border border-border rounded-lg text-text-muted hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2 text-sm' : 'px-4 py-2'}`}
+              className={`border border-border rounded-lg text-text-muted hover:bg-surface-hover transition-colors disabled:opacity-50 ${isMobile ? 'w-full py-2 text-sm' : 'px-4 py-2'}`}
             >
               Back
             </button>
@@ -600,7 +600,7 @@ export default function ReviewCase() {
               // The walkthrough lets the user click the sample's Create Case
               // through the tour; a real one it only points at.
               data-tour={isSampleCase ? 'review-create-sample' : 'review-create'}
-              className={`text-white bg-primary rounded-lg hover:bg-primary-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2 text-sm' : 'px-4 py-2'}`}
+              className={`text-on-solid bg-primary-solid rounded-lg hover:bg-primary-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full py-2 text-sm' : 'px-4 py-2'}`}
             >
               {loading ? 'Creating Case...' : 'Create Case'}
             </button>

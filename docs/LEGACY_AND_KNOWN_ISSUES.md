@@ -61,7 +61,22 @@ Call sites (`TranscriptionSource` type): `step2` (case creation),
 - **`NewCaseStep1_backup.tsx`, `NewCaseStep2_backup.tsx`,
   `ReviewCase_backup.tsx`** — stale backup copies under `main/src/pages/`,
   not routed anywhere. Safe to ignore; candidates for deletion whenever
-  someone wants to clean up.
+  someone wants to clean up. (Only `NewCaseStep2_backup.tsx` was confirmed
+  present and un-imported on 2026-09-21; it still holds raw palette colours
+  and is skipped by `npm run check:theme`.) `main/src/components/Reports.tsx.backup`
+  is a `.backup` copy of `Reports.tsx`, likewise dead.
+- **Theme gaps left on purpose (2026-09-21).** (1) `VoiceRecorder.css` is
+  light-only (pale blue gradient bar, light error box, hardcoded greys) and
+  `VoiceRecorder.tsx` has `BAR_COLOR = '#4A90E2'`. Both belong to the
+  do-not-touch dictation component above, so they were left byte-identical
+  and dark mode is adapted from outside: the `:root.dark .voice-recorder-*`
+  rules in `src/index.css` (next to `.dictate-control`) recolour the bar,
+  buttons, timer and spinner. Both files are skipped by `check:theme`; a new
+  colour added to `VoiceRecorder.css` needs a matching dark override there.
+  (2) White text on the brand-blue fill (`--color-primary-solid`, `#4A90E2`)
+  is 3.3:1 in light mode — AA only for large text. Kept as the brand colour;
+  `check:theme` lists it as a known exception. Darkening that one token fixes
+  it.
 - **Orphaned AWS API Gateway integrations** — `VMTB-Audio-Transcribe`,
   `TEST-PP-OCRv5`, `ocr-demo` have integrations with no route attached,
   pointing at functions that no longer exist. Harmless clutter. Two routes
@@ -81,7 +96,9 @@ Call sites (`TranscriptionSource` type): `step2` (case creation),
 
 ## Security findings (standing, not fixed as part of any doc pass)
 
-- **RLS is disabled on 16 of 19 Postgres tables** — access control is
+- **RLS is disabled on most Postgres tables** (originally counted as 16 of
+  19; `profiles` has since been found enabled live — see
+  `docs/DATABASE_SCHEMA.md`, other tables not re-checked) — access control is
   enforced almost entirely in application code, not the database. Full
   per-table breakdown: `docs/DATABASE_SCHEMA.md`.
 - **RLS is also off on the 3 tables added for the manual anonymization

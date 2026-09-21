@@ -11,12 +11,17 @@ the creation wizard).
 
 1. **`NewCaseStep1.tsx`** — a deliberately minimal "Case Details" block plus a
    full-width upload area. It collects exactly two fields: **Patient Name**
-   (optional, defaults to "Anonymous") and **Cancer Type** (required,
-   free-text with a `<datalist>` of common types). **There are no age or sex
-   inputs** — those come from the uploaded documents, see "Patient age and sex
-   are AI-extracted" below. The **case name is auto-generated** (from cancer
-   type + date, uniqueness-checked against `cases.case_name` on submit) and is
-   **never displayed on this screen and never user-editable**, here or later.
+   (optional, defaults to "Anonymous") and **Cancer Type** (required, one of
+   the 418 types in `src/data/cancerTypes.json`, picked with the searchable
+   `CancerTypeSelect` — search by name, abbreviation or body region; picking
+   "Other Cancer Type (Not Listed)" adds a free-text box, and what's typed
+   there is what the case stores). **There are no age or sex inputs** — those
+   come from the uploaded documents, see "Patient age and sex are
+   AI-extracted" below. The **case name is auto-generated** from the type's
+   abbreviation plus 5 random digits (`ILC80981`; the abbreviation keeps its
+   published form, so also `ccRCC80981` and `BR-PAGET80981`), checked against
+   `cases.case_name` and regenerated on a collision. It is **never displayed
+   on this screen and never user-editable**, here or later.
    Upload accepts png/jpg/jpeg/doc/docx/ppt/pptx/pdf/txt, by clicking the
    upload box or dragging files onto it (both go through the same checks);
    PDF page count is validated client-side via `pdfjs-dist` (max 50 pages) and
