@@ -1,5 +1,5 @@
 import { ReactNode } from 'react';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle, Lock } from 'lucide-react';
 import { Modal } from './Modal';
 
 interface VerifyModalProps {
@@ -10,6 +10,11 @@ interface VerifyModalProps {
   title?: string;
   description?: string;
   bullets?: string[];
+  /** The one consequence easiest to miss and hardest to undo: shown in its
+   * own callout, not buried in the bullet list. Off for modes (like the
+   * "add patient details" block) that aren't actually verifying anything. */
+  showLockNotice?: boolean;
+  lockNoticeText?: string;
   footerNote?: string;
   confirmLabel?: string;
   confirmingLabel?: string;
@@ -17,10 +22,12 @@ interface VerifyModalProps {
   reviewContent?: ReactNode;
 }
 
+// Verifying locks the summary; it does not by itself share the case with
+// anyone. Sharing to an MTB is a separate action from Case Settings, and
+// only then does an MTB's members see it.
 const DEFAULT_BULLETS = [
-  'Shared with selected MTBs',
-  'Visible to other MTB members and experts',
-  'No longer editable',
+  'Can be shared with MTBs from Case Settings',
+  'Visible to MTB members once shared',
 ];
 
 export function VerifyModal({
@@ -29,10 +36,12 @@ export function VerifyModal({
   onCancel,
   isLoading,
   title = 'Verify Case Summary',
-  description = 'Once you verify this case summary, it will be:',
+  description = 'Please review the patient details and summary below, then confirm to verify this case.',
   bullets = DEFAULT_BULLETS,
+  showLockNotice = true,
+  lockNoticeText = 'This case becomes permanently non-editable.',
   footerNote = 'Make sure the summary is accurate before confirming. This action cannot be undone.',
-  confirmLabel = 'Verify & Share',
+  confirmLabel = 'Verify Case',
   confirmingLabel = 'Verifying...',
   reviewContent,
 }: VerifyModalProps) {
@@ -54,7 +63,16 @@ export function VerifyModal({
         {/* Review content (e.g. patient details recap) */}
         {reviewContent}
 
-        {/* Bullet List */}
+        {/* The hardest-to-undo consequence, called out on its own so it
+            can't be skimmed past as just another bullet. */}
+        {showLockNotice && (
+          <div className="flex items-start gap-3 rounded-lg border border-warning-border bg-warning-bg-strong p-3">
+            <Lock className="w-4 h-4 text-warning flex-shrink-0 mt-0.5" aria-hidden="true" />
+            <p className="text-sm font-semibold text-warning-text">{lockNoticeText}</p>
+          </div>
+        )}
+
+        {/* Other, lower-stakes bullets */}
         {bullets.length > 0 && (
           <ul className="space-y-2">
             {bullets.map((bullet) => (

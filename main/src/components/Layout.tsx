@@ -1,8 +1,9 @@
 import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, MessageSquare, Settings, ChevronDown, Bell, Upload, Archive, Sun, Moon, Monitor } from 'lucide-react';
+import { LogOut, MessageSquare, Settings, ChevronDown, Bell, Upload, Archive, Compass, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useOnboarding } from '../context/OnboardingContext';
 import { Modal } from './Modal';
 import { MobileNav } from './MobileNav';
 import { VoiceRecorder } from './VoiceRecorder';
@@ -23,6 +24,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
   const location = useLocation();
   const { logout, user, updateAvatarKey } = useAuth();
   const { theme, setTheme } = useTheme();
+  const { restartTour } = useOnboarding();
   const [showDropdown, setShowDropdown] = useState(false);
   const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -443,6 +445,17 @@ export function Layout({ children, wide = false }: LayoutProps) {
                       <Archive className="w-4 h-4" />
                       <span>Archived cases</span>
                     </button>
+                    <button
+                      onClick={() => {
+                        setShowDropdown(false);
+                        void restartTour();
+                        navigate('/my-cases');
+                      }}
+                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
+                    >
+                      <Compass className="w-4 h-4" />
+                      <span>Restart Tour</span>
+                    </button>
                     <hr className="my-1.5 border-border" />
                     <div className="px-4 py-2">
                       <p className="text-xs font-medium text-text-muted mb-1.5">Theme</p>
@@ -546,7 +559,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                 className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
                   !profileName.trim() && profileError ? 'border-danger-border' : 'border-border'
                 }`}
-                placeholder="Dr. John Doe"
+                placeholder="Ex: Dr. John Doe"
               />
             </div>
             <div>
@@ -608,7 +621,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                 className={`w-full px-4 py-2.5 border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 text-sm transition ${
                   !profileHospital.trim() && profileError ? 'border-danger-border' : 'border-border'
                 }`}
-                placeholder="City Cancer Hospital"
+                placeholder="Ex: City Cancer Hospital"
               />
             </div>
             <div>

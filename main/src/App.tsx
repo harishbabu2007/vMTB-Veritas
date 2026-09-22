@@ -16,7 +16,6 @@ import { ResetPassword } from './pages/ResetPassword';
 import { MyCases } from './pages/MyCases';
 import NewCaseStep1 from './pages/NewCaseStep1';
 import NewCaseStep2 from './pages/NewCaseStep2';
-import ReviewCase from './pages/ReviewCase';
 import { MTBs } from './pages/MTBs';
 import { MTBDetail } from './pages/MTBDetail';
 import { MeetingDetail } from './pages/MeetingDetail';
@@ -26,27 +25,38 @@ import { SampleCase } from './pages/SampleCase';
 import { SampleBoard } from './pages/SampleBoard';
 
 function AuthRedirect() {
-  const { isAuthenticated, loading, isInPasswordRecovery } = useAuth();
+  const { isAuthenticated, loading, isInPasswordRecovery, registrationComplete } = useAuth();
   const location = useLocation();
-  
-  if (loading) {
+
+  // registrationComplete === null means "still checking" for a signed-in
+  // user, same as `loading` -- an abandoned Google signup (a real session,
+  // no finished profile) must not flash through to /my-cases while that
+  // check is still in flight.
+  if (loading || (isAuthenticated && registrationComplete === null)) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-text-muted">Loading...</div>
       </div>
     );
   }
-  
+
   // Allow user to stay on /reset-password during password recovery
   if (isInPasswordRecovery && location.pathname === '/reset-password') {
     return null;
   }
-  
+
   // Also check for recovery hash in URL - prevents redirect before PASSWORD_RECOVERY event fires
   if (location.pathname === '/reset-password' && location.hash.includes('access_token')) {
     return null;
   }
-  
+
+  // Signed in but never finished registration (e.g. Google auth completed,
+  // then the tab closed before the WhatsApp OTP step) -- send them back to
+  // pick up signup where they left off, not into the app.
+  if (isAuthenticated && registrationComplete === false) {
+    return <Navigate to="/signup" replace />;
+  }
+
   return <Navigate to={isAuthenticated ? "/my-cases" : "/login"} />;
 }
 
@@ -74,9 +84,9 @@ function AuthRecoveryHandler() {
 }
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, registrationComplete } = useAuth();
   const location = useLocation();
-  
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
@@ -84,11 +94,28 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       </div>
     );
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
-  
+
+  // Same "still checking" window as AuthRedirect -- don't render a
+  // protected page for a session whose registration status isn't known yet.
+  if (registrationComplete === null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="text-text-muted font-medium animate-pulse">Loading...</div>
+      </div>
+    );
+  }
+
+  // Signed in via Google but never finished the WhatsApp verification step
+  // -- every protected route sends them back to finish signup instead of
+  // silently granting access.
+  if (registrationComplete === false) {
+    return <Navigate to="/signup" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -163,14 +190,6 @@ function App() {
               element={
                 <ProtectedRoute>
                   <NewCaseStep2 />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cases/review"
-              element={
-                <ProtectedRoute>
-                  <ReviewCase />
                 </ProtectedRoute>
               }
             />

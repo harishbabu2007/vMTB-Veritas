@@ -31,6 +31,7 @@ export default {
         'text-muted': 'var(--color-text-muted)',
         'text-subtle': 'var(--color-text-subtle)',
         'text-faint': 'var(--color-text-faint)',
+        'text-placeholder': 'var(--color-text-placeholder)',
         'on-solid': 'var(--color-on-solid)',
         border: 'var(--color-border)',
         'border-strong': 'var(--color-border-strong)',

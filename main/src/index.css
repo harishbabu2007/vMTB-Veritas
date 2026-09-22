@@ -32,6 +32,12 @@
 	--color-text-muted: #4A5565;
 	--color-text-subtle: #667085;
 	--color-text-faint: #9ca3af;
+	/* Placeholder-only: clearly fainter than real text (text-subtle), so an
+	   example never reads as something already typed in. Kept at the
+	   faintest gray that still clears WCAG AA (~4.6:1 on bg/surface) rather
+	   than reusing text-faint, which is decoration-only and not meant to be
+	   read as text (see the comment above). */
+	--color-text-placeholder: #737373;
 	--color-on-solid: #ffffff;
 
 	/* Lines */
@@ -112,6 +118,9 @@
 	--color-text-muted: #9ca3af;
 	--color-text-subtle: #8b93a1;
 	--color-text-faint: #5f6673;
+	/* Same faintness relationship as light mode's text-placeholder: dimmer
+	   than text-subtle, still >=4.5:1 on dark bg/surface. */
+	--color-text-placeholder: #858585;
 	--color-on-solid: #ffffff;
 
 	--color-border: #2d3138;
@@ -195,7 +204,7 @@
 	}
 
 	input::placeholder, textarea::placeholder {
-		color: var(--color-text-subtle);
+		color: var(--color-text-placeholder);
 		opacity: 1;
 	}
 
@@ -366,6 +375,57 @@
 	transition: top 200ms ease-out, left 200ms ease-out, width 200ms ease-out, height 200ms ease-out;
 }
 
+/* An "act" step's target: the ring breathes to say "click me" — only the
+   inner ring's width pulses, so the outer 100vmax dimming edge (and the
+   hole's actual clickable geometry) never moves. */
+.tour-spotlight--act {
+	animation: tourSpotlightPulse 1.6s ease-in-out infinite;
+}
+
+@keyframes tourSpotlightPulse {
+	0%, 100% { box-shadow: 0 0 0 2px var(--color-primary), 0 0 0 100vmax var(--color-tour-backdrop); }
+	50% { box-shadow: 0 0 0 5px var(--color-primary), 0 0 0 100vmax var(--color-tour-backdrop); }
+}
+
+/* A second, purely decorative ring drawn exactly over the same hole as
+   .tour-spotlight. It's the one that actually scales — a "radar ping"
+   expanding outward and fading — so the zoom reads clearly without ever
+   touching the spotlight box's own geometry (which is what defines the
+   dimming edge and the clickable hole). */
+.tour-pulse-ring {
+	border: 2px solid var(--color-primary);
+	animation: tourPulseRing 1.6s ease-out infinite;
+}
+
+@keyframes tourPulseRing {
+	0% { transform: scale(1); opacity: 0.9; }
+	70%, 100% { transform: scale(1.18); opacity: 0; }
+}
+
+/* The animated cursor over an "act" step's target: glides in, taps, fades,
+   repeats. Positioned by TourOverlay at a fixed point inside the hole. A
+   plain white, filled glyph (like a real OS pointer) with a black outline
+   and drop-shadow, so it reads against any background — light or dark,
+   solid or a photo — without needing a background chip behind it. */
+.tour-click-cursor-wrap {
+	animation: tourCursorClick 2.2s ease-in-out infinite;
+}
+
+.tour-click-cursor {
+	position: relative;
+	filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.5));
+}
+
+@keyframes tourCursorClick {
+	0% { transform: translate(-14px, -14px) scale(1); opacity: 0; }
+	15% { opacity: 1; }
+	40% { transform: translate(0, 0) scale(1); opacity: 1; }
+	50% { transform: translate(0, 0) scale(0.8); opacity: 1; }
+	60% { transform: translate(0, 0) scale(1); opacity: 1; }
+	85% { opacity: 1; }
+	100% { transform: translate(-14px, -14px) scale(1); opacity: 0; }
+}
+
 @keyframes tourFadeIn {
 	from {
 		opacity: 0;
@@ -416,6 +476,17 @@
 @media (prefers-reduced-motion: reduce) {
 	.tour-spotlight {
 		transition: none;
+	}
+	.tour-spotlight--act {
+		animation: none;
+	}
+	.tour-pulse-ring {
+		display: none;
+	}
+	.tour-click-cursor-wrap {
+		animation: none;
+		transform: none;
+		opacity: 1;
 	}
 	.tour-popover,
 	.file-arrived,
@@ -498,6 +569,37 @@
 	.dictate-control {
 		min-height: 44px;
 	}
+}
+
+/* Step 2's second Dictate affordance: centered near the bottom of the empty
+   case-explanation textarea, so voice input is discoverable without reading
+   the header. Same untouched VoiceRecorder; only the idle mic button's shell
+   is restyled from outside, exactly like .dictate-control above. */
+.textarea-mic-affordance {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.textarea-mic-affordance .voice-recorder-mic-btn {
+	width: 44px;
+	height: 44px;
+	border-radius: 9999px;
+	background-color: var(--color-surface);
+	border: 1px solid var(--color-border);
+	color: var(--color-primary);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+	transition: background-color 150ms ease, border-color 150ms ease;
+}
+
+.textarea-mic-affordance .voice-recorder-mic-btn:hover {
+	background-color: var(--color-status-processing-bg);
+	border-color: var(--color-primary);
+}
+
+.textarea-mic-affordance .voice-recorder-mic-btn:focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
 }
 
 /* Dark-mode colours for the legacy voice recorder. VoiceRecorder.css is

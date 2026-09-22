@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, FileText, Loader2, Minus, PenTool, Plus, Redo2, Square, Trash2, Undo2,
+  ArrowLeft, Check, ChevronDown, ChevronLeft, ChevronRight, EyeOff, FileText, Loader2, Minus, PenTool, Plus, Redo2, Square, Trash2, Undo2, X,
 } from 'lucide-react';
 import type { OriginalPage, RedactionRecord, RedactionStyle } from '../../services/redactionService';
 import { fetchFreshReportUrl } from '../../services/redactionService';
@@ -10,6 +10,7 @@ import { fetchDocumentBytes } from '../../utils/pdfjs';
 import { useIsMobile } from '../../hooks/useMobile';
 import { useTourGroup } from '../../hooks/useTourGroup';
 import { PdfPages, PdfSource } from './PdfPages';
+import { PageThumbnailRail } from './PageThumbnailRail';
 import { RedactionCanvas, RedactionTool } from './RedactionCanvas';
 import { REGION_COLORS, styleFill } from './redactionStyles';
 import { useRedactionSource } from './useRedactionSource';
@@ -95,6 +96,7 @@ export function DocumentWorkspace({
   const [redoStacks, setRedoStacks] = useState<Record<string, LocalChange[]>>({});
   const [discardMenuOpen, setDiscardMenuOpen] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [redactionsDrawerOpen, setRedactionsDrawerOpen] = useState(false);
   const lastAutoRefreshRef = useRef(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -113,6 +115,11 @@ export function DocumentWorkspace({
 
   const redaction = useRedactionSource(requestId, caseId, doc?.filename ?? null, showRedactionSource);
   const { refresh: refreshRedaction } = redaction;
+  const hiddenCount = redaction.source
+    ? redaction.source.regions.length
+      - changes.filter((c) => c.action === 'remove').length
+      + changes.filter((c) => c.action === 'add').length
+    : 0;
   // Walkthrough tips: the View/Redact switch the first time the owner opens
   // an editable document, then the tools the first time they redact.
   const redactReady = mode === 'redact' && Boolean(redaction.source) && !redaction.unavailable;
@@ -162,12 +169,26 @@ export function DocumentWorkspace({
     setActiveFilename(filename);
     setPage({ current: 1, total: 0 });
     setHoveredId(null);
+    setRedactionsDrawerOpen(false);
     scrollRef.current?.scrollTo({ top: 0 });
   }, []);
 
   useEffect(() => {
     if (!canRedact && mode === 'redact') setMode('view');
   }, [canRedact, mode]);
+
+  useEffect(() => {
+    if (mode !== 'redact') setRedactionsDrawerOpen(false);
+  }, [mode]);
+
+  // Shared by the page rail and the redactions drawer's per-region "Page N"
+  // links: both PdfPages and RedactionCanvas mark each page's mounted
+  // element with the same 0-indexed data-page-index (see LazyPage).
+  const scrollToPageIndex = useCallback((index: number) => {
+    scrollRef.current
+      ?.querySelector(`[data-page-index="${index}"]`)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   const setChanges = useCallback(
     (next: LocalChange[]) => {
@@ -325,6 +346,14 @@ export function DocumentWorkspace({
             {doc.displayName}
           </h2>
           <DocumentStateChip edited={changes.length > 0} deleted={isDeleted} updating={isUpdating} />
+          {/* Mobile has no room for the page thumbnail rail; this read-only
+              position readout is the "lighter" equivalent, next to the
+              document prev/next chevrons which already cover documents. */}
+          {isMobile && page.total > 1 && (
+            <span className="flex-shrink-0 text-xs tabular-nums text-text-muted" aria-live="polite">
+              p.{page.current}/{page.total}
+            </span>
+          )}
         </div>
 
         {isMobile && documents.length > 1 && (
@@ -346,14 +375,29 @@ export function DocumentWorkspace({
                 aria-selected={mode === m}
                 onClick={() => setMode(m)}
                 className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                  mode === m ? 'bg-surface shadow-sm' : 'hover:text-text'
+                  mode === m ? 'bg-surface text-primary shadow-sm ring-1 ring-border' : 'text-text-muted hover:text-text'
                 }`}
-                style={{ color: mode === m ? INK : 'var(--color-text-muted)' }}
               >
                 {m === 'view' ? 'View' : 'Redact'}
               </button>
             ))}
           </div>
+        )}
+
+        {mode === 'redact' && !isMobile && redaction.source && !redaction.unavailable && (
+          <button
+            data-tour="redact-panel"
+            onClick={() => setRedactionsDrawerOpen((o) => !o)}
+            aria-haspopup="true"
+            aria-expanded={redactionsDrawerOpen}
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 text-sm font-medium rounded-lg border transition-colors ${
+              redactionsDrawerOpen ? 'border-primary text-primary bg-status-processing-bg' : 'border-border text-text-muted hover:bg-bg'
+            }`}
+          >
+            <EyeOff className="w-4 h-4" aria-hidden="true" />
+            Redactions
+            <span className="tabular-nums">{hiddenCount}</span>
+          </button>
         )}
 
         {!isMobile && (
@@ -451,9 +495,72 @@ export function DocumentWorkspace({
       </header>
 
       <div className="flex-1 flex min-h-0">
-        {/* Document rail */}
+        {/* Page rail: jump between this document's own pages, like a normal
+            PDF viewer's page panel — on the left, where readers expect it. */}
+        {!isMobile && (
+          <PageThumbnailRail
+            totalPages={page.total}
+            currentPage={page.current}
+            onSelectPage={(pageNumber) => scrollToPageIndex(pageNumber - 1)}
+            pdfSource={pdfSource}
+          />
+        )}
+
+        {/* Document */}
+        <div className="relative flex-1 min-w-0 flex flex-col" style={{ backgroundColor: CANVAS_BG }}>
+          {isDeleted && (
+            <div className="flex items-center justify-center gap-3 px-4 py-2 text-sm bg-danger-bg text-danger-text border-b border-danger-border">
+              <span>This document will be removed when you close.</span>
+              <button onClick={() => session.toggleDelete(doc.filename)} className="font-medium underline underline-offset-2">
+                Keep it
+              </button>
+            </div>
+          )}
+          <div ref={scrollRef} className="flex-1 overflow-auto">
+            <div className="px-2 sm:px-6 pb-24" style={{ minWidth: pageWidth + (isMobile ? 16 : 48) }}>
+              {renderDocument()}
+            </div>
+          </div>
+
+          {mode === 'redact' && redaction.source && !redaction.unavailable && (
+            <ToolPill
+              tool={tool}
+              onTool={setTool}
+              style={style}
+              onStyle={setStyle}
+              canUndo={changes.length > 0}
+              canRedo={redoStack.length > 0}
+              onUndo={undo}
+              onRedo={redo}
+            />
+          )}
+
+          {/* Redactions drawer: opened on demand from the header's
+              "Redactions" toggle rather than pinned as a permanent column —
+              it overlays the document switcher on the right instead of
+              competing with it for space. */}
+          {mode === 'redact' && !isMobile && redactionsDrawerOpen && redaction.source && !redaction.unavailable && (
+            <div className="absolute inset-y-0 right-0 z-20 flex">
+              <div className="fixed inset-0 -z-10" onClick={() => setRedactionsDrawerOpen(false)} aria-hidden="true" />
+              <RedactionsPanel
+                onClose={() => setRedactionsDrawerOpen(false)}
+                onDiscard={() => session.discardDocument(doc.filename)}
+                pages={redaction.source.pages}
+                regions={redaction.source.regions}
+                changes={changes}
+                onChange={setChanges}
+                hoveredId={hoveredId}
+                onHover={setHoveredId}
+                scrollToPage={(pageNumber) => scrollToPageIndex(redaction.source!.pages.findIndex((p) => p.pageNumber === pageNumber))}
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Document switcher: jump between this case's other reports — on
+            the right, since the left is now this document's own pages. */}
         {!isMobile && documents.length > 1 && (
-          <nav className="w-28 flex-shrink-0 overflow-y-auto border-r border-border bg-surface p-2 space-y-2" aria-label="Documents">
+          <nav className="w-28 flex-shrink-0 overflow-y-auto border-l border-border bg-surface p-2 space-y-2" aria-label="Documents">
             {documents.map((d) => {
               const active = d.filename === doc.filename;
               const edited = (session.redactions[d.filename]?.length ?? 0) > 0;
@@ -493,55 +600,6 @@ export function DocumentWorkspace({
               );
             })}
           </nav>
-        )}
-
-        {/* Document */}
-        <div className="relative flex-1 min-w-0 flex flex-col" style={{ backgroundColor: CANVAS_BG }}>
-          {isDeleted && (
-            <div className="flex items-center justify-center gap-3 px-4 py-2 text-sm bg-danger-bg text-danger-text border-b border-danger-border">
-              <span>This document will be removed when you close.</span>
-              <button onClick={() => session.toggleDelete(doc.filename)} className="font-medium underline underline-offset-2">
-                Keep it
-              </button>
-            </div>
-          )}
-          <div ref={scrollRef} className="flex-1 overflow-auto">
-            <div className="px-2 sm:px-6 pb-24" style={{ minWidth: pageWidth + (isMobile ? 16 : 48) }}>
-              {renderDocument()}
-            </div>
-          </div>
-
-          {mode === 'redact' && redaction.source && !redaction.unavailable && (
-            <ToolPill
-              tool={tool}
-              onTool={setTool}
-              style={style}
-              onStyle={setStyle}
-              canUndo={changes.length > 0}
-              canRedo={redoStack.length > 0}
-              onUndo={undo}
-              onRedo={redo}
-            />
-          )}
-        </div>
-
-        {/* Redactions list */}
-        {mode === 'redact' && !isMobile && redaction.source && !redaction.unavailable && (
-          <RedactionsPanel
-            onDiscard={() => session.discardDocument(doc.filename)}
-            pages={redaction.source.pages}
-            regions={redaction.source.regions}
-            changes={changes}
-            onChange={setChanges}
-            hoveredId={hoveredId}
-            onHover={setHoveredId}
-            scrollToPage={(pageNumber) => {
-              const index = redaction.source!.pages.findIndex((p) => p.pageNumber === pageNumber);
-              scrollRef.current
-                ?.querySelector(`[data-page-index="${index}"]`)
-                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }}
-          />
         )}
       </div>
       {confirmLeave && (
@@ -656,6 +714,7 @@ function ToolPill({ tool, onTool, style, onStyle, canUndo, canRedo, onUndo, onRe
 }
 
 interface RedactionsPanelProps {
+  onClose: () => void;
   onDiscard: () => void;
   pages: OriginalPage[];
   regions: RedactionRecord[];
@@ -666,7 +725,7 @@ interface RedactionsPanelProps {
   scrollToPage: (pageNumber: number) => void;
 }
 
-function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, onChange, hoveredId, onHover, scrollToPage }: RedactionsPanelProps) {
+function RedactionsPanel({ onClose, onDiscard, pages: originalPages, regions, changes, onChange, hoveredId, onHover, scrollToPage }: RedactionsPanelProps) {
   const revealed = new Set(
     changes.filter((c): c is Extract<LocalChange, { action: 'remove' }> => c.action === 'remove').map((c) => c.redactionId)
   );
@@ -686,15 +745,23 @@ function RedactionsPanel({ onDiscard, pages: originalPages, regions, changes, on
     `w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors ${hoveredId === id ? 'bg-status-processing-bg' : 'hover:bg-bg'}`;
 
   return (
-    <aside data-tour="redact-panel" className="w-72 flex-shrink-0 overflow-y-auto border-l border-border bg-surface" aria-label="Redactions on this document">
+    <aside
+      className="content-reveal relative w-72 flex-shrink-0 overflow-y-auto border-l border-border bg-surface shadow-xl"
+      aria-label="Redactions on this document"
+    >
       <div className="sticky top-0 bg-surface px-4 py-3 border-b border-border">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold" style={{ color: INK }}>Redactions</p>
-          {changes.length > 0 && (
-            <button onClick={onDiscard} className="text-xs font-medium text-text-muted hover:text-danger">
-              Discard changes
+          <p className="text-sm font-semibold text-text-muted">Redactions</p>
+          <div className="flex items-center gap-3">
+            {changes.length > 0 && (
+              <button onClick={onDiscard} className="text-xs font-medium text-text-muted hover:text-danger">
+                Discard changes
+              </button>
+            )}
+            <button onClick={onClose} className="p-1 -mr-1 rounded hover:bg-bg text-text-muted" aria-label="Close redactions panel">
+              <X className="w-4 h-4" />
             </button>
-          )}
+          </div>
         </div>
         <p className="text-xs text-text-subtle mt-0.5">
           {regions.length - revealed.size + adds.length} hidden{revealed.size > 0 ? `, ${revealed.size} to reveal` : ''}

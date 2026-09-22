@@ -1,14 +1,25 @@
-import { createContext, useContext, useEffect, useMemo, useState, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactNode } from 'react';
 import { supabase } from '../Supabase/client';
 import { THEME_CACHE_PREFIX } from '../utils/themeStorage';
 
 type AuthUser = { id: string; email: string | null; name?: string; avatarKey?: string | null };
+
+// 'unknown' while the profile row hasn't been checked yet for the current
+// session (a brief window right after sign-in, or at app boot). Route
+// gates (App.tsx) must treat 'unknown' like `loading` -- not "complete" --
+// or an abandoned Google signup (a real Supabase session with no finished
+// `profiles` row) would slip straight into the app before the check lands.
+type RegistrationStatus = 'unknown' | 'complete' | 'incomplete';
 
 interface AuthContextType {
   isAuthenticated: boolean;
   user: AuthUser | null;
   loading: boolean;
   isInPasswordRecovery: boolean;
+  // null = still checking (treat like `loading`); false = signed in but
+  // registration (WhatsApp verification) never finished.
+  registrationComplete: boolean | null;
+  markRegistrationComplete: () => void;
   updateAvatarKey: (avatarKey: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (countryCode: string, phoneNumber: string, password: string) => Promise<void>;
@@ -58,7 +69,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInPasswordRecovery, setIsInPasswordRecovery] = useState(false);
+  const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatus>('unknown');
   const isAuthenticated = !!user;
+  const registrationComplete = registrationStatus === 'unknown' ? null : registrationStatus === 'complete';
+  // Which user id `registrationStatus` currently reflects, so a stale
+  // status from a previous user can't briefly apply to a newly-signed-in
+  // one before its own check resolves.
+  const registrationUserIdRef = useRef<string | null>(null);
 
   // Auth events (TOKEN_REFRESHED, a repeated SIGNED_IN, another tab's storage
   // write) re-deliver the same user. Keep the existing object in that case so
@@ -105,29 +122,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const loadProfileName = async (id: string) => {
+  // Same round trip the old name-only fetch already made; now also decides
+  // whether registration (WhatsApp verification) is complete for this
+  // session, from the one server-set `whatsapp_verified` column -- not
+  // from whether a `profiles` row merely exists (backfillProfileFromMetadata
+  // below can create a bare row, e.g. from a Google account's display name,
+  // for a signup that was never actually finished).
+  const loadProfile = async (id: string) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_key')
+        .select('full_name, avatar_key, whatsapp_verified')
         .eq('id', id)
         .single();
-      const profile = data as { full_name?: string; avatar_key?: string | null } | null;
-      const name = profile?.full_name;
+      const profile = data as { full_name?: string; avatar_key?: string | null; whatsapp_verified?: boolean | null } | null;
+      if (error || !profile) {
+        setRegistrationStatus('incomplete');
+        await backfillProfileFromMetadata(id);
+        return;
+      }
+      const name = profile.full_name;
       if (name) {
         setUser(prev =>
-          prev && (prev.name !== name || prev.avatarKey !== profile?.avatar_key)
-            ? { ...prev, name, avatarKey: profile?.avatar_key ?? null }
+          prev && (prev.name !== name || prev.avatarKey !== profile.avatar_key)
+            ? { ...prev, name, avatarKey: profile.avatar_key ?? null }
             : prev
         );
       } else {
         await backfillProfileFromMetadata(id);
       }
+      setRegistrationStatus(profile.whatsapp_verified ? 'complete' : 'incomplete');
     } catch (_err) {
       // Ignore missing profile; keep auth working without name
+      setRegistrationStatus('incomplete');
       await backfillProfileFromMetadata(id);
     }
   };
+
+  // Wraps loadProfile so a status left over from a different user (or from
+  // this same user's previous session) can't be read as this session's
+  // answer while the fresh check is still in flight.
+  const beginProfileLoad = (id: string) => {
+    if (registrationUserIdRef.current !== id) {
+      registrationUserIdRef.current = id;
+      setRegistrationStatus('unknown');
+    }
+    return loadProfile(id);
+  };
+
+  const markRegistrationComplete = () => setRegistrationStatus('complete');
 
   useEffect(() => {
     // Check if we're on reset-password page with a hash (recovery link)
@@ -165,11 +208,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const userData = { id: u.id, email: u.email ?? null, name: (u as any)?.user_metadata?.name };
         setUserIfChanged(userData);
         storeUser(userData);
-        // Fire-and-forget profile name fetch
-        loadProfileName(u.id);
+        // Fire-and-forget profile fetch (name + registration status)
+        beginProfileLoad(u.id);
       } else {
         setUserIfChanged(null);
         storeUser(null);
+        registrationUserIdRef.current = null;
+        setRegistrationStatus('unknown');
       }
       
       // Set loading false after initial session check
@@ -216,7 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       storeUser(userData);
       // Fire-and-forget profile name fetch to avoid blocking UI
-      loadProfileName(u.id);
+      beginProfileLoad(u.id);
     }
   };
 
@@ -270,7 +315,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = { id: u.id, email: u.email ?? null, name: (u as any)?.user_metadata?.name };
       setUser(userData);
       storeUser(userData);
-      loadProfileName(u.id);
+      beginProfileLoad(u.id);
     }
   };
 
@@ -308,7 +353,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(userData);
       storeUser(userData);
       // Fire-and-forget profile name fetch to avoid blocking UI
-      loadProfileName(u.id);
+      beginProfileLoad(u.id);
     }
   };
 
@@ -366,6 +411,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(null);
       storeUser(null);
       setIsInPasswordRecovery(false);
+      registrationUserIdRef.current = null;
+      setRegistrationStatus('unknown');
       if (canUseStorage()) {
         window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
         for (let i = window.localStorage.length - 1; i >= 0; i--) {
@@ -381,7 +428,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery]);
+  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, markRegistrationComplete, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
