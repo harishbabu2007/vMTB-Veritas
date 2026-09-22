@@ -11,8 +11,13 @@ import type { ProviderName } from './stt/factory.js';
 export interface ServerDeps {
   /** Called with every normalized transcript event (final + interim). */
   onTranscription?: (event: TranscriptEvent) => void;
-  /** Called when the session ends (JVB closed the socket). */
-  onSessionClosed: (sessionId: string) => void;
+  /**
+   * Called when the session ends (JVB closed the socket). May be async; the
+   * returned promise is awaited before the session is considered fully closed
+   * only for process-level shutdown — the session itself emits 'closed' after
+   * the STT drain, and handlers here should persist/publish idempotently.
+   */
+  onSessionClosed: (sessionId: string) => void | Promise<void>;
 }
 
 export interface ServerStats {
@@ -79,6 +84,7 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
         provider: providerName,
         sampleRate: config.sttSampleRate,
         chunkMs: config.sttChunkMs,
+        sttDrainTimeoutMs: config.sttDrainTimeoutMs,
         sttFactory: (tag) =>
           createSTTProvider(providerName, {
             sttWsUrl: config.sttWsUrl,
@@ -95,7 +101,14 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
       session.on('closed', () => {
         sessions.delete(sessionId);
         stats.activeSessions = sessions.size;
-        deps.onSessionClosed(sessionId);
+        // Async: awaits pending segment inserts before publishing
+        // meeting.completed so the worker never reads a partial snapshot.
+        void Promise.resolve(deps.onSessionClosed(sessionId)).catch((err) => {
+          logger.error(
+            { sessionId, err: err instanceof Error ? err.message : String(err) },
+            'session: onSessionClosed failed',
+          );
+        });
       });
 
       sessions.set(sessionId, session);
@@ -110,16 +123,18 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
     });
   });
 
-  const close = (): Promise<void> =>
-    new Promise((resolve) => {
-      for (const session of sessions.values()) {
-        session.close();
-      }
+  const close = async (): Promise<void> => {
+    // Drain sessions (end-of-stream handshake) but never block shutdown
+    // longer than the force-resolve window below.
+    const sessionDrains = [...sessions.values()].map((session) => session.close());
+    void Promise.allSettled(sessionDrains);
+    return new Promise((resolve) => {
       wss.close(() => {
         server.close(() => resolve());
       });
       setTimeout(resolve, 3000).unref();
     });
+  };
 
   return { server, stats, close };
 }

@@ -119,6 +119,55 @@ describe('SelfHostedSTTProvider', () => {
     await server.close();
   });
 
+  it('sends end_of_stream and surfaces onEndOfStreamDone when acked', async () => {
+    const server = await startFakeSttServer();
+    const provider = new SelfHostedSTTProvider({ url: server.url, maxRetries: 0 });
+    const finals: Array<{ text: string; isFinal: boolean }> = [];
+    let eosDone = 0;
+    provider.onResult = (r) => finals.push(r);
+    provider.onEndOfStreamDone = () => {
+      eosDone++;
+    };
+
+    await provider.connect();
+    provider.sendEndOfStream();
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(server.sent).toContain(JSON.stringify({ message: 'end_of_stream' }));
+    expect(eosDone).toBe(0); // not yet acked
+
+    // Fake backend flushes final + acks.
+    server.send(JSON.stringify({ message: 'final', transcript: 'tail words' }));
+    server.send(JSON.stringify({ message: 'end_of_stream_done' }));
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(finals).toEqual([{ text: 'tail words', isFinal: true }]);
+    expect(eosDone).toBeGreaterThanOrEqual(1);
+
+    await provider.close();
+    await server.close();
+  });
+
+  it('resolves end-of-stream when the backend closes without an explicit ack', async () => {
+    const server = await startFakeSttServer();
+    const provider = new SelfHostedSTTProvider({ url: server.url, maxRetries: 0 });
+    let eosDone = 0;
+    provider.onEndOfStreamDone = () => {
+      eosDone++;
+    };
+
+    await provider.connect();
+    provider.sendEndOfStream();
+    await new Promise((r) => setTimeout(r, 20));
+
+    server.socket()?.close();
+    await new Promise((r) => setTimeout(r, 50));
+    expect(eosDone).toBeGreaterThanOrEqual(1);
+
+    await provider.close();
+    await server.close();
+  });
+
   it('stops reconnecting once closed', async () => {
     const server = await startFakeSttServer();
     const provider = new SelfHostedSTTProvider({ url: server.url, maxRetries: 2, retryDelayMs: 20 });

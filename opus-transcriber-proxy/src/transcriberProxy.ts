@@ -18,6 +18,11 @@ export interface TranscriberProxyOptions {
   chunkMs: number;
   /** Factory used to create the per-participant STT connection. */
   sttFactory: (tag: string) => STTProvider;
+  /**
+   * Max time (ms) to wait for the STT end-of-stream handshake on close so the
+   * trailing audio of the meeting can be committed as a final segment.
+   */
+  sttDrainTimeoutMs?: number;
 }
 
 /**
@@ -60,7 +65,9 @@ export class TranscriberProxy extends EventEmitter {
 
   private setupWebSocketListeners(): void {
     this.ws.addEventListener('close', () => {
-      this.close();
+      // Async drain: flush trailing audio + wait for the STT final before
+      // emitting 'closed' (so segment inserts land before meeting.completed).
+      void this.close();
     });
 
     this.ws.addEventListener('message', (event) => {
@@ -127,6 +134,7 @@ export class TranscriberProxy extends EventEmitter {
       sessionStartSec: this.sessionStartSec,
       sampleRate: this.options.sampleRate,
       chunkMs: this.options.chunkMs,
+      drainTimeoutMs: this.options.sttDrainTimeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS,
       stt,
       onEvent: (event) => this.handleTranscriptEvent(event),
       onError: (err) => {
@@ -171,7 +179,13 @@ export class TranscriberProxy extends EventEmitter {
     }
   }
 
-  close(): void {
+  /**
+   * Drain all participant connections (flush leftover audio, wait for the STT
+   * end-of-stream final), then emit 'closed' exactly once. Awaited by the
+   * WS close handler so meeting.completed is only published after the tail
+   * of the meeting has been persisted.
+   */
+  async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     logger.info(
@@ -183,13 +197,16 @@ export class TranscriberProxy extends EventEmitter {
       },
       'session: closing',
     );
-    for (const connection of this.connections.values()) {
-      connection.close();
-    }
+    const connections = [...this.connections.values()];
     this.connections.clear();
+    // Drain concurrently across participants; each has its own STT socket.
+    await Promise.allSettled(connections.map((connection) => connection.drainAndClose()));
     this.emit('closed');
   }
 }
+
+/** Default wait for the STT flush handshake when the meeting ends. */
+const DEFAULT_DRAIN_TIMEOUT_MS = 10_000;
 
 interface OutgoingConnectionOptions {
   tag: string;
@@ -198,6 +215,7 @@ interface OutgoingConnectionOptions {
   sessionStartSec: number;
   sampleRate: number;
   chunkMs: number;
+  drainTimeoutMs: number;
   stt: STTProvider;
   onEvent: (event: TranscriptEvent) => void;
   onError: (err: Error) => void;
@@ -211,6 +229,10 @@ class OutgoingConnection {
   private utteranceStartSec: number;
   private started = false;
   private pendingMedia: Buffer[] = [];
+  /** In-flight decodeAndBuffer() promises, awaited before drain. */
+  private readonly inFlightDecodes = new Set<Promise<void>>();
+  private draining = false;
+  private closed = false;
 
   constructor(options: OutgoingConnectionOptions) {
     this.options = options;
@@ -232,11 +254,12 @@ class OutgoingConnection {
     // queue cap in handleMedia, so it cannot grow unbounded.
     const queued = this.pendingMedia.splice(0);
     for (const payload of queued) {
-      void this.decodeAndBuffer(payload);
+      this.trackDecode(this.decodeAndBuffer(payload));
     }
   }
 
   handleMedia(media: { payload: Buffer }): void {
+    if (this.draining || this.closed) return;
     if (!this.started) {
       // The JVB can send media before our backend is ready; buffer instead of
       // dropping. Cap at ~10s of audio so a stuck backend can't grow memory.
@@ -247,7 +270,12 @@ class OutgoingConnection {
       }
       return;
     }
-    void this.decodeAndBuffer(media.payload);
+    this.trackDecode(this.decodeAndBuffer(media.payload));
+  }
+
+  private trackDecode(promise: Promise<void>): void {
+    this.inFlightDecodes.add(promise);
+    void promise.finally(() => this.inFlightDecodes.delete(promise));
   }
 
   private async decodeAndBuffer(payload: Buffer): Promise<void> {
@@ -274,6 +302,14 @@ class OutgoingConnection {
     if (offset > 0) {
       this.pcmAccumulator = this.pcmAccumulator.subarray(offset);
     }
+  }
+
+  /** Send any sub-chunk remainder so no trailing audio is dropped on close. */
+  private flushRemainder(): void {
+    if (this.pcmAccumulator.length === 0) return;
+    const copy = new Int16Array(this.pcmAccumulator);
+    this.pcmAccumulator = new Int16Array(0);
+    this.options.stt.sendAudio(new Uint8Array(copy.buffer, copy.byteOffset, copy.byteLength));
   }
 
   private handleSttResult(result: { text: string; isFinal: boolean }): void {
@@ -305,7 +341,81 @@ class OutgoingConnection {
     }
   }
 
+  /**
+   * End-of-meeting drain:
+   *   1. await in-flight Opus decodes (last frames may still be decoding)
+   *   2. send the sub-chunk PCM remainder
+   *   3. tell STT end-of-stream and wait (bounded) for its final flush
+   *   4. tear down decoder + STT socket
+   *
+   * Never throws: a stuck backend must not hang session teardown forever.
+   */
+  async drainAndClose(): Promise<void> {
+    if (this.closed) return;
+    this.draining = true;
+
+    try {
+      await Promise.allSettled([...this.inFlightDecodes]);
+      this.flushRemainder();
+
+      const stt = this.options.stt;
+      const done = new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          stt.onEndOfStreamDone = undefined;
+          resolve();
+        };
+        const timer = setTimeout(finish, this.options.drainTimeoutMs);
+        timer.unref?.();
+        stt.onEndOfStreamDone = finish;
+      });
+
+      try {
+        stt.sendEndOfStream();
+      } catch (err) {
+        logger.warn(
+          {
+            sessionId: this.options.sessionId,
+            tag: this.options.tag,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          'conn: sendEndOfStream failed',
+        );
+      }
+      await done;
+    } catch (err) {
+      logger.warn(
+        {
+          sessionId: this.options.sessionId,
+          tag: this.options.tag,
+          err: err instanceof Error ? err.message : String(err),
+        },
+        'conn: drain failed, closing anyway',
+      );
+    } finally {
+      this.draining = false;
+      this.closed = true;
+      try {
+        await this.decoder.close();
+      } catch {
+        // ignore
+      }
+      try {
+        await this.options.stt.close();
+      } catch {
+        // ignore
+      }
+      this.options.onClosed(this.options.tag);
+    }
+  }
+
+  /** Immediate teardown without the end-of-stream handshake (tests/legacy). */
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
     void this.decoder.close();
     void this.options.stt.close();
     this.options.onClosed(this.options.tag);

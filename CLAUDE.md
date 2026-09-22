@@ -17,7 +17,7 @@ This repo also has a root `AGENTS.md` — kept intentionally short, as a pointer
 - **`jitsi-frontend/`** — separate React/Vite app at `meet.vmtb.in`; polls the activation backend until the VM is ready, then hosts the actual meeting.
 - **`opus-transcriber-proxy/`** — TypeScript Cloud Run service sitting between Jitsi's videobridge (JVB) and STT: decodes per-participant Opus audio to PCM16, streams it to `stt-service`, persists final transcript segments to Supabase, publishes `meeting.completed` to Pub/Sub.
 - **`stt-service/`** — Python FastAPI, Cloud Run GPU. WhisperLive-compatible WebSocket STT backed by faster-whisper (multilingual `medium` model — required for Indian-language support; do not swap in `small.en`).
-- **`transcript-worker/`** — TypeScript Cloud Run service triggered by Pub/Sub push; assembles a meeting's transcript segments, uploads to GCS, generates Minutes-of-Meeting via Mistral (`mistral-small-latest`, confirmed live — the code itself is OpenAI-compatible/provider-agnostic), marks the job complete in Supabase.
+- **`transcript-worker/`** — TypeScript Cloud Run service triggered by Pub/Sub push; assembles a meeting's transcript segments, uploads to GCS, generates Minutes-of-Meeting via Gemini (`gemini-2.5-flash-lite` over Google's OpenAI-compatible endpoint — the code itself is provider-agnostic), marks the job complete in Supabase.
 - **`docs/`** — every cross-cutting architecture/deployment/workflow doc lives here now, one file per independent topic. See **`docs/README.md`** for the full index; the short version:
   - `CLOUD_INVENTORY.md` — ground truth for what's deployed where (read first).
   - `DATABASE_SCHEMA.md`, `DOCUMENT_AI_PIPELINE.md`, `AUTH_AND_NOTIFICATIONS.md`, `CASE_AND_MTB_WORKFLOW.md` — the `main/` app in depth.
@@ -74,7 +74,7 @@ Four Supabase Edge Functions (Deno), all server-side only — the browser never 
 
 ### Meeting transcription pipeline
 
-Flow: Jitsi JVB → per-participant Opus audio → `opus-transcriber-proxy` (Opus→PCM16 @16kHz) → `stt-service` (faster-whisper, streaming "committed-prefix" finalization) → final segments written to Supabase → on session close, `meeting.completed` published to Pub/Sub → `transcript-worker` claims the meeting, assembles the ordered transcript, uploads to GCS, generates Minutes-of-Meeting via Mistral, marks `COMPLETED`.
+Flow: Jitsi JVB → per-participant Opus audio → `opus-transcriber-proxy` (Opus→PCM16 @16kHz) → `stt-service` (faster-whisper, streaming "committed-prefix" finalization) → final segments written to Supabase → on session close, `meeting.completed` published to Pub/Sub → `transcript-worker` claims the meeting, assembles the ordered transcript, uploads to GCS, generates Minutes-of-Meeting via Gemini Flash-Lite, marks `COMPLETED`.
 
 - `meeting_id` in `meeting_transcripts`/`meeting_transcript_segments` is the JVB transcription session id — **not** `meeting_sessions.id` or `mtb_id` (`mtb_id` is NULL in the MVP).
 - Schema: `main/supabase/migrations/20260820_meeting_transcripts.sql`.
@@ -103,7 +103,7 @@ The legacy voice-dictation pipeline — `main/src/services/voiceTranscriptionSer
 | GCP (`vmtb` project — old) | Cloud Run service (`trigger-ocr-service`, `asia-south1`) | Fronts the PaddleOCR job below |
 | GCP (`vmtb` project — old) | Cloud Run Job (`paddle-ocr-job`, GPU, `us-east4`) | One-shot PaddleOCR pass per document batch — the anonymization pipeline's OCR step |
 | Third-party | Gupshup | WhatsApp Business API for OTP and notifications |
-| Third-party | Mistral (`mistral-small-latest`) | Minutes-of-Meeting generation in `transcript-worker` (code is provider-agnostic; confirmed live provider is Mistral) |
+| Third-party | Gemini API (`gemini-2.5-flash-lite`) | Minutes-of-Meeting generation in `transcript-worker` (OpenAI-compatible endpoint; code is provider-agnostic) |
 
 ## Git Workflow
 

@@ -13,10 +13,26 @@ export interface WorkerDeps {
   llm: LlmConfig;
   /** Teardown hook: when set, finished meetings stop the Jitsi VM. */
   vm?: { activatorUrl: string };
+  /** Override the post-completion settle wait (tests pass a no-op). */
+  settle?: () => Promise<void>;
 }
 
 /** Minutes of analytics silence that qualify the room as truly empty. */
 const VM_ACTIVE_GRACE_MINUTES = 3;
+
+/**
+ * Grace period after meeting.completed before the first segment read.
+ * The proxy awaits in-flight inserts before publishing, but this covers any
+ * residual replication lag so the artifact is never missing the tail.
+ */
+const SEGMENT_SETTLE_MS = 3_000;
+
+function defaultSettle(): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, SEGMENT_SETTLE_MS);
+    t.unref?.();
+  });
+}
 
 export type Outcome =
   | { kind: 'completed' }
@@ -66,6 +82,9 @@ export async function processMeeting(meetingId: string, deps: WorkerDeps, now = 
   }
 
   try {
+    // Let straggler segment inserts land before the single fetch below.
+    // Tests inject a no-op; production waits SEGMENT_SETTLE_MS.
+    await (deps.settle ?? defaultSettle)();
     const segments = await deps.supabase.fetchSegments(meetingId);
 
     // Resolve opaque participant tags to display names (best effort).

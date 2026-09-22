@@ -41,7 +41,7 @@ Total time estimate: **half a day** (most of it waiting on builds/quota/DNS).
 | `jitsi-activation-backend` | Cloud Run, `asia-southeast1` | assigned by Cloud Run |
 | `jitsi-vm` (JVB/Prosody/Jicofo) | Compute Engine, `asia-south1-c` (**new**, §6) | `https://<VM_IP>` (custom domain later, §6.7) |
 | Transcript artifacts | GCS `gs://vmtb-transcripts` | internal |
-| Minutes-of-Meeting LLM | Mistral API | external |
+| Minutes-of-Meeting LLM | Gemini API (Flash-Lite) | external |
 
 Everything Cloud Run is **scale-to-zero** (no idle cost). The VM and the warm
 GPU only bill while a meeting is active (see §9).
@@ -72,7 +72,7 @@ the Vercel/Render git-integration enabled (optional):
 | 5 | activation backend → STT/proxy | service names (Cloud Run API) | baked into workflow | automatic |
 | 6 | proxy → STT | `STT_WS_URL` fetched at deploy time | proxy workflow | automatic |
 | 7 | Pub/Sub → worker | push subscription w/ token | worker workflow | automatic |
-| 8 | worker → GCS/Supabase/Mistral | secrets | Secret Manager | §2.4, §5 |
+| 8 | worker → GCS/Supabase/Gemini | secrets | Secret Manager | §2.4, §5 |
 | 9 | **Jicofo (VM) → proxy** | `wss://<PROXY_URL>/transcribe?...` | `jicofo.conf` on VM | §6.5 (manual!) |
 | 10 | browsers → VM | the VM's raw IP (self-signed cert) | nothing to set — IP is the URL | §6.2 |
 
@@ -109,7 +109,9 @@ Manual links: #1, #2, #3, #9. Everything else self-wires during deploys.
   configures both frontends to build from it.
 - A [Vercel](https://vercel.com) account (sign in with GitHub).
 - A [Render](https://render.com) account (sign in with GitHub).
-- A [Mistral](https://console.mistral.ai/) account (free tier OK).
+- A [Google AI Studio](https://aistudio.google.com/apikey) Gemini API key
+  (free tier OK for Flash-Lite; link billing on the GCP project only if you
+  outgrow free quotas).
 - Supabase project URL, anon key and **service role key**.
 - DNS access for `vmtb.in` — **not needed initially** (raw VM IP); required
   later per §6.7.
@@ -204,7 +206,7 @@ printf '%s' 'https://YOUR-PROJECT.supabase.co' | \
   gcloud secrets create supabase-url --data-file=- --replication-policy=automatic
 printf '%s' 'PASTE_SERVICE_ROLE_KEY_HERE' | \
   gcloud secrets create supabase-service-role-key --data-file=- --replication-policy=automatic
-# llm-api-key is filled with the real Mistral key in §5; placeholder until then:
+# llm-api-key is filled with the real Gemini key in §5; placeholder until then:
 printf '%s' 'placeholder' | \
   gcloud secrets create llm-api-key --data-file=- --replication-policy=automatic
 
@@ -349,8 +351,8 @@ gcloud run deploy transcript-worker \
   --image=asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/transcript-worker \
   --region=asia-southeast1 --no-allow-unauthenticated \
   --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --set-env-vars=GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=YOUR_PROJECT_ID,LLM_PROVIDER=mistral \
-  --set-env-vars=LLM_BASE_URL=https://api.mistral.ai/v1,LLM_MODEL=mistral-small-latest \
+  --set-env-vars=GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=YOUR_PROJECT_ID,LLM_PROVIDER=gemini \
+  --set-env-vars=LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,LLM_MODEL=gemini-2.5-flash-lite \
   --set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest \
   --set-secrets=LLM_API_KEY=llm-api-key:latest \
   --min-instances=0 --max-instances=5
@@ -411,26 +413,30 @@ echo "PROXY=$PROXY_URL"; echo "ACT=$ACT_URL"
 
 ---
 
-## 5. Mistral setup (Minutes-of-Meeting)
+## 5. Gemini setup (Minutes-of-Meeting)
 
-1. <https://console.mistral.ai/> → **API Keys** → *Create new key*.
-2. Store it (replaces the placeholder from §2.4):
+1. <https://aistudio.google.com/apikey> → **Create API key** (sign in with the
+   Google account on your billing-enabled GCP project, or any Google account —
+   free tier is generous for Flash-Lite).
+2. Store it (replaces the placeholder from §2.4 — same secret name, new value):
    ```bash
-   printf '%s' 'YOUR_REAL_MISTRAL_KEY' | \
+   printf '%s' 'YOUR_REAL_GEMINI_KEY' | \
      gcloud secrets versions add llm-api-key --data-file=-
    ```
 3. Redeploy **transcript-worker** via its Action button so the running
-   container picks up the new secret version.
-4. Config already set in the workflow: `LLM_BASE_URL=https://api.mistral.ai/v1`,
-   `LLM_MODEL=mistral-small-latest`. Transient 429/5xx errors are retried
-   automatically (`transcript-worker/src/llm.ts`).
+   container picks up the new secret version + Gemini env vars.
+4. Config already set in the workflow:
+   `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`,
+   `LLM_MODEL=gemini-2.5-flash-lite` (cheapest Flash-Lite tier — swap to
+   `gemini-2.5-flash` if MoM quality needs a step up). Transient 429/5xx
+   errors are retried automatically (`transcript-worker/src/llm.ts`).
 
 Quick sanity check of your key:
 
 ```bash
-curl https://api.mistral.ai/v1/chat/completions \
-  -H "Authorization: Bearer $MISTRAL_API_KEY" -H 'content-type: application/json' \
-  -d '{"model":"mistral-small-latest","response_format":{"type":"json_object"},
+curl "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" \
+  -H "Authorization: Bearer $GEMINI_API_KEY" -H 'content-type: application/json' \
+  -d '{"model":"gemini-2.5-flash-lite","response_format":{"type":"json_object"},
        "messages":[{"role":"user","content":"Return {\"summary\":\"ok\"}"}]}'
 ```
 
@@ -855,7 +861,7 @@ Do this exactly once, in order, and note anything that breaks.
 6. **End the meeting** — leave/end for everyone. Within ~1 min:
    - `meeting_transcripts.status` → `COMPLETED`
    - `gs://vmtb-transcripts/meetings/<meeting_id>/transcript/transcript-v1.{json,txt}` exist
-   - `minutes_of_meeting` column filled with Mistral JSON
+    - `minutes_of_meeting` column filled with Gemini JSON
      (summary / decisions / action_items).
 7. **Tear down**
    `curl -X POST $ACT_URL/stop-jitsi` then confirm `/status` shows all
@@ -971,7 +977,7 @@ Notes:
 | Worker never runs; status stuck PENDING | push subscription broken — rerun the transcript-worker workflow (it repairs it) |
 | Worker wiring step fails with `unrecognized arguments: --push-auth-token` | old workflow version — latest wires the subscription via OIDC only (`--push-auth-service-account`); pull and re-run |
 | Worker wiring step fails with `User not authorized` (subscriptions) | CI deployer lacks Pub/Sub rights — grant `roles/pubsub.editor` to `vmtb-deployer@…` (§2.3), re-run the button |
-| Meeting FAILED with LLM error | bad/expired Mistral key → fix `llm-api-key` secret, redeploy worker |
+| Meeting FAILED with LLM error | bad/expired Gemini key → fix `llm-api-key` secret, redeploy worker |
 | WebSocket drops at exactly 60 min | Cloud Run hard cap; proxy/STT reconnect automatically — acceptable for MVP |
 | CORS error in browser console | add frontend origin to `CORS_ORIGINS` env of activation backend (§7.3 step 3), redeploy |
 | Loader shows "Network error (CORS or server down)" when starting a meeting | same as above — your Vercel origin is missing from the activation backend's `CORS_ORIGINS` |

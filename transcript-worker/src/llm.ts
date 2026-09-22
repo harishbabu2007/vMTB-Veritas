@@ -20,7 +20,9 @@ export interface MomResult {
 
 /**
  * Generate structured Minutes-of-Meeting from the transcript via any
- * OpenAI-compatible chat endpoint (OpenAI, Azure OpenAI, Gemini, Ollama...).
+ * OpenAI-compatible chat endpoint (Gemini, OpenAI, Mistral, Ollama...).
+ * Production uses Gemini's OpenAI-compatible endpoint with a cheap
+ * Flash-Lite model (see .env.example).
  * Returns null when LLM is not configured — the worker then completes with a
  * null MoM rather than failing.
  */
@@ -70,7 +72,8 @@ export async function generateMom(
               'facts present in the transcript; never invent names, cases, numbers or ' +
               'outcomes. Attribute points to speakers where the labels allow. If the ' +
               'transcript is completely empty, write a one-sentence summary saying so and ' +
-              'leave the arrays empty.',
+              'leave the arrays empty. Return ONLY the JSON object — no markdown fences, ' +
+              'no commentary.',
           },
           { role: 'user', content: prompt },
         ],
@@ -101,7 +104,7 @@ export async function generateMom(
   const content = body.choices?.[0]?.message?.content;
   if (!content) throw new Error('LLM returned no content');
 
-  const parsed = JSON.parse(content) as Omit<MomResult, 'generated_at' | 'model'>;
+  const parsed = parseMomJson(content);
   return {
     summary: String(parsed.summary ?? ''),
     decisions: Array.isArray(parsed.decisions) ? parsed.decisions : [],
@@ -110,6 +113,26 @@ export async function generateMom(
     generated_at: new Date().toISOString(),
     model: config.model,
   };
+}
+
+/**
+ * Parse MoM JSON, tolerating markdown fences some models (notably Gemini)
+ * still wrap around `response_format: json_object` responses.
+ */
+export function parseMomJson(content: string): Omit<MomResult, 'generated_at' | 'model'> {
+  let text = content.trim();
+  const fence = text.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  if (fence?.[1]) {
+    text = fence[1].trim();
+  } else {
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  }
+  const start = text.indexOf('{');
+  const end = text.lastIndexOf('}');
+  if (start >= 0 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+  return JSON.parse(text) as Omit<MomResult, 'generated_at' | 'model'>;
 }
 
 function buildPrompt(transcriptText: string): string {

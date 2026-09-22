@@ -1,11 +1,11 @@
 # Deploy transcript-worker (post-meeting MoM worker) to Cloud Run.
 #
-# Run manually from the GitHub "Actions" tab. Uses Mistral for the
-# Minutes-of-Meeting via its OpenAI-compatible API.
+# Run manually from the GitHub "Actions" tab. Uses Gemini (cheap Flash-Lite)
+# via Google's OpenAI-compatible endpoint for Minutes-of-Meeting.
 #
 # Required repository secrets: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_DEPLOY_SA
 # Required Secret Manager secrets: supabase-url, supabase-service-role-key,
-# llm-api-key (Mistral key). See docs/DEPLOYMENT.md.
+# llm-api-key (Gemini API key from AI Studio). See docs/DEPLOYMENT.md §5.
 
 name: Deploy transcript-worker
 
@@ -102,7 +102,7 @@ jobs:
             --min-instances 0 \
             --max-instances 5 \
             --timeout 300 \
-            --set-env-vars "GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=$PROJECT_ID,LLM_PROVIDER=mistral,LLM_BASE_URL=https://api.mistral.ai/v1,LLM_MODEL=mistral-small-latest,JITSI_ACTIVATOR_URL=$ACT_URL" \
+            --set-env-vars "GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=$PROJECT_ID,LLM_PROVIDER=gemini,LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,LLM_MODEL=gemini-2.5-flash-lite,JITSI_ACTIVATOR_URL=$ACT_URL" \
             --set-secrets "SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,LLM_API_KEY=llm-api-key:latest"
 
       - name: Show service URL

@@ -14,6 +14,7 @@ export interface Config {
   sttSampleRate: number; // PCM sample rate forwarded to the STT backend (Hz)
   sttChunkMs: number; // accumulate this many ms of PCM before forwarding to STT
   sttUseIdToken: boolean; // attach a Google ID token when connecting (Cloud Run IAM)
+  sttDrainTimeoutMs: number; // max wait for the STT end-of-stream flush on session close
 
   // Supabase persistence
   persistence: 'supabase' | 'none';
@@ -71,6 +72,7 @@ export function loadConfig(): Config {
     sttSampleRate: optionalInt('STT_SAMPLE_RATE', 16000),
     sttChunkMs: optionalInt('STT_CHUNK_MS', 60),
     sttUseIdToken: env('STT_USE_ID_TOKEN') === 'true',
+    sttDrainTimeoutMs: optionalInt('STT_DRAIN_TIMEOUT_MS', 10_000),
     persistence,
     supabaseUrl: env('SUPABASE_URL') ?? '',
     supabaseServiceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY') ?? '',

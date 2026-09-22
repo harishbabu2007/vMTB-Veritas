@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { parseMomJson } from '../src/llm.js';
 import { buildArtifact, processMeeting } from '../src/worker.js';
 import type { WorkerDeps } from '../src/worker.js';
 import type { SegmentRow } from '../src/supabase.js';
@@ -48,6 +49,7 @@ function makeDeps(overrides: Partial<WorkerDeps> = {}): { deps: WorkerDeps; fake
     gcs,
     llm: { provider: 'none', baseUrl: '', apiKey: '', model: 'gpt-4o-mini' },
     vm: { activatorUrl: '' },
+    settle: () => Promise.resolve(),
     ...overrides,
   };
   return { deps, fakes };
@@ -118,6 +120,22 @@ describe('processMeeting', () => {
     expect(fakes.fail).not.toHaveBeenCalled();
   });
 
+  it('settles (waits) before fetching segments so stragglers land', async () => {
+    const order: string[] = [];
+    const { deps, fakes } = makeDeps({
+      settle: async () => {
+        order.push('settle');
+      },
+    });
+    fakes.fetchSegments.mockImplementation(async () => {
+      order.push('fetch');
+      return segments;
+    });
+    const outcome = await processMeeting('m1', deps);
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(order).toEqual(['settle', 'fetch']);
+  });
+
   it('invokes the LLM when configured and passes the MoM to complete', async () => {
     const { deps, fakes } = makeDeps({
       llm: { provider: 'openai', baseUrl: 'https://api.openai.com/v1', apiKey: 'k', model: 'gpt-4o-mini' },
@@ -149,6 +167,24 @@ describe('processMeeting', () => {
     } finally {
       globalThis.fetch = origFetch;
     }
+  });
+});
+
+describe('parseMomJson', () => {
+  it('parses plain JSON', () => {
+    const out = parseMomJson('{"summary":"ok","decisions":[]}');
+    expect(out.summary).toBe('ok');
+  });
+
+  it('strips markdown fences (Gemini sometimes wraps json_object output)', () => {
+    const out = parseMomJson('```json\n{"summary":"ok","decisions":["a"]}\n```');
+    expect(out.summary).toBe('ok');
+    expect(out.decisions).toEqual(['a']);
+  });
+
+  it('extracts a JSON object even with surrounding prose', () => {
+    const out = parseMomJson('Here are the minutes:\n{"summary":"ok"}\nHope that helps!');
+    expect(out.summary).toBe('ok');
   });
 });
 

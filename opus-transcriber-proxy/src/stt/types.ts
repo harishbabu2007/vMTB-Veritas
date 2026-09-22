@@ -14,10 +14,21 @@ export interface STTProvider {
   connect(): Promise<void>;
   /** Feed a chunk of mono PCM16 audio at the configured sample rate. */
   sendAudio(pcm16: Uint8Array): void;
+  /**
+   * Tell the backend no more audio is coming so it can flush its trailing
+   * buffer as a final result. After this, the backend should emit any pending
+   * final and then call `onEndOfStreamDone`.
+   */
+  sendEndOfStream(): void;
   /** Emitted for interim and final transcription results. */
   onResult?: (result: SttResult) => void;
   /** Emitted on unrecoverable backend errors. */
   onError?: (err: Error) => void;
+  /**
+   * Emitted when the backend has acknowledged end-of-stream (or the
+   * connection dropped during the drain). Lets the proxy stop waiting.
+   */
+  onEndOfStreamDone?: () => void;
   /** Close the backend connection. */
   close(): Promise<void>;
 }
