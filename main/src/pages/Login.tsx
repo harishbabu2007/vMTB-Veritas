@@ -326,7 +326,7 @@ export function Login() {
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                     className="flex-1 px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
-                    placeholder="9876543210"
+                    placeholder="Ex: 9876543210"
                     required
                   />
                 </div>
@@ -386,7 +386,7 @@ export function Login() {
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                     className="flex-1 px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
-                    placeholder="9876543210"
+                    placeholder="Ex: 9876543210"
                     required
                   />
                 </div>

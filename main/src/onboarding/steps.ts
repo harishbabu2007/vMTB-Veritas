@@ -20,7 +20,6 @@ export type TourGroupId =
   | 'case_resume'
   | 'step1'
   | 'step2'
-  | 'review'
   | 'sample_status'
   | 'sample_tabs'
   | 'mtb_intro'
@@ -58,13 +57,12 @@ export type TourActionName =
 export const ACT_TARGETS: ReadonlySet<string> = new Set([
   'add-case',
   'step1-continue',
-  'step2-continue',
-  'review-create-sample',
+  'case-create-sample',
   'sample-verify',
 ]);
 
 // The case section's guided groups, cleared together when it restarts.
-export const CASE_SECTION_GROUPS: TourGroupId[] = ['case_resume', 'step1', 'step2', 'review', 'sample_status', 'sample_tabs'];
+export const CASE_SECTION_GROUPS: TourGroupId[] = ['case_resume', 'step1', 'step2', 'sample_status', 'sample_tabs'];
 
 // Once every one of these is saved, the walkthrough is over for the user.
 export const ALL_SAVED_KEYS: OnboardingKey[] = [
@@ -88,7 +86,6 @@ export const TOUR_GROUP_ORDER: TourGroupId[] = [
   'case_resume',
   'step1',
   'step2',
-  'review',
   'sample_status',
   'sample_tabs',
   'mtb_intro',
@@ -206,7 +203,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
       {
         target: 'patient-name',
         title: 'Patient name (optional)',
-        body: 'Leave it blank to keep the case anonymous.',
+        body: 'Only you can ever see this — not MTB members, not anyone you share the case with. Leave it blank if you don’t need it at all.',
       },
       {
         target: 'cancer-type',
@@ -254,49 +251,15 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
         body: 'Click Dictate and speak; your words are typed in. Try it on a real case.',
       },
       {
-        target: 'step2-continue',
-        act: true,
-        title: 'Continue',
-        body: 'Click Continue to Review.',
-      },
-    ],
-  },
-  review: {
-    kind: 'guided',
-    ...CASE_SECTION,
-    resumeStep: 4,
-    steps: [
-      {
-        target: 'review-details',
-        title: 'Check the details',
-        body: 'Case name, patient and cancer type. Use Edit to change anything.',
-      },
-      {
-        target: 'review-documents',
-        title: 'Documents and notes',
-        body: 'Everything the AI will read to write the summary.',
-      },
-      {
-        target: 'review-questions',
-        title: 'Questions for the board',
-        body: 'Add questions for the experts. Optional.',
-      },
-      {
-        // Real case only: the sample isn't shared.
-        target: 'review-share',
-        title: 'Share with MTBs',
-        body: 'Pick boards to share with. They see it once you verify.',
-      },
-      {
         // Exactly one of these two targets exists: the sample's Create Case
         // can be clicked through the tour, a real one is only pointed at.
-        target: 'review-create-sample',
+        target: 'case-create-sample',
         act: true,
         title: 'Create the case',
         body: 'Click Create Case.',
       },
       {
-        target: 'review-create',
+        target: 'case-create',
         title: 'Create the case',
         body: 'Click Create Case when you’re ready. The summary takes 1–2 minutes.',
       },
@@ -483,7 +446,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
       {
         target: 'redact-panel',
         title: 'Everything masked',
-        body: 'The automatic masks and yours. Nothing changes until you save.',
+        body: 'Open this to see every automatic mask and yours, and reveal one if it hid something it shouldn’t have. Nothing changes until you save.',
       },
     ],
   },

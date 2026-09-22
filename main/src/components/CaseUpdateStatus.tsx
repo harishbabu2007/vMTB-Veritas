@@ -174,8 +174,8 @@ export function CaseUpdateStatus({
     const neverVerified = runState?.verified_generation == null;
     title = neverVerified ? 'Summary ready. Review and verify it' : 'Updated. Review and verify the new summary';
     detail = neverVerified
-      ? 'The case can be shared into MTBs once you verify it.'
-      : 'MTB members keep seeing the last verified version until you verify.';
+      ? 'Review the summary below, then verify at the bottom of the page.'
+      : 'MTB members keep seeing the last verified version until you verify at the bottom of the page.';
     const scope = caseId ?? run?.case_id;
     dismissKey = scope ? `case-verify:${scope}:${runState?.content_generation}` : null;
   } else {

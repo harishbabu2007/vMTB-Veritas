@@ -5,6 +5,7 @@ import {
   CancerType,
   cancerTypeLabel,
   findCancerTypeByName,
+  OTHER_CANCER_TYPE_ID,
   searchCancerTypes,
 } from '../data/cancerTypes';
 import { useIsMobile } from '../hooks/useMobile';
@@ -26,7 +27,10 @@ interface Row {
   kind: 'category' | 'option';
   category: string;
   type?: CancerType;
+  pinned?: boolean;
 }
+
+const OTHER_TYPE = CANCER_TYPES.find(t => t.id === OTHER_CANCER_TYPE_ID) ?? null;
 
 // With no query the list is the full one, grouped by body region. Search
 // results are ranked across regions instead, so they stay in best-match
@@ -63,7 +67,17 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
 
   const searching = query.trim().length > 0;
   const matches = useMemo(() => (open ? searchCancerTypes(query) : []), [open, query]);
-  const rows = useMemo(() => toRows(matches, !searching), [matches, searching]);
+  // "Other Cancer Type (Not Listed)" is a real entry, but a search for
+  // something that isn't on the list won't text-match it either — so once
+  // the user is searching, pin it as an always-available last row unless
+  // it's already one of the ranked matches.
+  const rows = useMemo(() => {
+    const base = toRows(matches, !searching);
+    if (searching && OTHER_TYPE && !matches.some(t => t.id === OTHER_CANCER_TYPE_ID)) {
+      return [...base, { kind: 'option' as const, category: OTHER_TYPE.category, type: OTHER_TYPE, pinned: true }];
+    }
+    return base;
+  }, [matches, searching]);
   const optionIndexes = useMemo(
     () => rows.map((row, i) => (row.kind === 'option' ? i : -1)).filter(i => i !== -1),
     [rows]
@@ -174,7 +188,7 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
           // type, and only a type from the list can be chosen.
           required={required && !selected}
           value={text}
-          placeholder="Search 418 cancer types, or an abbreviation"
+          placeholder="Search cancer type, or an abbreviation"
           onChange={e => {
             setQuery(e.target.value);
             if (!open) setOpen(true);
@@ -228,15 +242,13 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
             aria-label="Cancer types"
             className={`overflow-y-auto overscroll-contain py-1 ${isMobile ? 'max-h-64' : 'max-h-80'}`}
           >
-            {rows.length === 0 ? (
-              <li className="px-3 py-6 text-center">
+            {searching && matches.length === 0 && (
+              <li className="px-3 pt-4 pb-2 text-center">
                 <p className="text-sm text-text">No cancer type matches “{query.trim()}”.</p>
-                <p className="text-xs text-text-muted mt-1">
-                  Try an abbreviation or a body region, or pick “Other Cancer Type (Not Listed)”.
-                </p>
+                <p className="text-xs text-text-muted mt-1">Try an abbreviation or a body region.</p>
               </li>
-            ) : (
-              rows.map((row, i) =>
+            )}
+            {rows.map((row, i) =>
                 row.kind === 'category' ? (
                   <li
                     key={`category-${i}`}
@@ -248,6 +260,11 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
                   </li>
                 ) : (
                   <li key={row.type!.id} data-row={i} role="none">
+                    {row.pinned && (
+                      <p className="px-3 pt-2 pb-0.5 text-[11px] text-text-muted">
+                        Not in the list?
+                      </p>
+                    )}
                     <button
                       type="button"
                       id={`${listId}-${row.type!.id}`}
@@ -257,7 +274,7 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
                       onClick={() => choose(row.type!)}
                       className={`w-full flex items-center gap-3 px-3 text-left transition-colors ${
                         isMobile ? 'min-h-[44px] py-2' : 'py-2'
-                      } ${activeIndex === i ? 'bg-status-processing-bg' : ''}`}
+                      } ${row.pinned ? 'border-t border-border' : ''} ${activeIndex === i ? 'bg-status-processing-bg' : ''}`}
                     >
                       <Check
                         className={`w-4 h-4 flex-shrink-0 text-primary ${selected?.id === row.type!.id ? '' : 'opacity-0'}`}
@@ -275,8 +292,7 @@ export function CancerTypeSelect({ value, onChange, id, disabled, required }: Pr
                     </button>
                   </li>
                 )
-              )
-            )}
+              )}
           </ul>
           <p className="border-t border-border bg-bg px-3 py-1.5 text-[11px] text-text-muted">
             {query.trim()

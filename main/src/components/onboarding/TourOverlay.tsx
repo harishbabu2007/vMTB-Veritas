@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import type { CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, MousePointer2, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useOnboarding } from '../../context/OnboardingContext';
 import { useIsMobile } from '../../hooks/useMobile';
@@ -462,20 +462,37 @@ function TourRun({ groupId, start }: { groupId: TourGroupId; start: number }) {
         <p role="alert" className="mt-2 text-sm text-status-failed-text">{runError}</p>
       )}
       <div className={`flex items-center justify-between gap-3 flex-wrap ${isIntro ? 'mt-6' : 'mt-4'}`}>
-        <button
-          type="button"
-          onClick={onStop}
-          className={`text-sm text-text-muted hover:text-text rounded-md transition-colors ${isMobile ? 'min-h-[44px]' : ''} ${focusRing}`}
-        >
-          {stopLabel}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onStop}
+            className={`text-sm font-medium text-text-muted border border-border rounded-lg hover:bg-bg hover:text-text transition-colors ${buttonSize} ${focusRing}`}
+          >
+            {stopLabel}
+          </button>
+          {/* On an "act" step there's no primary button (the real "next" is
+              clicking the highlighted control), so Back stays over here next
+              to Skip rather than sitting alone in the bottom-right corner —
+              exactly where every other step's "Next" button trains users to
+              click. Bordered like Skip so the pair reads as two distinct
+              buttons, not one run-on phrase. */}
+          {isAct && canGoBack && !isIntro && (
+            <button
+              type="button"
+              onClick={() => go(-1)}
+              className={`text-sm font-medium text-text border border-border rounded-lg hover:bg-bg transition-colors ${buttonSize} ${focusRing}`}
+            >
+              Back
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2 ml-auto">
           {progress && progress.total > 1 && (
             <span className="text-xs text-text-muted tabular-nums mr-1">
               {progress.position} of {progress.total}
             </span>
           )}
-          {canGoBack && !isIntro && (
+          {!isAct && canGoBack && !isIntro && (
             <button
               type="button"
               onClick={() => go(-1)}
@@ -534,13 +551,30 @@ function TourRun({ groupId, start }: { groupId: TourGroupId; start: number }) {
     <div className="fixed inset-0 overflow-hidden pointer-events-none" style={{ zIndex: TOUR_LAYER_Z }}>
       {hole ? (
         <>
-          <div aria-hidden="true" className="tour-spotlight absolute rounded-lg pointer-events-none" style={hole} />
+          <div
+            aria-hidden="true"
+            className={`tour-spotlight absolute rounded-lg pointer-events-none ${isAct ? 'tour-spotlight--act' : ''}`}
+            style={hole}
+          />
           {isAct ? (
             <>
+              <div
+                aria-hidden="true"
+                className="tour-pulse-ring absolute rounded-lg pointer-events-none"
+                style={hole}
+              />
               <div className="absolute inset-x-0 top-0 pointer-events-auto" style={{ height: Math.max(0, hole.top) }} {...absorb} />
               <div className="absolute inset-x-0 bottom-0 pointer-events-auto" style={{ top: hole.top + hole.height }} {...absorb} />
               <div className="absolute left-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, width: Math.max(0, hole.left) }} {...absorb} />
               <div className="absolute right-0 pointer-events-auto" style={{ top: hole.top, height: hole.height, left: hole.left + hole.width }} {...absorb} />
+              <div
+                aria-hidden="true"
+                className="tour-click-cursor-wrap absolute pointer-events-none"
+                style={{ top: hole.top + hole.height * 0.6, left: hole.left + hole.width * 0.6, width: 28, height: 28 }}
+              >
+                {/* theme-allow: must read as a literal white OS-style pointer against any background, not a theme-tinted one */}
+                <MousePointer2 className="tour-click-cursor" width={28} height={28} fill="#ffffff" stroke="#000000" strokeWidth={1.5} />
+              </div>
             </>
           ) : (
             <div className="absolute inset-0 pointer-events-auto" {...absorb} />

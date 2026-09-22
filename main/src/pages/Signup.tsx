@@ -19,7 +19,7 @@ interface GoogleState {
 export function Signup() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, markRegistrationComplete } = useAuth();
 
   // Check if we arrived here with Google auth data from AuthCallback
   const googleState = location.state as GoogleState | null;
@@ -260,10 +260,14 @@ export function Signup() {
         whatsapp_verified: true,
         whatsapp_opt_in: true,
       }, { onConflict: 'id' });
-      
+
       showToast.success('Account created successfully!');
-      
-      // Step 3: User is already authenticated via Google OAuth — navigate directly to /my-cases
+
+      // Step 3: User is already authenticated via Google OAuth — navigate directly to /my-cases.
+      // AuthContext's own registration-status check runs off auth *events*, not table writes,
+      // so it doesn't know this just-finished signup is complete yet; without this, ProtectedRoute
+      // would see the stale "incomplete" status and bounce back to /signup in a loop.
+      markRegistrationComplete();
       navigate('/my-cases', { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create account';
@@ -375,7 +379,7 @@ export function Signup() {
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
-                        placeholder="Dr. John Doe"
+                        placeholder="Ex: Dr. John Doe"
                         required
                       />
                     </div>
@@ -430,7 +434,7 @@ export function Signup() {
                         value={hospital}
                         onChange={(e) => setHospital(e.target.value)}
                         className="w-full px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
-                        placeholder="City Cancer Hospital"
+                        placeholder="Ex: City Cancer Hospital"
                         required
                       />
                     </div>
@@ -462,7 +466,7 @@ export function Signup() {
                           value={phoneNumber}
                           onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, ''))}
                           className="flex-1 px-4 py-2.5 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-0 transition text-sm"
-                          placeholder="9876543210"
+                          placeholder="Ex: 9876543210"
                           required
                         />
                       </div>

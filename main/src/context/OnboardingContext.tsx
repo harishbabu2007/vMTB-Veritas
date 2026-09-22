@@ -47,6 +47,11 @@ interface OnboardingContextType {
   mtbSectionRunning: boolean;
   // Restarts the case section's guided groups (the wizard draft was emptied).
   resetCaseSection: () => void;
+  // A genuine restart of the whole walkthrough from Settings — unlike
+  // everything else here, this un-marks keys that are already seen, for an
+  // account that finished or skipped the tour long ago. Navigate to
+  // /my-cases afterwards; that's where the welcome group's targets live.
+  restartTour: () => Promise<void>;
   registerAction: (name: TourActionName, action: TourAction) => () => void;
   runAction: (name: TourActionName, signal: AbortSignal) => Promise<void>;
 }
@@ -311,6 +316,31 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setResumable(prev => prev.filter(g => !CASE_SECTION_GROUPS.includes(g)));
   }, []);
 
+  // Every other write here only ever adds a key; this is the one place that
+  // clears them, so a finished or skipped walkthrough can genuinely run
+  // again — not just re-trigger something gated on "not yet seen".
+  const restartTour = useCallback(async () => {
+    if (!userId) return;
+    writePending(userId, null);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ onboarding_seen: {}, onboarding_ended_at: null })
+        .eq('id', userId);
+      if (error) throw error;
+    } catch {
+      showToast.error('Couldn’t restart the tour. Please try again.');
+      return;
+    }
+    seenRef.current = {};
+    setSeen({});
+    setEnded(false);
+    sessionSeenRef.current = [];
+    setSessionSeen([]);
+    setResumable([]);
+    setDeferred([]);
+  }, [userId]);
+
   const hasSeen = useCallback((key: OnboardingKey) => Boolean(seen[key]), [seen]);
   const walkthroughActive = status === 'ready' && !ended;
   const caseSectionRunning = walkthroughActive && Boolean(seen.welcome) && !seen.case_flow;
@@ -375,11 +405,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       caseSectionRunning,
       mtbSectionRunning,
       resetCaseSection,
+      restartTour,
       registerAction,
       runAction,
     }),
     [active, requestGroup, releaseGroup, deferGroup, completeGroup, complete, stopAll, walkthroughActive, hasSeen,
-      caseSectionRunning, mtbSectionRunning, resetCaseSection, registerAction, runAction]
+      caseSectionRunning, mtbSectionRunning, resetCaseSection, restartTour, registerAction, runAction]
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;
