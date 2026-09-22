@@ -26,11 +26,13 @@ export interface SelfHostedOptions {
 export class SelfHostedSTTProvider implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onEndOfStreamDone?: () => void;
 
   private ws: WebSocket | null = null;
   private maxRetries: number;
   private retryDelayMs: number;
   private closed = false;
+  private draining = false;
   private retryAttempt = 0;
 
   constructor(private options: SelfHostedOptions) {
@@ -84,6 +86,10 @@ export class SelfHostedSTTProvider implements STTProvider {
               text,
               isFinal: parsed.message === 'final',
             });
+          } else if (parsed.message === 'end_of_stream_done') {
+            // Backend flushed its tail and is about to close; stop reconnecting.
+            this.draining = true;
+            this.onEndOfStreamDone?.();
           } else if (parsed.message === 'ready_to_stop' || parsed.message === 'info') {
             logger.debug({ message: parsed.message }, 'stt: control message');
           }
@@ -94,6 +100,12 @@ export class SelfHostedSTTProvider implements STTProvider {
 
       ws.addEventListener('close', () => {
         if (this.closed) return;
+        if (this.draining) {
+          // Backend closed after end-of-stream ack (or mid-drain); either way
+          // the drain is over — never reconnect once we are tearing down.
+          this.onEndOfStreamDone?.();
+          return;
+        }
         logger.warn('stt: connection closed unexpectedly, scheduling reconnect');
         this.scheduleReconnect();
       });
@@ -155,6 +167,17 @@ export class SelfHostedSTTProvider implements STTProvider {
       return;
     }
     this.ws.send(pcm16);
+  }
+
+  sendEndOfStream(): void {
+    if (this.closed || this.draining) return;
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      // Nothing to flush against; surface completion so the caller never waits.
+      this.onEndOfStreamDone?.();
+      return;
+    }
+    this.draining = true;
+    this.ws.send(JSON.stringify({ message: 'end_of_stream' }));
   }
 
   private scheduleReconnect(): void {

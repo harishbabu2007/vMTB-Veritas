@@ -7,6 +7,12 @@ transcribe with faster-whisper and answer with:
     {"message": "partial", "transcript": "..."}
     {"message": "final",   "transcript": "..."}
 
+End-of-stream handshake (sent by the proxy when the meeting ends):
+
+    client -> server: {"message": "end_of_stream"}
+    server -> client: {"message": "final", "transcript": "..."}   # if audio remains
+    server -> client: {"message": "end_of_stream_done"}
+
 Endpoints
 ---------
 GET /health        liveness (always 200 once the process is up)
@@ -17,6 +23,8 @@ WS  /client/ws/speech   streaming endpoint
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import time
 from contextlib import asynccontextmanager
 
@@ -26,6 +34,8 @@ from starlette.concurrency import run_in_threadpool
 from .config import settings
 from .streaming import StreamingBuffer
 from .transcribe import Transcriber, WhisperTranscriber
+
+logger = logging.getLogger("stt-service")
 
 # Number of concurrent transcription runs we allow. CTranslate2 batches are not
 # safe to share across threads; serialise per instance. Raise when GPU multisteam
@@ -95,6 +105,7 @@ def create_app(transcriber: Transcriber | None = None, *, stt_settings=None) -> 
         last_run = time.monotonic()
         last_forced = last_run
         idle_timeout = cfg.idle_timeout_seconds
+        end_of_stream = False
         try:
             while True:
                 # Idle watchdog: a client that vanishes without a clean close
@@ -113,8 +124,19 @@ def create_app(transcriber: Transcriber | None = None, *, stt_settings=None) -> 
                 if message["type"] == "websocket.disconnect":
                     break
 
-                if message["type"] == "websocket.receive" and "bytes" in message:
+                if message["type"] != "websocket.receive":
+                    continue
+
+                if message.get("bytes"):
                     buffer.add(message["bytes"])
+                elif message.get("text"):
+                    if _is_end_of_stream(message["text"]):
+                        # Proxy-initiated end of meeting: flush while the socket
+                        # is still open so the final tail actually arrives.
+                        end_of_stream = True
+                        break
+                    # Other text frames are ignored (protocol is binary audio
+                    # plus the JSON control messages we understand).
 
                 now = time.monotonic()
                 force = now - last_forced >= cfg.max_between_runs_seconds
@@ -128,21 +150,49 @@ def create_app(transcriber: Transcriber | None = None, *, stt_settings=None) -> 
 
         except WebSocketDisconnect:
             pass
+        except Exception:
+            # Never skip the final flush because of an unexpected receive-loop
+            # error (a missed flush truncates the end of every meeting).
+            logger.exception("ws: receive loop failed; attempting final flush")
 
         # Final flush: commit whatever audio is left as one final segment.
-        final = await run_in_threadpool(buffer.flush_final, app.state.engine)
-        if final:
-            await _send(ws, {"message": "final", "transcript": final.text})
+        # - end_of_stream path: the socket is still open, so the send succeeds.
+        # - disconnect path: best-effort; the client may already be gone.
+        try:
+            final = await run_in_threadpool(buffer.flush_final, app.state.engine)
+            if final:
+                sent = await _send(ws, {"message": "final", "transcript": final.text})
+                if not sent:
+                    logger.warning("ws: final flush result could not be delivered (client gone)")
+            if end_of_stream:
+                await _send(ws, {"message": "end_of_stream_done"})
+                try:
+                    await ws.close()
+                except Exception:
+                    pass
+        except Exception:
+            logger.exception("ws: final flush failed")
 
     return app
 
 
-async def _send(ws: WebSocket, payload: dict) -> None:
+def _is_end_of_stream(raw: str) -> bool:
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        return False
+    return isinstance(payload, dict) and payload.get("message") == "end_of_stream"
+
+
+async def _send(ws: WebSocket, payload: dict) -> bool:
     try:
         await ws.send_json(payload)
+        return True
     except Exception:
-        # Client gone mid-send; nothing sensible to do.
-        pass
+        # Client gone mid-send; nothing sensible to do. Callers that expect
+        # the socket to still be open (end_of_stream path) log a warning.
+        logger.debug("ws: send failed (client gone): %s", payload.get("message"))
+        return False
 
 
 app = create_app()

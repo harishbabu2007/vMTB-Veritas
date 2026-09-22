@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+import json
 import numpy as np
 
 from app.config import Settings
@@ -66,6 +67,58 @@ def test_ws_streaming_partial_then_final():
 
             # final flush on disconnect
             ws.close()
+            final = ws.receive_json()
+            assert final["message"] == "final"
+
+
+def test_ws_end_of_stream_flushes_final_while_socket_open():
+    """Proxy sends end_of_stream before closing; tail must arrive as a final."""
+    app = create_app(transcriber=RampedTranscriber(), stt_settings=make_cfg())
+    with TestClient(app) as client:
+        with client.websocket_connect("/client/ws/speech") as ws:
+            info = ws.receive_json()
+            assert info["message"] == "info"
+
+            ws.send_bytes(np.zeros(SR // 2, dtype=np.int16).tobytes())
+            msg = ws.receive_json()
+            assert msg["message"] == "partial"
+
+            # End-of-meeting handshake: flush + ack, still on an open socket.
+            ws.send_text(json.dumps({"message": "end_of_stream"}))
+            final = ws.receive_json()
+            assert final["message"] == "final"
+            # Second model call (first was the partial above).
+            assert final["transcript"] == "hello world today"
+
+            ack = ws.receive_json()
+            assert ack["message"] == "end_of_stream_done"
+
+
+def test_ws_end_of_stream_on_empty_buffer_still_acks():
+    app = create_app(transcriber=RampedTranscriber(), stt_settings=make_cfg())
+    with TestClient(app) as client:
+        with client.websocket_connect("/client/ws/speech") as ws:
+            assert ws.receive_json()["message"] == "info"
+            ws.send_text(json.dumps({"message": "end_of_stream"}))
+            ack = ws.receive_json()
+            assert ack["message"] == "end_of_stream_done"
+
+
+def test_ws_idle_timeout_does_not_crash_and_still_flushes():
+    """Regression: idle path used to raise NameError on undefined logger,
+    which skipped the final flush entirely."""
+    cfg = make_cfg()
+    cfg.idle_timeout_seconds = 0.2
+    app = create_app(transcriber=RampedTranscriber(), stt_settings=cfg)
+    with TestClient(app) as client:
+        with client.websocket_connect("/client/ws/speech") as ws:
+            assert ws.receive_json()["message"] == "info"
+            # Leave the connection idle; the watchdog must fire cleanly.
+            ws.send_bytes(np.zeros(SR // 2, dtype=np.int16).tobytes())
+            # Drain the partial, then wait past the idle window.
+            msg = ws.receive_json()
+            assert msg["message"] == "partial"
+            # Server flushes on idle timeout (socket still open) -> final.
             final = ws.receive_json()
             assert final["message"] == "final"
 

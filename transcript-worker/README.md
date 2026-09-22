@@ -9,7 +9,7 @@ a Google Cloud Pub/Sub push subscription, it:
 3. **uploads** transcript artifacts to Google Cloud Storage
    (`gs://<bucket>/meetings/<meeting_id>/transcript/transcript-v1.{json,txt}`)
 4. **generates** AI Minutes-of-Meeting via any OpenAI-compatible endpoint
-   (optional)
+   (optional — production uses Gemini Flash-Lite)
 5. **completes** the meeting (`PROCESSING → COMPLETED` with the GCS object key
    and MoM stored back in Supabase)
 
@@ -23,7 +23,7 @@ Pub/Sub ──push──▶ transcript-worker
                     │ claim (Supabase RPC)        idempotency lock
                     │ segments (Supabase)         ordered transcript
                     │ artifacts (GCS)             transcript-v1.json/.txt
-                    │ MoM (LLM)                   OpenAI-compatible, optional
+                    │ MoM (LLM)                   OpenAI-compatible (Gemini), optional
                     │ complete (Supabase RPC)     status + object key + MoM
 ```
 
@@ -57,10 +57,10 @@ See `.env.example`. Key variables:
 | `GCS_BUCKET` | — | Required. Bucket for transcript artifacts |
 | `GCP_PROJECT_ID` | — | GCP project (for ADC lookup; empty = use default) |
 | `PUBSUB_PUSH_TOKEN` | *(empty)* | Bearer token configured on the push subscription. Empty disables auth (dev only) |
-| `LLM_PROVIDER` | `none` | `none` or `openai` (OpenAI-compatible) |
-| `LLM_BASE_URL` | `https://api.openai.com/v1` | Base URL for `/chat/completions` |
-| `LLM_API_KEY` | — | Required to enable MoM generation |
-| `LLM_MODEL` | `gpt-4o-mini` | Model name |
+| `LLM_PROVIDER` | `none` | `none`, `gemini`, or any OpenAI-compatible provider name |
+| `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Base URL for `/chat/completions` (Gemini OpenAI-compatible) |
+| `LLM_API_KEY` | — | Required to enable MoM generation (Gemini API key) |
+| `LLM_MODEL` | `gemini-2.5-flash-lite` | Cheap Flash-Lite model for MoM |
 
 GCS authentication uses Application Default Credentials (Cloud Run's attached
 service account), so no key file is configured.

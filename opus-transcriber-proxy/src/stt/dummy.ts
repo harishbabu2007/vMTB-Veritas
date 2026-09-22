@@ -10,6 +10,7 @@ import type { STTProvider, SttResult } from './types.js';
 export class DummySTTProvider implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onEndOfStreamDone?: () => void;
 
   private receivedSamples = 0;
   private finalAfterSamples: number;
@@ -43,6 +44,22 @@ export class DummySTTProvider implements STTProvider {
       this.counter++;
       this.receivedSamples = 0;
     }
+  }
+
+  sendEndOfStream(): void {
+    if (!this.connected) {
+      this.onEndOfStreamDone?.();
+      return;
+    }
+    if (this.receivedSamples > 0) {
+      this.onResult?.({
+        text: `dummy final segment ${this.counter}`,
+        isFinal: true,
+      });
+      this.counter++;
+      this.receivedSamples = 0;
+    }
+    this.onEndOfStreamDone?.();
   }
 
   close(): Promise<void> {

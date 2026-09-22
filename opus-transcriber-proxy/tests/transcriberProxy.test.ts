@@ -40,14 +40,22 @@ class FakeWebSocket {
 class ControllableSTT implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onEndOfStreamDone?: () => void;
   connected = false;
   received: Uint8Array[] = [];
+  eosSent = false;
   connect(): Promise<void> {
     this.connected = true;
     return Promise.resolve();
   }
   sendAudio(pcm16: Uint8Array): void {
     this.received.push(pcm16);
+  }
+  sendEndOfStream(): void {
+    this.eosSent = true;
+    // Simulate a backend that flushes a final then acks EOS.
+    this.onResult?.({ text: 'drain final', isFinal: true });
+    this.onEndOfStreamDone?.();
   }
   close(): Promise<void> {
     this.connected = false;
@@ -162,9 +170,48 @@ describe('TranscriberProxy', () => {
     proxy.on('closed', () => closed++);
     ws.emit('close', {});
     ws.emit('close', {});
-    await waitFor(20);
+    await waitFor(50);
     expect(closed).toBe(1);
     expect(proxy.activeParticipants).toBe(0);
+  });
+
+  it('sends end_of_stream and waits for the final before emitting closed', async () => {
+    const { ws, stt, events, proxy } = makeProxy();
+    ws.emit('message', { data: JSON.stringify({ event: 'start', start: { tag: 'p1' } }) });
+    await waitFor(50);
+
+    const order: string[] = [];
+    proxy.on('closed', () => order.push('closed'));
+    stt.onResult = ((orig?: typeof stt.onResult) => (r: SttResult) => {
+      if (r.isFinal) order.push('final');
+      orig?.(r);
+    })(stt.onResult);
+
+    ws.emit('close', {});
+    await waitFor(50);
+
+    expect(stt.eosSent).toBe(true);
+    expect(order).toEqual(['final', 'closed']);
+    const finals = events.filter((e) => e.isFinal && e.text === 'drain final');
+    expect(finals).toHaveLength(1);
+  });
+
+  it('still closes when the STT never acknowledges end-of-stream (bounded wait)', async () => {
+    const sttSilent = new ControllableSTT();
+    sttSilent.sendEndOfStream = () => {
+      sttSilent.eosSent = true;
+      // never acks
+    };
+    const { ws, proxy } = makeProxy({ sttFactory: () => sttSilent, sttDrainTimeoutMs: 50 });
+    ws.emit('message', { data: JSON.stringify({ event: 'start', start: { tag: 'p1' } }) });
+    await waitFor(50);
+
+    let closed = 0;
+    proxy.on('closed', () => closed++);
+    ws.emit('close', {});
+    await waitFor(150);
+    expect(closed).toBe(1);
+    expect(sttSilent.eosSent).toBe(true);
   });
 
   it('echoes final results back to JVB as transcription-result', async () => {

@@ -158,10 +158,10 @@ never disagree about a meeting's state.
 | `GCS_BUCKET` | — | Required; transcript artifact bucket |
 | `GCP_PROJECT_ID` | `""` | ADC project hint |
 | `PUBSUB_PUSH_TOKEN` | `""` (disables auth) | Must match the push subscription's token |
-| `LLM_PROVIDER` | `none` | `none`, or an OpenAI-compatible provider name |
-| `LLM_BASE_URL` | — | Chat-completions base URL. **Confirmed live value: `https://api.mistral.ai/v1`** (the README's generic example shows `https://api.openai.com/v1` — the design is provider-agnostic, but production runs Mistral) |
-| `LLM_API_KEY` | — | Required to enable MoM generation |
-| `LLM_MODEL` | — | **Confirmed live value: `mistral-small-latest`** (README shows a generic `gpt-4o-mini` example) |
+| `LLM_PROVIDER` | `none` | `none`, `gemini`, or an OpenAI-compatible provider name |
+| `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Chat-completions base URL. **Confirmed live value: Gemini OpenAI-compatible endpoint** (design remains provider-agnostic; production runs Gemini) |
+| `LLM_API_KEY` | — | Required to enable MoM generation (Gemini API key from AI Studio, stored as Secret Manager `llm-api-key`) |
+| `LLM_MODEL` | `gemini-2.5-flash-lite` | **Confirmed live value: cheap Gemini Flash-Lite model** for MoM |
 | `JITSI_ACTIVATOR_URL` | `""` (disabled) | After completing a meeting, POSTs `{url}/stop-jitsi` so the VM isn't left billing — see `docs/JITSI_VM_OPERATIONS.md` |
 
 ## Trade-offs and notes

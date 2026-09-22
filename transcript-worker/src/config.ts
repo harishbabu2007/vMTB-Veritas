@@ -51,9 +51,13 @@ export function loadConfig(): Config {
     gcpProjectId: opt('GCP_PROJECT_ID', ''),
     pubsubPushToken: opt('PUBSUB_PUSH_TOKEN', ''),
     llmProvider: opt('LLM_PROVIDER', 'none'),
-    llmBaseUrl: opt('LLM_BASE_URL', ''),
+    llmBaseUrl: opt(
+      'LLM_BASE_URL',
+      'https://generativelanguage.googleapis.com/v1beta/openai',
+    ),
     llmApiKey: opt('LLM_API_KEY', ''),
-    llmModel: opt('LLM_MODEL', 'mistral-small-latest'),
+    // Cheap default: Gemini Flash-Lite via the OpenAI-compatible endpoint.
+    llmModel: opt('LLM_MODEL', 'gemini-2.5-flash-lite'),
     jitsiActivatorUrl: opt('JITSI_ACTIVATOR_URL', ''),
   };
 }
