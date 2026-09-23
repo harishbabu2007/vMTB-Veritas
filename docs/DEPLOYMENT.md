@@ -226,7 +226,7 @@ done
 ### 2.5 GPU quota
 
 Good news: new projects are **automatically granted 3 L4 GPUs** (zonal
-redundancy off) on first GPU deployment — enough for `--max-instances 2`.
+redundancy off) on first GPU deployment — enough for `--max-instances 3`.
 Our deploy uses `--no-gpu-zonal-redundancy` (cheaper, no reservation), so in
 most cases you don't need to request anything. If the STT deploy still fails
 with a GPU quota error, request quota: Console → **IAM & Admin → Quotas &
@@ -327,7 +327,7 @@ gcloud run deploy stt-service \
   --memory=16Gi --cpu=4 --no-allow-unauthenticated \
   --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
   --set-env-vars=STT_MODEL=medium,STT_DEVICE=cuda,STT_COMPUTE_TYPE=float16 \
-  --min-instances=0 --max-instances=2 --concurrency=1   # concurrency=1: transcription is serialized per instance
+  --min-instances=0 --max-instances=3 --concurrency=1   # concurrency=1: transcription is serialized per instance; max=3 allows concurrent participants
 
 # opus-transcriber-proxy
 cd opus-transcriber-proxy
@@ -355,7 +355,7 @@ gcloud run deploy transcript-worker \
   --set-env-vars=LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,LLM_MODEL=gemini-2.5-flash-lite \
   --set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest \
   --set-secrets=LLM_API_KEY=llm-api-key:latest \
-  --min-instances=0 --max-instances=5
+  --min-instances=0 --max-instances=5 --timeout=600   # 600s: VM stop re-checks live sessions for up to ~4 min
 
 # then wire Pub/Sub push with a token (see §4/§8 for the equivalent via the
 # GitHub Actions buttons, which do this step for you automatically):
@@ -901,12 +901,14 @@ gcloud run services describe stt-service --project YOUR_PROJECT_ID \
   `STT_IDLE_TIMEOUT_SECONDS` (default 300s) of silence, so a crashed client
   cannot hold the GPU for the full request timeout.
 - The Jitsi VM **stops itself now**: the transcript-worker fires
-  `POST $ACT_URL/stop-jitsi` after every processed meeting, but only when no
-  analytics session has heartbeated in the last 3 minutes (so it never kills a
-  live or newer meeting). Requires the loader's Supabase analytics to be
-  running — it is, automatically. Watch for `vm: /stop-jitsi fired
-  successfully` in worker logs. The nightly scheduler below remains as an
-  optional backup for days with zero processed meetings.
+  `POST $ACT_URL/stop-jitsi` after every processed meeting. Within the same
+  push delivery (Cloud Run timeout **600s**) it **re-checks** the live-session
+  guard for up to `VM_STOP_MAX_WAIT_MS` (default 4 min) so a participant who
+  closed the tab without a clean leave (ghost `status='active'` row) ages out
+  instead of permanently skipping the stop, and it **retries** transient
+  `/stop-jitsi` failures (the activator returns 5xx when the GCP stop fails).
+  Requires the loader's Supabase analytics to be running — it is,
+  automatically. Watch for `vm: /stop-jitsi fired successfully` in worker logs.
 - ⚠️ Frequent VM stop/start cycles change its ephemeral external IP. While
   your meeting URL is an sslip.io hostname that IP is baked into the name —
   either reserve a static IP (~₹10/day, billed whenever attached *or* idle)

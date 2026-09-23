@@ -15,6 +15,12 @@ export interface Config {
   sttChunkMs: number; // accumulate this many ms of PCM before forwarding to STT
   sttUseIdToken: boolean; // attach a Google ID token when connecting (Cloud Run IAM)
   sttDrainTimeoutMs: number; // max wait for the STT end-of-stream flush on session close
+  /**
+   * Interval for authenticated GET /ready pings that keep the scale-to-zero
+   * STT instance warm for the duration of a transcription session.
+   * 0 disables the warmer (local dev / dummy provider).
+   */
+  sttWarmIntervalMs: number;
 
   // Supabase persistence
   persistence: 'supabase' | 'none';
@@ -73,6 +79,8 @@ export function loadConfig(): Config {
     sttChunkMs: optionalInt('STT_CHUNK_MS', 60),
     sttUseIdToken: env('STT_USE_ID_TOKEN') === 'true',
     sttDrainTimeoutMs: optionalInt('STT_DRAIN_TIMEOUT_MS', 10_000),
+    // optionalInt rejects 0, so parse warmth separately (0 = off).
+    sttWarmIntervalMs: Number.parseInt(env('STT_WARM_INTERVAL_MS') ?? '120000', 10) || 0,
     persistence,
     supabaseUrl: env('SUPABASE_URL') ?? '',
     supabaseServiceRoleKey: env('SUPABASE_SERVICE_ROLE_KEY') ?? '',

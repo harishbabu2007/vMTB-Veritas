@@ -40,12 +40,21 @@ class FakeWebSocket {
 class ControllableSTT implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onOpen?: () => void;
   onEndOfStreamDone?: () => void;
   connected = false;
   received: Uint8Array[] = [];
   eosSent = false;
+  /** When set, the first connect() rejects; later calls succeed. */
+  failFirstConnect = false;
+  private connectCalls = 0;
   connect(): Promise<void> {
+    this.connectCalls++;
+    if (this.failFirstConnect && this.connectCalls === 1) {
+      return Promise.reject(new Error('Unexpected server response: 429'));
+    }
     this.connected = true;
+    this.onOpen?.();
     return Promise.resolve();
   }
   sendAudio(pcm16: Uint8Array): void {
@@ -63,6 +72,11 @@ class ControllableSTT implements STTProvider {
   }
   fireResult(text: string, isFinal: boolean): void {
     this.onResult?.({ text, isFinal });
+  }
+  /** Simulate a successful background reconnect (after a cold-start 429). */
+  fireReopen(): void {
+    this.connected = true;
+    this.onOpen?.();
   }
 }
 
@@ -226,6 +240,65 @@ describe('TranscriberProxy', () => {
     expect(parsed.is_interim).toBe(false);
     expect(parsed.participant).toEqual({ id: 'p1' });
     expect(parsed.transcript[0]!.text).toBe('final words');
+    proxy.close();
+  });
+
+  it('buffers media while connect fails, then resumes after onOpen (429 recovery)', async () => {
+    const framesText = await readFile(join(fixturesDir, 'sine_opus_frames.b64'), 'utf8');
+    const frames = framesText
+      .split('\n')
+      .filter(Boolean)
+      .map((l) => Buffer.from(l, 'base64'));
+
+    const recovering = new ControllableSTT();
+    recovering.failFirstConnect = true;
+    const { ws, proxy } = makeProxy({ sttFactory: () => recovering });
+
+    ws.emit('message', { data: JSON.stringify({ event: 'start', start: { tag: 'p1' } }) });
+    await waitFor(50);
+    // First connect() rejected -> started stays false; frames only buffer.
+    for (let i = 0; i < 3; i++) {
+      ws.emit('message', {
+        data: JSON.stringify({
+          event: 'media',
+          media: { tag: 'p1', chunk: i, timestamp: i * 20, payload: frames[i]!.toString('base64') },
+        }),
+      });
+    }
+    await waitFor(50);
+    expect(recovering.received).toHaveLength(0);
+
+    // Background reconnect succeeds -> onOpen must flush the queue and resume.
+    recovering.fireReopen();
+    await waitFor(300);
+    expect(recovering.received.length).toBeGreaterThan(0);
+
+    // Subsequent media flows immediately (started is true).
+    for (let i = 3; i < 8; i++) {
+      ws.emit('message', {
+        data: JSON.stringify({
+          event: 'media',
+          media: { tag: 'p1', chunk: i, timestamp: i * 20, payload: frames[i % frames.length]!.toString('base64') },
+        }),
+      });
+    }
+    await waitFor(300);
+    expect(recovering.received.length).toBeGreaterThan(1);
+
+    proxy.close();
+  }, 20000);
+
+  it('does not double-send when connect resolves and onOpen both fire (idempotent)', async () => {
+    const { ws, stt, proxy } = makeProxy();
+    ws.emit('message', { data: JSON.stringify({ event: 'start', start: { tag: 'p1' } }) });
+    await waitFor(50);
+    // Extra reopen after a healthy start must not reset/resend anything harmful.
+    const before = stt.received.length;
+    stt.fireReopen();
+    await waitFor(50);
+    // No new audio from reopen alone (nothing queued); counter of frames unchanged
+    // beyond what media already delivered — just assert no throw and started path stable.
+    expect(stt.received.length).toBe(before);
     proxy.close();
   });
 });

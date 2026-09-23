@@ -26,6 +26,7 @@ export interface SelfHostedOptions {
 export class SelfHostedSTTProvider implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onOpen?: () => void;
   onEndOfStreamDone?: () => void;
 
   private ws: WebSocket | null = null;
@@ -61,6 +62,9 @@ export class SelfHostedSTTProvider implements STTProvider {
         ws.removeEventListener('open', onOpen);
         ws.removeEventListener('error', onOpenError);
         this.retryAttempt = 0;
+        // Fires on the first open AND every background reconnect so the
+        // proxy can flip started=true and flush its pre-start media queue.
+        if (!this.closed && !this.draining) this.onOpen?.();
         resolve();
       };
 

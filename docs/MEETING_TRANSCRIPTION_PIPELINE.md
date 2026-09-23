@@ -124,6 +124,8 @@ never disagree about a meeting's state.
 | `STT_SAMPLE_RATE` | `16000` | PCM sample rate sent to STT |
 | `STT_CHUNK_MS` | `60` | ms of PCM buffered before forwarding |
 | `STT_USE_ID_TOKEN` | `false` | Attach a Google ID token to the STT WS connection (for a non-public STT deploy) |
+| `STT_DRAIN_TIMEOUT_MS` | `10000` | Max wait for the STT end-of-stream flush on meeting close |
+| `STT_WARM_INTERVAL_MS` | `120000` | Authenticated `GET /ready` pings while a session is open (keeps the scale-to-zero STT instance warm). `0` disables |
 | `PERSISTENCE` | `supabase` | `supabase` or `none` |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | — | Required when `PERSISTENCE=supabase` |
 | `GCP_PROJECT_ID`, `PUBSUB_TOPIC` | — | For publishing `meeting.completed` |
@@ -163,6 +165,8 @@ never disagree about a meeting's state.
 | `LLM_API_KEY` | — | Required to enable MoM generation (Gemini API key from AI Studio, stored as Secret Manager `llm-api-key`) |
 | `LLM_MODEL` | `gemini-2.5-flash-lite` | **Confirmed live value: cheap Gemini Flash-Lite model** for MoM |
 | `JITSI_ACTIVATOR_URL` | `""` (disabled) | After completing a meeting, POSTs `{url}/stop-jitsi` so the VM isn't left billing — see `docs/JITSI_VM_OPERATIONS.md` |
+| `VM_STOP_MAX_WAIT_MS` | `240000` | Within one push delivery, how long the worker re-checks live-session heartbeats and retries `/stop-jitsi` (must stay under the Cloud Run request timeout, **600s**) |
+| `VM_STOP_POLL_INTERVAL_MS` | `15000` | Delay between live-session rechecks / stop retries |
 
 ## Trade-offs and notes
 

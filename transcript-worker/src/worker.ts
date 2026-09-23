@@ -15,10 +15,24 @@ export interface WorkerDeps {
   vm?: { activatorUrl: string };
   /** Override the post-completion settle wait (tests pass a no-op). */
   settle?: () => Promise<void>;
+  /** Max time stopVmIfQuiet may wait/retry (tests pass 0 for one-shot). */
+  stopMaxWaitMs?: number;
+  /** Delay between live-session rechecks and stop retries. */
+  stopPollIntervalMs?: number;
+  /** Injectable sleep so tests can skip real delays. */
+  sleep?: (ms: number) => Promise<void>;
 }
 
 /** Minutes of analytics silence that qualify the room as truly empty. */
 const VM_ACTIVE_GRACE_MINUTES = 3;
+
+/**
+ * Default budget for stopVmIfQuiet within one Pub/Sub delivery: wait out the
+ * live-session grace (stale tab-close ghosts) and retry transient /stop-jitsi
+ * failures. Sized to fit Cloud Run's 600s request timeout with headroom.
+ */
+const DEFAULT_STOP_MAX_WAIT_MS = 240_000;
+const DEFAULT_STOP_POLL_INTERVAL_MS = 15_000;
 
 /**
  * Grace period after meeting.completed before the first segment read.
@@ -30,6 +44,13 @@ const SEGMENT_SETTLE_MS = 3_000;
 function defaultSettle(): Promise<void> {
   return new Promise((resolve) => {
     const t = setTimeout(resolve, SEGMENT_SETTLE_MS);
+    t.unref?.();
+  });
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
     t.unref?.();
   });
 }
@@ -130,8 +151,15 @@ export async function processMeeting(meetingId: string, deps: WorkerDeps, now = 
  * overnight. Never throws - a teardown failure must not affect the meeting's
  * outcome (which is already recorded).
  *
- * Safety valve: if any analytics session still has a fresh heartbeat, someone
- * is mid-meeting (perhaps a newer one) and the stop is skipped.
+ * Safety valve + retry (no external scheduler):
+ *   - if any analytics session still has a fresh heartbeat, re-check until the
+ *     wait budget is exhausted. A participant who closed the tab without a
+ *     clean Jitsi leave leaves status='active' with a heartbeat at most ~30s
+ *     old; after VM_ACTIVE_GRACE_MINUTES of silence the row ages out and the
+ *     stop proceeds. Previously this was a single one-shot check, so a ghost
+ *     session permanently skipped the stop.
+ *   - transient /stop-jitsi failures (network, 5xx from GCP stop) retry within
+ *     the same budget.
  */
 export async function stopVmIfQuiet(meetingId: string, deps: WorkerDeps): Promise<void> {
   const activatorUrl = deps.vm?.activatorUrl?.replace(/\/$/, '');
@@ -140,35 +168,66 @@ export async function stopVmIfQuiet(meetingId: string, deps: WorkerDeps): Promis
     return;
   }
 
-  try {
-    const active = await deps.supabase.hasActiveSession(VM_ACTIVE_GRACE_MINUTES);
-    if (active) {
-      logger.info({ meetingId }, 'vm: live session detected, skipping VM stop');
+  const maxWaitMs = deps.stopMaxWaitMs ?? DEFAULT_STOP_MAX_WAIT_MS;
+  const pollMs = deps.stopPollIntervalMs ?? DEFAULT_STOP_POLL_INTERVAL_MS;
+  const sleep = deps.sleep ?? defaultSleep;
+  const deadline = Date.now() + maxWaitMs;
+
+  const outOfBudget = () => Date.now() >= deadline;
+  const remaining = () => Math.max(0, deadline - Date.now());
+
+  // Phase 1: wait until no analytics session has heartbeated within the grace.
+  for (;;) {
+    let active: boolean;
+    try {
+      active = await deps.supabase.hasActiveSession(VM_ACTIVE_GRACE_MINUTES);
+    } catch (err) {
+      logger.warn(
+        { meetingId, err: err instanceof Error ? err.message : String(err) },
+        'vm: active-session check failed',
+      );
+      if (outOfBudget()) return;
+      await sleep(Math.min(pollMs, remaining() || 1));
+      continue;
+    }
+
+    if (!active) break;
+
+    if (outOfBudget()) {
+      logger.warn({ meetingId }, 'vm: live session still present after wait budget; giving up');
       return;
     }
-  } catch (err) {
-    logger.warn(
-      { meetingId, err: err instanceof Error ? err.message : String(err) },
-      'vm: active-session check failed, skipping VM stop conservatively',
+    logger.info(
+      { meetingId, remainingMs: remaining() },
+      'vm: live session detected, rechecking until grace expires',
     );
-    return;
+    await sleep(Math.min(pollMs, remaining() || 1));
   }
 
-  try {
-    const res = await fetch(`${activatorUrl}/stop-jitsi`, {
-      method: 'POST',
-      signal: AbortSignal.timeout(15_000),
-    });
-    if (res.ok) {
-      logger.info({ meetingId, status: res.status }, 'vm: /stop-jitsi fired successfully');
-    } else {
+  // Phase 2: POST /stop-jitsi, retrying transient failures within the budget.
+  for (;;) {
+    try {
+      const res = await fetch(`${activatorUrl}/stop-jitsi`, {
+        method: 'POST',
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (res.ok) {
+        logger.info({ meetingId, status: res.status }, 'vm: /stop-jitsi fired successfully');
+        return;
+      }
       logger.warn({ meetingId, status: res.status }, 'vm: /stop-jitsi returned non-ok status');
+    } catch (err) {
+      logger.warn(
+        { meetingId, err: err instanceof Error ? err.message : String(err) },
+        'vm: /stop-jitsi call failed',
+      );
     }
-  } catch (err) {
-    logger.warn(
-      { meetingId, err: err instanceof Error ? err.message : String(err) },
-      'vm: /stop-jitsi call failed',
-    );
+
+    if (outOfBudget()) {
+      logger.warn({ meetingId }, 'vm: stop retries exhausted within budget');
+      return;
+    }
+    await sleep(Math.min(pollMs, remaining() || 1));
   }
 }
 

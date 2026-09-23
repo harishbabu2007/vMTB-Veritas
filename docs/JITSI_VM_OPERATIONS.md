@@ -30,7 +30,9 @@ request-driven and Cloud Run reaps them automatically (the STT service also
 closes idle WebSocket sessions itself after `STT_IDLE_TIMEOUT_SECONDS`, so a
 crashed client can't hold the GPU indefinitely). `transcript-worker` also
 fires `POST {JITSI_ACTIVATOR_URL}/stop-jitsi` automatically after completing
-a meeting (best-effort, logged only).
+a meeting: within the same delivery it re-checks live-session heartbeats for
+up to ~4 minutes (so tab-close ghosts age out) and retries transient stop
+failures — the activator returns 5xx if the GCP stop itself fails.
 
 If you're ever debugging a suspiciously large GPU bill, confirm no
 min-instances config has crept back in:
@@ -183,8 +185,8 @@ and the Pub/Sub pipeline are all hostname-agnostic for the VM.
 ## Part 6 — Life afterwards (stop/start routine)
 
 Shut down when done: `gcloud compute instances stop jitsi-vm --zone=asia-south1-c`
-(or let the worker's automatic `/stop-jitsi` do it — it fires ~1 min after the
-last person leaves).
+(or let the worker's automatic `/stop-jitsi` do it — it retries within ~4 min
+of meeting completion so ghost analytics sessions don't leave the VM billing).
 
 Next session:
 

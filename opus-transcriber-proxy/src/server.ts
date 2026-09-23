@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from 'ws';
 import logger from './logger.js';
 import { TranscriberProxy, type TranscriberProxyOptions } from './transcriberProxy.js';
 import { createSTTProvider } from './stt/factory.js';
+import { SttWarmer, httpOriginFromWsUrl } from './sttWarmer.js';
 import { isValidSessionId } from './protocol.js';
 import type { Config } from './config.js';
 import type { TranscriptEvent } from './stt/types.js';
@@ -33,6 +34,26 @@ export interface ServerStats {
 export function createServer(config: Config, deps: ServerDeps): { server: http.Server; stats: ServerStats; close: () => Promise<void> } {
   const sessions = new Map<string, TranscriberProxy>();
   const stats: ServerStats = { activeSessions: 0 };
+
+  // Shared warmer: one authenticated /ready ping loop while any session is open.
+  const sttReadyUrl =
+    config.provider === 'self-hosted' && config.sttWarmIntervalMs > 0
+      ? `${httpOriginFromWsUrl(config.sttWsUrl) ?? ''}/ready`
+      : '';
+  const warmer =
+    sttReadyUrl && sttReadyUrl !== '/ready'
+      ? new SttWarmer({
+          readyUrl: sttReadyUrl,
+          useIdToken: config.sttUseIdToken,
+          intervalMs: config.sttWarmIntervalMs,
+        })
+      : null;
+
+  function syncWarmer(): void {
+    if (!warmer) return;
+    if (sessions.size > 0) warmer.start();
+    else warmer.stop();
+  }
 
   const server = http.createServer((req, res) => {
     if (req.url === '/health') {
@@ -101,6 +122,7 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
       session.on('closed', () => {
         sessions.delete(sessionId);
         stats.activeSessions = sessions.size;
+        syncWarmer();
         // Async: awaits pending segment inserts before publishing
         // meeting.completed so the worker never reads a partial snapshot.
         void Promise.resolve(deps.onSessionClosed(sessionId)).catch((err) => {
@@ -113,6 +135,7 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
 
       sessions.set(sessionId, session);
       stats.activeSessions = sessions.size;
+      syncWarmer();
 
       ws.addEventListener('error', (event) => {
         logger.warn({ sessionId }, 'ws: client error');
@@ -124,6 +147,7 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
   });
 
   const close = async (): Promise<void> => {
+    warmer?.stop();
     // Drain sessions (end-of-stream handshake) but never block shutdown
     // longer than the force-resolve window below.
     const sessionDrains = [...sessions.values()].map((session) => session.close());

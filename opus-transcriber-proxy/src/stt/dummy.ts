@@ -10,6 +10,7 @@ import type { STTProvider, SttResult } from './types.js';
 export class DummySTTProvider implements STTProvider {
   onResult?: (result: SttResult) => void;
   onError?: (err: Error) => void;
+  onOpen?: () => void;
   onEndOfStreamDone?: () => void;
 
   private receivedSamples = 0;
@@ -24,6 +25,7 @@ export class DummySTTProvider implements STTProvider {
   connect(): Promise<void> {
     this.connected = true;
     this.receivedSamples = 0;
+    this.onOpen?.();
     return Promise.resolve();
   }
 

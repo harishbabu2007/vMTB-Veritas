@@ -50,6 +50,10 @@ function makeDeps(overrides: Partial<WorkerDeps> = {}): { deps: WorkerDeps; fake
     llm: { provider: 'none', baseUrl: '', apiKey: '', model: 'gpt-4o-mini' },
     vm: { activatorUrl: '' },
     settle: () => Promise.resolve(),
+    // One-shot stop by default so existing tests never wait on the retry budget.
+    stopMaxWaitMs: 0,
+    stopPollIntervalMs: 0,
+    sleep: () => Promise.resolve(),
     ...overrides,
   };
   return { deps, fakes };
@@ -263,7 +267,7 @@ describe('automatic VM stop', () => {
     vi.unstubAllGlobals();
   });
 
-  it('skips the stop while another session is live', async () => {
+  it('skips the stop while another session is live (budget exhausted)', async () => {
     const { deps, fakes } = makeDeps({ vm: { activatorUrl: ACT } });
     fakes.hasActiveSession.mockResolvedValue(true);
     const spy = vi.fn();
@@ -271,6 +275,43 @@ describe('automatic VM stop', () => {
     await processMeeting('m1', deps, () => 1751979219000);
     expect(fakes.hasActiveSession).toHaveBeenCalled();
     expect(spy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+
+  it('rechecks a live session and stops once the ghost heartbeat ages out', async () => {
+    const { deps, fakes } = makeDeps({
+      vm: { activatorUrl: ACT },
+      stopMaxWaitMs: 5_000,
+      stopPollIntervalMs: 10,
+      sleep: () => Promise.resolve(),
+    });
+    // First check: ghost still "active"; second: aged out.
+    fakes.hasActiveSession.mockResolvedValueOnce(true).mockResolvedValue(false);
+    const spy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    withFetch(spy as unknown as typeof fetch);
+    const outcome = await processMeeting('m1', deps, () => 1751979219000);
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(fakes.hasActiveSession).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenCalledWith(`${ACT}/stop-jitsi`, expect.objectContaining({ method: 'POST' }));
+    vi.unstubAllGlobals();
+  });
+
+  it('retries /stop-jitsi after a transient failure then succeeds', async () => {
+    const { deps } = makeDeps({
+      vm: { activatorUrl: ACT },
+      stopMaxWaitMs: 5_000,
+      stopPollIntervalMs: 10,
+      sleep: () => Promise.resolve(),
+    });
+    fakesHas(deps, false);
+    const spy = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(null, { status: 500 }))
+      .mockResolvedValueOnce(new Response(null, { status: 200 }));
+    withFetch(spy as unknown as typeof fetch);
+    const outcome = await processMeeting('m1', deps, () => 1751979219000);
+    expect(outcome).toEqual({ kind: 'completed' });
+    expect(spy).toHaveBeenCalledTimes(2);
     vi.unstubAllGlobals();
   });
 

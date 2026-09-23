@@ -25,6 +25,13 @@ export interface STTProvider {
   /** Emitted on unrecoverable backend errors. */
   onError?: (err: Error) => void;
   /**
+   * Emitted every time the backend socket opens — both the initial connect
+   * and each successful background reconnect. Lets the proxy resume feeding
+   * audio after a cold-start / 429 recovery (the connect() promise only
+   * settles for the first attempt).
+   */
+  onOpen?: () => void;
+  /**
    * Emitted when the backend has acknowledged end-of-stream (or the
    * connection dropped during the drain). Lets the proxy stop waiting.
    */
