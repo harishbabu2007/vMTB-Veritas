@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import MeetingLoader from '../components/MeetingLoader'
 import ErrorPage from '../components/ErrorPage'
 import ThankYouPage from '../components/ThankYouPage'
-import { MeetingService } from '../services/meetingService'
+import { MeetingService, type ComponentState } from '../services/meetingService'
 import { meetingAnalytics } from '../services/meetingAnalytics'
 import { getMeetingParamsFromUrl, debugLog } from '../utils/sanitization'
 
@@ -18,6 +18,7 @@ export default function MeetingPage() {
   const [state, setState] = useState<PageState>('LOADING')
   const [error, setError] = useState<string>('')
   const [elapsedSeconds, setElapsedSeconds] = useState(0)
+  const [components, setComponents] = useState<Record<string, ComponentState>>({})
 
   // Refs for preventing double initialization and cleanup
   const isInitializedRef = useRef(false)
@@ -265,9 +266,18 @@ export default function MeetingPage() {
 
     debugLog('[INIT] Starting polling...')
 
+    // Surface which components are still coming up while we wait.
+    const componentPoll = setInterval(() => {
+      if (meetingServiceRef.current) {
+        setComponents(meetingServiceRef.current.getComponents())
+      }
+    }, 2000)
+
     service.waitForMeetingReady()
       .then(async () => {
         debugLog('[INIT] ✓ Server ready!')
+        clearInterval(componentPoll)
+        setComponents(service.getComponents())
         // Note: Keep timer running during script loading
 
         // Load Jitsi script (may take time with retries)
@@ -283,6 +293,7 @@ export default function MeetingPage() {
       })
       .catch((err) => {
         debugLog('[INIT] ❌ Polling error:', err)
+        clearInterval(componentPoll)
         stopTimer()
 
         // Ignore abort errors
@@ -298,6 +309,7 @@ export default function MeetingPage() {
     // Cleanup function
     return () => {
       debugLog('[INIT] Cleanup on unmount')
+      clearInterval(componentPoll)
       stopTimer()
       if (meetingServiceRef.current) {
         meetingServiceRef.current.cleanup()
@@ -345,7 +357,7 @@ export default function MeetingPage() {
   // ===== RENDER =====
 
   if (state === 'LOADING') {
-    return <MeetingLoader elapsedSeconds={elapsedSeconds} />
+    return <MeetingLoader elapsedSeconds={elapsedSeconds} components={components} />
   }
 
   if (state === 'ERROR') {

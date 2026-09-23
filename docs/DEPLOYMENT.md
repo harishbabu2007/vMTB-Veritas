@@ -971,8 +971,10 @@ Notes:
 | STT deploy fails: GPU zonal-redundancy quota error | old workflow version — latest adds `--no-gpu-zonal-redundancy`; pull and re-run |
 | STT deploy fails: container failed to start on PORT=8080 | old image — the Dockerfile now listens on `$PORT`; re-run the button so a fresh build deploys |
 | STT deploy fails: GPU quota error | §2.5 quota not granted yet, or wrong region |
-| Meeting stuck on loader ("Server starting…") | `curl $ACT_URL/status` → see which component isn't ready; check that service's Cloud Run logs |
+| Meeting stuck on loader ("Server starting…") | `curl $ACT_URL/status` → see which component isn't ready; check that service's Cloud Run logs. `jvb` shows `https: not-ready` while the VM is RUNNING but nginx hasn't finished booting — wait, or fix `JITSI_PUBLIC_URL` if it points at the wrong host |
 | `/start-jitsi` components show `error` | IAM bindings from §2.3 missing; check activation backend logs |
+| Join popup: "disconnected from the meeting" / `wss://…/xmpp-websocket` fails | VM not fully up when the client joined (loader raced nginx), **or** DNS A record for the meet host points at a stale VM IP after a stop/start. Confirm with `dig +short $JITSI_PUBLIC_URL` vs `curl -sI $JITSI_PUBLIC_URL`; re-run `/start-jitsi` (it now probes HTTPS, not just GCP RUNNING). Prosody's WS itself is healthy when a proper upgrade returns `101` (`Sec-WebSocket-Protocol: xmpp` required) |
+| Prosody `/xmpp-websocket` returns `501` from curl | Expected if the probe omits `Sec-WebSocket-Protocol: xmpp` — Prosody only upgrades XMPP subprotocol requests. Not a server bug |
 | Proxy logs: STT connect failures (403) | `STT_USE_ID_TOKEN=true` missing on proxy, or `vmtb-services` lacks `roles/run.invoker` |
 | No captions / nothing in proxy logs | §6.5 wiring wrong: jicofo.conf template, prosody module not loaded (`systemctl status prosody`), or client toggle off |
 | Segments never appear in Supabase | proxy secrets wrong (`supabase-url` / `supabase-service-role-key`); check proxy logs for store errors |

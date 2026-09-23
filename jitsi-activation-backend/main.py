@@ -98,6 +98,16 @@ class Config:
         self.proxy_probe_timeout_seconds = float(
             os.environ.get("PROXY_PROBE_TIMEOUT_SECONDS", "8")
         )
+        # Public Jitsi origin on the VM. GCP reports RUNNING before nginx and
+        # Prosody finish booting; probing this URL (default: the real meet
+        # host) keeps /start-jitsi in "starting" until the browser can
+        # actually load external_api.js and open /xmpp-websocket.
+        self.jitsi_public_url = os.environ.get(
+            "JITSI_PUBLIC_URL", "https://server-vmtb-v2.3billionpairs.com"
+        )
+        self.jitsi_probe_timeout_seconds = float(
+            os.environ.get("JITSI_PROBE_TIMEOUT_SECONDS", "5")
+        )
 
 
 cfg = Config()
@@ -181,6 +191,27 @@ def vm_status() -> str:
     return instance.status or "UNKNOWN"
 
 
+def probe_jitsi_public() -> bool:
+    """GET the public Jitsi origin (no auth) — true when nginx is serving.
+
+    Distinguishes "GCP instance RUNNING" from "meeting UI is reachable".
+    Cold VM boot: GCP flips to RUNNING while cloud-init still has tens of
+    seconds of work; early clients then hit ERR_CONNECTION_REFUSED on
+    external_api.js / wss://…/xmpp-websocket. We keep reporting starting
+    until the first byte of HTTPS content arrives.
+    """
+    url = cfg.jitsi_public_url.rstrip("/") + "/"
+    try:
+        resp = httpx.get(url, timeout=cfg.jitsi_probe_timeout_seconds, follow_redirects=True)
+        ready = resp.status_code == 200
+        if not ready:
+            log.debug("jitsi public probe %s -> %s", url, resp.status_code)
+        return ready
+    except Exception as exc:  # noqa: BLE001 - probing must never raise
+        log.debug("jitsi public probe %s failed: %s", url, exc)
+        return False
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -196,16 +227,30 @@ def health_check() -> Response:
 def start_jitsi() -> dict[str, Any]:
     """Bring every meeting component up. Safe to call repeatedly.
 
-    Returns ``already_running`` only when the VM is RUNNING **and** both Cloud
-    Run services answer their health endpoints; otherwise ``starting``.
+    Returns ``already_running`` only when the VM is RUNNING **and** its
+    public HTTPS origin is serving **and** both Cloud Run services answer
+    their health endpoints; otherwise ``starting``.
     """
     components: dict[str, dict[str, str]] = {}
 
     # 1. Jitsi VM (JVB / Prosody / Jicofo)
+    #    GCP RUNNING alone is not enough — also require the public HTTPS
+    #    origin to answer, so clients never race nginx/prosody during boot.
     try:
         status = vm_status()
         if status == "RUNNING":
-            components["jvb"] = {"state": "ready"}
+            if probe_jitsi_public():
+                components["jvb"] = {"state": "ready"}
+            else:
+                log.info(
+                    "%s: RUNNING but %s not serving yet",
+                    cfg.instance_name,
+                    cfg.jitsi_public_url,
+                )
+                components["jvb"] = {
+                    "state": "starting",
+                    "detail": "vm running; waiting for jitsi https",
+                }
         else:
             log.info("%s: starting (status=%s)", cfg.instance_name, status)
             compute_client().start(
@@ -290,7 +335,13 @@ def status() -> dict[str, Any]:
     """Read-only view of every component (no side effects beyond probes). For debugging."""
     components: dict[str, dict[str, str]] = {}
     try:
-        components["jvb"] = {"state": vm_status()}
+        vm = vm_status()
+        if vm == "RUNNING" and probe_jitsi_public():
+            components["jvb"] = {"state": "RUNNING", "https": "ready"}
+        elif vm == "RUNNING":
+            components["jvb"] = {"state": "RUNNING", "https": "not-ready"}
+        else:
+            components["jvb"] = {"state": vm}
     except Exception as exc:  # noqa: BLE001
         components["jvb"] = {"state": "error", "detail": str(exc)}
 
@@ -310,4 +361,9 @@ def status() -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             components[key] = {"state": "error", "detail": str(exc)}
 
-    return {"project": cfg.project_id, "region": cfg.region, "components": components}
+    return {
+        "project": cfg.project_id,
+        "region": cfg.region,
+        "jitsi_public_url": cfg.jitsi_public_url,
+        "components": components,
+    }
