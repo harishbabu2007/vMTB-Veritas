@@ -1,9 +1,21 @@
 import { debugLog } from '../utils/sanitization'
 
+export type ComponentState = {
+  state?: string
+  detail?: string
+  https?: string
+}
+
+export type StartJitsiResponse = {
+  status: string
+  components?: Record<string, ComponentState>
+}
+
 export class MeetingService {
   private pollingInterval: ReturnType<typeof setTimeout> | null = null
   private abortController: AbortController | null = null
   private isCleanedUp = false
+  private lastComponents: Record<string, ComponentState> = {}
 
   async waitForMeetingReady(): Promise<void> {
     debugLog('[POLLING] ========================================')
@@ -14,10 +26,14 @@ export class MeetingService {
     return this.pollUntilReady()
   }
 
-  private async callStartJitsi(): Promise<{ status: string }> {
+  getComponents(): Record<string, ComponentState> {
+    return this.lastComponents
+  }
+
+  private async callStartJitsi(): Promise<StartJitsiResponse> {
     const backendUrl = import.meta.env.VITE_JITSI_BACKEND_URL
     const endpoint = `${backendUrl}/start-jitsi`
-    
+
     debugLog(`[API] POST ${endpoint}`)
 
     const controller = new AbortController()
@@ -37,12 +53,16 @@ export class MeetingService {
         throw new Error(`HTTP ${response.status}`)
       }
 
-      const data = await response.json()
+      const data = (await response.json()) as StartJitsiResponse
       debugLog(`[API] Response: ${data.status}`)
+      if (data.components) {
+        this.lastComponents = data.components
+        debugLog('[API] Components:', data.components)
+      }
       return data
     } catch (error) {
       clearTimeout(timeoutId)
-      
+
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
           debugLog('[API] Request timed out')
@@ -92,9 +112,17 @@ export class MeetingService {
             resolve()
             return
           }
-          
+
           if (response.status === 'starting') {
-            debugLog('[POLL] Server starting...')
+            const notReady = Object.entries(this.lastComponents)
+              .filter(([, c]) => c.state !== 'ready')
+              .map(([name, c]) => `${name}${c.detail ? ` (${c.detail})` : ''}`)
+              .join(', ')
+            debugLog(
+              notReady
+                ? `[POLL] Server starting... waiting on: ${notReady}`
+                : '[POLL] Server starting...'
+            )
           } else {
             debugLog(`[POLL] Unknown status: ${response.status}`)
           }

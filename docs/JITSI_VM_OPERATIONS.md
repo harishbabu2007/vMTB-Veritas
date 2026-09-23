@@ -24,7 +24,12 @@ Straight from the module's own docstring:
 
 `POST /start-jitsi` is polled by `jitsi-frontend` every few seconds until it
 returns `{"status": "already_running"}` (all components ready); it's
-idempotent and safe to call repeatedly. `POST /stop-jitsi` only stops the
+idempotent and safe to call repeatedly. For the VM it requires GCP
+`RUNNING` **and** a 200 from the public meet origin (`JITSI_PUBLIC_URL`,
+default `https://server-vmtb-v2.3billionpairs.com`) — GCP flips to RUNNING
+before nginx/prosody finish booting, and joining in that window is what
+produced `ERR_CONNECTION_REFUSED` / “disconnected from the meeting”.
+`POST /stop-jitsi` only stops the
 VM — the Cloud Run services are deliberately left alone, since they're
 request-driven and Cloud Run reaps them automatically (the STT service also
 closes idle WebSocket sessions itself after `STT_IDLE_TIMEOUT_SECONDS`, so a
@@ -33,6 +38,13 @@ fires `POST {JITSI_ACTIVATOR_URL}/stop-jitsi` automatically after completing
 a meeting: within the same delivery it re-checks live-session heartbeats for
 up to ~4 minutes (so tab-close ghosts age out) and retries transient stop
 failures — the activator returns 5xx if the GCP stop itself fails.
+
+**Note on Prosody WebSocket diagnostics:** a bare `curl` upgrade to
+`/xmpp-websocket` without `Sec-WebSocket-Protocol: xmpp` gets
+`501 Not Implemented` from Prosody by design — that is not a server fault.
+Use e.g. `curl --http1.1 -H 'Connection: Upgrade' -H 'Upgrade: websocket'
+-H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: …'
+-H 'Sec-WebSocket-Protocol: xmpp' …/xmpp-websocket` and expect `101`.
 
 If you're ever debugging a suspiciously large GPU bill, confirm no
 min-instances config has crept back in:
