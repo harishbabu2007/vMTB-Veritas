@@ -366,7 +366,7 @@ export function SampleCase() {
                 ) : (
                   <div className="bg-surface rounded-xl border border-border p-4">
                     <p className="text-sm text-text-muted">
-                      Questions you add when creating a case appear here for the board to answer.
+                      Use Ask Question on a real case to put a specific question to the board.
                     </p>
                   </div>
                 )}

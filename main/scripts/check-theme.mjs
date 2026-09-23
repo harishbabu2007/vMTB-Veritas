@@ -61,6 +61,11 @@ function contrast(a, b) {
 
 const PLAIN = ['bg', 'surface', 'surface-hover', 'surface-muted'];
 const PAGE = ['bg', 'surface']; // coloured accents sit on the page or a card, not on hover/chip fills
+// text-placeholder only ever renders as `input::placeholder`/`textarea::placeholder`,
+// which sit on the two active-field backgrounds. surface-muted is the
+// *disabled*-field background, which WCAG 1.4.3 exempts from any contrast
+// minimum, and surface-hover isn't a field state at all.
+const INPUT = ['bg', 'surface'];
 const AA = 4.5;
 const pairs = []; // [foreground token, background token, minimum ratio]
 const add = (fg, bgs, min = AA) => bgs.forEach((bg) => pairs.push([fg, bg, min]));
@@ -68,6 +73,7 @@ const add = (fg, bgs, min = AA) => bgs.forEach((bg) => pairs.push([fg, bg, min])
 add('text', PLAIN);
 add('text-muted', PLAIN);
 add('text-subtle', PLAIN);
+add('text-placeholder', INPUT);
 add('link', PLAIN);
 add('primary', PAGE, 3); // icons, borders, focus rings: non-text, 3:1
 add('on-solid', ['primary-solid', 'neutral-solid', 'neutral-solid-hover', 'danger-solid', 'success-solid', 'info-solid', 'danger-solid-hover', 'success-solid-hover', 'info-solid-hover', 'primary-solid-hover']);

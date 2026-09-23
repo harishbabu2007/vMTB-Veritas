@@ -45,6 +45,7 @@ export function ViewCase() {
   const [visitedTabs, setVisitedTabs] = useState<Set<TabType>>(() => new Set(['summary']));
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   // Case Settings: MTB sharing, archive
   const [mtbToRemove, setMtbToRemove] = useState<{ id: string; name: string } | null>(null);
@@ -192,11 +193,14 @@ export function ViewCase() {
   // "You" is redundant on the owner's own My Cases view; it's only useful to
   // distinguish "a case you own" among other members' cases inside an MTB.
   const showYouBadge = isOwner && fromMTB;
-  // The owner always sees the patient name, regardless of how they opened
-  // the case; non-owners viewing via an MTB never do (a non-owner shouldn't
-  // reach the bare /case/:id route at all, so `!fromMTB` already implies
-  // isOwner in practice -- this is written explicitly rather than relying on
-  // that).
+  // UI nicety only, not the real control: `caseData.patientName` itself is
+  // already redacted server-side for anyone but the case's owner, regardless
+  // of which route they used to get here (cases_viewer_safe, see
+  // 20260922_cases_patient_name_read_guard.sql) -- so a non-owner reaching
+  // this page via a bare /case/:id link, browser history, or any other route
+  // shape can't receive the real value even if this check is wrong. This
+  // just avoids rendering an empty "Patient" field for a non-owner who'd see
+  // null anyway.
   const showPatientName = isOwner || !fromMTB;
   const everVerified = Boolean(caseData?.firstVerifiedAt);
   const activeOpinionMtbId = selectedOpinionMtbId || currentMtbId;
@@ -786,13 +790,13 @@ export function ViewCase() {
                     key={tab}
                     onClick={() => {
                       if (isLocked) {
-                        showToast.error('Verify the case first to unlock this tab.');
+                        showToast.error('Verify the case first to unlock this tab — scroll to the bottom of Case Summary to verify.');
                         return;
                       }
                       setActiveTab(tab);
                       setVisitedTabs(prev => (prev.has(tab) ? prev : new Set(prev).add(tab)));
                     }}
-                    title={isLocked ? 'Verify the case first to unlock this tab' : undefined}
+                    title={isLocked ? 'Verify the case first to unlock this tab — scroll to the bottom of Case Summary to verify' : undefined}
                     aria-disabled={isLocked || undefined}
                     data-tour={tab === 'summary' ? 'tab-summary' : tab === 'reports' ? 'tab-reports' : undefined}
                     className={`flex items-center gap-1.5 border-b-2 font-medium transition-colors whitespace-nowrap flex-shrink-0 ${
@@ -919,7 +923,7 @@ export function ViewCase() {
                                 type="text"
                                 value={patientForm.patientName}
                                 onChange={(e) => handlePatientFieldChange('patientName', e.target.value)}
-                                placeholder="Anonymous"
+                                placeholder="Blank = Anonymous"
                                 className="w-full text-sm px-2 py-1 border border-border rounded focus:outline-none focus:ring-2 focus:ring-primary"
                                 disabled={savingCase}
                               />
@@ -990,7 +994,7 @@ export function ViewCase() {
                         {caseData?.summaryStatus === 'verified' && (
                           <span className="flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-success-bg text-success border border-success-border">
                             <CheckCircle className="w-3.5 h-3.5" />
-                            Verified & Shared
+                            Verified
                           </span>
                         )}
                         {editingCase ? (
@@ -1041,15 +1045,6 @@ export function ViewCase() {
                           </>
                         ) : (
                           <>
-                            {isOwner && caseData?.summaryStatus === 'unverified' && (
-                              <button
-                                onClick={handleVerifyClick}
-                                data-tour="case-verify"
-                                className="px-3 py-1.5 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid"
-                              >
-                                Verify Case
-                              </button>
-                            )}
                             {!isProcessingSummary && isOwner && caseData?.summaryStatus !== 'verified' && (
                               <button
                                 onClick={startEditingCase}
@@ -1127,6 +1122,30 @@ export function ViewCase() {
               </>
             )}
           </div>
+
+          {/* Verifying lives at the end of the summary, after there's been a
+              chance to actually read it — CaseUpdateStatus's banner above
+              points down here rather than popping up a dialog unprompted. */}
+          {isOwner && !editingCase && !isProcessingSummary && caseData?.summaryStatus === 'unverified' && (
+            <div className="flex items-start justify-between gap-4 flex-wrap rounded-xl border border-primary bg-status-processing-bg p-4">
+              <div className="flex items-start gap-3">
+                <CheckCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" aria-hidden="true" />
+                <div>
+                  <p className="text-sm font-medium text-text">Done reviewing?</p>
+                  <p className="text-sm text-text-muted mt-0.5">
+                    Verifying locks the summary above and lets you share this case with an MTB.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleVerifyClick}
+                data-tour="case-verify"
+                className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid flex-shrink-0"
+              >
+                Verify Case
+              </button>
+            </div>
+          )}
 
             </>
           )}
@@ -1237,7 +1256,10 @@ export function ViewCase() {
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowDeleteConfirm(true)}
+                      onClick={() => {
+                        setDeleteConfirmText('');
+                        setShowDeleteConfirm(true);
+                      }}
                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors flex-shrink-0"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -1455,18 +1477,32 @@ export function ViewCase() {
           <p className="text-sm text-text">
             This case will be permanently deleted and cannot be recovered. All associated documents, opinions, and questions will also be removed.
           </p>
-          <p className="text-sm font-medium text-text">Do you want to continue?</p>
+          <div>
+            <label htmlFor="delete-confirm-text" className="block text-sm font-medium text-text mb-1.5">
+              Type <span className="font-semibold text-danger-text">permanently delete</span> to confirm
+            </label>
+            <input
+              id="delete-confirm-text"
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoComplete="off"
+              disabled={deleting}
+              className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-danger disabled:opacity-50"
+            />
+          </div>
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors"
+              disabled={deleting}
+              className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               onClick={handleDeleteCase}
-              disabled={deleting}
-              className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50"
+              disabled={deleting || deleteConfirmText.trim().toLowerCase() !== 'permanently delete'}
+              className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {deleting ? 'Deleting...' : 'Delete Case'}
             </button>
@@ -1487,6 +1523,7 @@ export function ViewCase() {
           title="Add patient details to verify"
           description="Age and sex couldn't be detected from the uploaded documents, so this case can't be verified yet."
           bullets={[]}
+          showLockNotice={false}
           footerNote="Add them in Edit Patient Info, then verify again."
           confirmLabel="Edit Patient Info"
         />
@@ -1496,7 +1533,6 @@ export function ViewCase() {
           onConfirm={handleVerifySummary}
           onCancel={() => setShowVerifyModal(false)}
           isLoading={verifyingProgress}
-          description="Please review the patient details and summary below, then confirm to verify this case. Once verified, it will be:"
           reviewContent={
             caseData && (
               <div className="grid grid-cols-2 gap-3 text-sm p-3 bg-bg rounded-lg">

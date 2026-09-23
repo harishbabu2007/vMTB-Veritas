@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { DismissButton } from '../components/DismissButton';
 import { useCaseCreation } from '../context/CaseCreationContext';
 import { useIsMobile } from '../hooks/useMobile';
+import { useCreateCase } from '../hooks/useCreateCase';
 import { AlertCircle, FileText } from 'lucide-react';
 import { VoiceRecorder } from '../components/VoiceRecorder';
 import { useTourGroup } from '../hooks/useTourGroup';
@@ -13,7 +15,8 @@ export default function NewCaseStep2() {
   const { step1Data, caseExplanation, setCaseExplanation } = useCaseCreation();
   useTourGroup('step2', Boolean(step1Data));
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  
+  const { handleCreateCase, loading, error, setError, isSampleCase } = useCreateCase();
+
   const [explanation, setExplanation] = useState(caseExplanation || '');
 
   // Auto-resize logic: maintains min height, expands as explanation grows up to ~20 lines, then scrolls
@@ -38,12 +41,7 @@ export default function NewCaseStep2() {
   }, [explanation, adjustTextareaHeight]);
 
   const handleVoiceTranscription = (text: string) => {
-    console.log(`[NewCaseStep2] handleVoiceTranscription called with text length: ${text.length}`);
-    setExplanation((prev) => {
-      const next = prev ? prev + '\n\n' + text : text;
-      console.log(`[NewCaseStep2] Updated explanation state length: ${next.length}`);
-      return next;
-    });
+    setExplanation((prev) => (prev ? prev + '\n\n' + text : text));
   };
 
   // Redirect if no step1Data
@@ -55,7 +53,7 @@ export default function NewCaseStep2() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setCaseExplanation(explanation);
-    navigate('/cases/review');
+    void handleCreateCase();
   };
 
   const handleBack = () => {
@@ -71,7 +69,7 @@ export default function NewCaseStep2() {
             Explain Your Case
           </h1>
           <p className={`text-text-muted mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>
-            Step 2 of 3: Case Explanation (Optional)
+            Step 2 of 2: Case Explanation (Optional)
           </p>
         </div>
 
@@ -108,34 +106,37 @@ export default function NewCaseStep2() {
               </div>
             </div>
 
-            <textarea
-              ref={textareaRef}
-              id="explanation"
-              data-tour="explanation"
-              value={explanation}
-              onChange={(e) => setExplanation(e.target.value)}
-              className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all duration-150"
-              style={{
-                minHeight: isMobile ? '300px' : '400px',
-                fontSize: '15px'
-              }}
-              placeholder="Start typing your case explanation here...
-
-Example:
-Patient is a 65-year-old male with history of smoking presenting with persistent cough and weight loss over 3 months. CT scan shows 4cm mass in right upper lobe with mediastinal lymphadenopathy. Biopsy confirmed adenocarcinoma, PDL-1 expression 50%. Staging: T2N2M0 (Stage IIIA).
-
-Previous treatments:
-- Chemotherapy with carboplatin/pemetrexed (4 cycles)
-- Partial response noted
-
-Current concerns:
-- Recent progression on imaging
-- Patient experiencing increased dyspnea
-
-Questions for the board:
-- Should we consider immunotherapy at this stage?
-- What are the options for surgical intervention?"
-            />
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                id="explanation"
+                data-tour="explanation"
+                value={explanation}
+                onChange={(e) => setExplanation(e.target.value)}
+                className="w-full px-4 py-3 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary resize-none transition-all duration-150"
+                style={{
+                  minHeight: isMobile ? '300px' : '400px',
+                  fontSize: '15px'
+                }}
+                placeholder="So, this is a 65-year-old man, longtime smoker, came in with a cough that wouldn't go away and some weight loss over the last three months. The scan showed a four centimeter mass in the right upper lobe with mediastinal nodes involved, and the biopsy came back adenocarcinoma, PD-L1 around 50 percent, so we're calling it stage three A. He's already had four cycles of carboplatin and pemetrexed with a partial response, but his latest scan shows progression and he's more short of breath now. What I'd like the board to weigh in on is whether we should move to immunotherapy at this point, and whether surgery is still an option for him."
+              />
+              {/* A second, more discoverable invitation to talk, shown only
+                  while the field is empty; the header's Dictate control (same
+                  VoiceRecorder, same callback) stays the primary control once
+                  there's text. */}
+              {!explanation.trim() && (
+                <div className="absolute inset-x-0 bottom-4 flex justify-center pointer-events-none">
+                  <div className="textarea-mic-affordance pointer-events-auto">
+                    <VoiceRecorder
+                      onTranscriptionComplete={handleVoiceTranscription}
+                      variant="inline"
+                      source="step2"
+                      iconSize={20}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
 
             <div className="mt-3 flex items-start justify-between gap-4 text-xs text-text-muted">
               <div className="flex items-start gap-2">
@@ -150,21 +151,33 @@ Questions for the board:
             </div>
           </div>
 
+          {error && (
+            <div className="mt-4 p-4 bg-danger-bg border border-danger-border rounded-lg flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-danger flex-shrink-0 mt-0.5" />
+              <p className="text-danger-text text-sm flex-1">{error}</p>
+              <DismissButton onClick={() => setError(null)} label="Dismiss error" className="text-danger-text" />
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className={`flex justify-between mt-6 ${isMobile ? 'flex-col-reverse gap-3' : ''}`}>
             <button
               type="button"
               onClick={handleBack}
-              className={`px-4 py-2 border border-border rounded-lg hover:bg-bg transition-colors text-text-muted ${isMobile ? 'w-full' : ''}`}
+              disabled={loading}
+              className={`px-4 py-2 border border-border rounded-lg hover:bg-bg transition-colors text-text-muted disabled:opacity-50 ${isMobile ? 'w-full' : ''}`}
             >
               Back
             </button>
             <button
               type="submit"
-              data-tour="step2-continue"
-              className={`px-4 py-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${isMobile ? 'w-full' : ''}`}
+              disabled={loading}
+              // The walkthrough lets the user click the sample's Create Case
+              // through the tour; a real one it only points at.
+              data-tour={isSampleCase ? 'case-create-sample' : 'case-create'}
+              className={`px-4 py-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid disabled:opacity-50 disabled:cursor-not-allowed ${isMobile ? 'w-full' : ''}`}
             >
-              Continue to Review
+              {loading ? 'Creating Case...' : 'Create Case'}
             </button>
           </div>
         </form>

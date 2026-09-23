@@ -94,7 +94,11 @@ export function MTBDetail() {
         const caseIds = (mtbCaseIds || []).map(mc => mc.case_id);
         if (cancelled) return;
         if (caseIds.length > 0) {
-          const { data: casesData } = await supabase.from('cases').select('*').in('id', caseIds);
+          // cases_viewer_safe, not the raw table: every member of this MTB
+          // sees this list, and patient_name must be redacted for anyone
+          // who isn't a case's owner -- see
+          // 20260922_cases_patient_name_read_guard.sql.
+          const { data: casesData } = await supabase.from('cases_viewer_safe').select('*').in('id', caseIds);
           if (cancelled) return;
           setMtbCases((casesData || []).map(row => ({
             id: row.id,

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Menu, X, LogOut, Settings, MessageSquare, Home, Users, Archive } from 'lucide-react';
+import { Menu, X, LogOut, Settings, MessageSquare, Home, Users, Archive, Compass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useOnboarding } from '../context/OnboardingContext';
 import { Avatar } from './Avatar';
 
 interface MobileNavProps {
@@ -13,6 +14,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { logout, user } = useAuth();
+  const { restartTour } = useOnboarding();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Close menu when route changes
@@ -182,6 +184,17 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
           >
             <Archive className="w-5 h-5" />
             <span className="font-medium">Archived cases</span>
+          </button>
+          <button
+            onClick={() => {
+              setIsMenuOpen(false);
+              void restartTour();
+              navigate('/my-cases');
+            }}
+            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
+          >
+            <Compass className="w-5 h-5" />
+            <span className="font-medium">Restart Tour</span>
           </button>
         </div>
 

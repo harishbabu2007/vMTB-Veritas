@@ -348,7 +348,7 @@ export default function NewCaseStep1() {
       <div className="max-w-7xl mx-auto">
         <div className={isMobile ? 'mb-4' : 'mb-6'}>
           <h1 className={`font-bold text-text ${isMobile ? 'text-xl' : 'text-2xl'}`}>Create New Case</h1>
-          <p className={`text-text-muted mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>Step 1 of 3: Basic Details & Upload Documents</p>
+          <p className={`text-text-muted mt-1 ${isMobile ? 'text-xs' : 'text-sm'}`}>Step 1 of 2: Basic Details & Upload Documents</p>
         </div>
 
         {error && (

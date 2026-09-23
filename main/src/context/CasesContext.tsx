@@ -236,7 +236,11 @@ export function CasesProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const fetchCaseRow = useCallback(async (id: string): Promise<Case | null> => {
-    const { data, error } = await supabase.from('cases').select('*').eq('id', id).maybeSingle();
+    // cases_viewer_safe (not the raw table): the caller here isn't
+    // necessarily the case's owner (this backs ViewCase's poll-refresh for
+    // any viewer, owner or MTB member), and patient_name must never reach a
+    // non-owner's browser -- see 20260922_cases_patient_name_read_guard.sql.
+    const { data, error } = await supabase.from('cases_viewer_safe').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
     return data ? mapCaseRow(data) : null;
   }, []);
@@ -787,8 +791,11 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     };
 
     // Independent reads -- run them together rather than one after another.
+    // cases_viewer_safe, not the raw table: this is the read path for every
+    // case detail view, including a non-owner viewing via an MTB -- see
+    // 20260922_cases_patient_name_read_guard.sql.
     const [caseResult, docsResult, questionsResult, opinions, followUpsResult] = await Promise.all([
-      supabase.from('cases').select('*').eq('id', id).maybeSingle(),
+      supabase.from('cases_viewer_safe').select('*').eq('id', id).maybeSingle(),
       supabase.from('case_documents').select('*').eq('case_id', id),
       supabase.from('case_questions').select('*').eq('case_id', id),
       fetchOpinions(),
