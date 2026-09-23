@@ -38,6 +38,7 @@ import google.auth
 import httpx
 from fastapi import FastAPI, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.cloud import compute_v1
 from google.oauth2 import id_token as google_id_token
@@ -134,12 +135,16 @@ def _service_url(service_name: str) -> str:
     return client.get_service(name=name).uri or ""
 
 
-def probe(base_url: str, path: str, timeout_seconds: float) -> bool:
+def probe(base_url: str, path: str, timeout_seconds: float, require_status_ok: bool = False) -> bool:
     """GET a health endpoint, authenticating with an ID token when possible.
 
     The probe doubles as the scale-from-zero trigger: Cloud Run starts an
     instance to serve it. A cold STT instance may not answer within the first
     few attempts (model load); callers simply poll again.
+
+    When ``require_status_ok`` is set, a 200 body must also carry
+    ``{"status": "ok"}`` — /ready answers 200 with ``{"status": "loading"}``
+    while the model is still coming up, which must not count as ready.
     """
     url = base_url.rstrip("/") + path
     headers: dict[str, str] = {}
@@ -152,9 +157,18 @@ def probe(base_url: str, path: str, timeout_seconds: float) -> bool:
 
     try:
         resp = httpx.get(url, headers=headers, timeout=timeout_seconds)
-        ok = resp.status_code == 200
-        log.debug("probe %s -> %s", url, resp.status_code)
-        return ok
+        if resp.status_code != 200:
+            log.debug("probe %s -> %s", url, resp.status_code)
+            return False
+        if require_status_ok:
+            try:
+                body = resp.json()
+            except Exception:  # noqa: BLE001 - non-JSON readiness = not ready
+                return False
+            if not isinstance(body, dict) or body.get("status") != "ok":
+                log.debug("probe %s -> 200 but status=%s", url, body)
+                return False
+        return True
     except Exception as exc:  # noqa: BLE001 - probing must never raise
         log.info("probe %s failed: %s", url, exc)
         return False
@@ -206,14 +220,15 @@ def start_jitsi() -> dict[str, Any]:
     # what starts a cold instance (request-driven wake). We deliberately do
     # NOT touch min-instances - see the module docstring for the cost story.
     services = (
-        ("stt", cfg.stt_service_name, "/ready", cfg.stt_probe_timeout_seconds),
-        ("proxy", cfg.proxy_service_name, "/health", cfg.proxy_probe_timeout_seconds),
+        # stt: /ready returns 200 while status=="loading" — require status ok.
+        ("stt", cfg.stt_service_name, "/ready", cfg.stt_probe_timeout_seconds, True),
+        ("proxy", cfg.proxy_service_name, "/health", cfg.proxy_probe_timeout_seconds, False),
     )
-    for key, name, health_path, probe_timeout in services:
+    for key, name, health_path, probe_timeout, require_ok in services:
         try:
             url = _service_url(name)
-            state = "ready" if (url and probe(url, health_path, probe_timeout)) else "starting"
-            components[key] = {"state": state}
+            ready = bool(url) and probe(url, health_path, probe_timeout, require_status_ok=require_ok)
+            components[key] = {"state": "ready" if ready else "starting"}
         except Exception as exc:  # noqa: BLE001
             log.exception("%s wake failed", name)
             components[key] = {"state": "error", "detail": str(exc)}
@@ -228,7 +243,7 @@ def start_jitsi() -> dict[str, Any]:
 
 
 @app.post("/stop-jitsi")
-def stop_jitsi() -> dict[str, Any]:
+def stop_jitsi():
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
@@ -237,6 +252,7 @@ def stop_jitsi() -> dict[str, Any]:
     after an idle window). There is no resident-GPU state to clean up anymore.
     """
     components: dict[str, dict[str, str]] = {}
+    stop_error: Exception | None = None
 
     try:
         status = vm_status()
@@ -251,16 +267,21 @@ def stop_jitsi() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         log.exception("jvb stop failed")
         components["jvb"] = {"state": "error", "detail": str(exc)}
+        stop_error = exc
 
     for key, name in (("stt", cfg.stt_service_name), ("proxy", cfg.proxy_service_name)):
         components[key] = {"state": "scale-to-zero (automatic)"}
 
     all_down = components["jvb"]["state"] == "stopped"
     payload = {
-        "status": "already_stopped" if all_down else "stopping",
+        "status": "already_stopped" if all_down else ("error" if stop_error else "stopping"),
         "components": components,
     }
     log.info("/stop-jitsi -> %s", payload["status"])
+    # Surface GCP failures as 5xx so the transcript-worker can retry instead
+    # of logging "fired successfully" while the VM keeps billing.
+    if stop_error is not None:
+        return JSONResponse(status_code=500, content=payload)
     return payload
 
 
@@ -273,13 +294,15 @@ def status() -> dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         components["jvb"] = {"state": "error", "detail": str(exc)}
 
-    for key, name, health_path in (
-        ("stt", cfg.stt_service_name, "/ready"),
-        ("proxy", cfg.proxy_service_name, "/health"),
+    for key, name, health_path, require_ok in (
+        ("stt", cfg.stt_service_name, "/ready", True),
+        ("proxy", cfg.proxy_service_name, "/health", False),
     ):
         try:
             url = _service_url(name)
-            healthy = bool(url) and probe(url, health_path, cfg.stt_probe_timeout_seconds)
+            healthy = bool(url) and probe(
+                url, health_path, cfg.stt_probe_timeout_seconds, require_status_ok=require_ok
+            )
             components[key] = {
                 "state": "ready" if healthy else "cold-or-starting",
                 "url": url,

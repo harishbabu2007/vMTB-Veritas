@@ -42,6 +42,14 @@ export class TranscriberProxy extends EventEmitter {
   private readonly sttFactory: (tag: string) => STTProvider;
   private finalCount = 0;
   private closed = false;
+  /**
+   * Serialises STT connects across participants with a short stagger so N
+   * simultaneous `start` events don't stampede a cold Cloud Run instance
+   * (each concurrent upgrade beyond max-instances/concurrency gets HTTP 429).
+   */
+  private startQueue: Promise<void> = Promise.resolve();
+  private startQueueIsIdle = true;
+  private startQueueChainLength = 0;
 
   constructor(ws: WebSocket, options: TranscriberProxyOptions) {
     super();
@@ -146,9 +154,25 @@ export class TranscriberProxy extends EventEmitter {
     });
 
     this.connections.set(tag, connection);
-    connection.start().catch((err) => {
-      logger.error({ sessionId: this.sessionId, tag, err: err instanceof Error ? err.message : String(err) }, 'conn: failed to start');
-    });
+    // First participant starts immediately; subsequent ones queue with a gap
+    // so N simultaneous `start` events don't stampede a cold STT instance.
+    // Media still buffers in OutgoingConnection until its own start completes.
+    const isFirstChild = this.startQueueIsIdle;
+    this.startQueueIsIdle = false;
+    this.startQueue = this.startQueue
+      .then(() => (isFirstChild ? Promise.resolve() : delay(CONNECT_STAGGER_MS)))
+      .then(() => connection.start())
+      .catch((err) => {
+        logger.error(
+          { sessionId: this.sessionId, tag, err: err instanceof Error ? err.message : String(err) },
+          'conn: failed to start',
+        );
+      })
+      .finally(() => {
+        if (this.startQueueChainLength > 0) this.startQueueChainLength--;
+        if (this.startQueueChainLength === 0) this.startQueueIsIdle = true;
+      });
+    this.startQueueChainLength++;
 
     return connection;
   }
@@ -208,6 +232,16 @@ export class TranscriberProxy extends EventEmitter {
 /** Default wait for the STT flush handshake when the meeting ends. */
 const DEFAULT_DRAIN_TIMEOUT_MS = 10_000;
 
+/** Gap between queued per-participant STT connects (cold-start stampede guard). */
+const CONNECT_STAGGER_MS = 400;
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const t = setTimeout(resolve, ms);
+    t.unref?.();
+  });
+}
+
 interface OutgoingConnectionOptions {
   tag: string;
   sessionId: string;
@@ -241,11 +275,24 @@ class OutgoingConnection {
 
     options.stt.onResult = (result) => this.handleSttResult(result);
     options.stt.onError = (err) => options.onError(err);
+    // Fires on the first connect AND each successful background reconnect
+    // (e.g. after a cold-start 429). The connect() promise only settles for
+    // the first attempt, so without this the connection would buffer media
+    // forever with started=false.
+    options.stt.onOpen = () => this.handleSttOpen();
   }
 
   async start(): Promise<void> {
     await this.decoder.ready;
     await this.options.stt.connect();
+    // onOpen fires inside connect(); this call is idempotent and covers
+    // providers that resolve connect() without emitting onOpen.
+    this.handleSttOpen();
+  }
+
+  /** Mark the STT socket ready and flush media buffered while it was down. */
+  private handleSttOpen(): void {
+    if (this.closed || this.draining || this.started) return;
     this.started = true;
     this.utteranceStartSec = nowSec();
     logger.debug({ sessionId: this.options.sessionId, tag: this.options.tag }, 'conn: started');

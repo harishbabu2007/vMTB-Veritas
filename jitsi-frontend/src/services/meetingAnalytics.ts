@@ -68,6 +68,7 @@ export class MeetingAnalyticsService {
 
   constructor() {
     this.handleVisibilityChange = this.handleVisibilityChange.bind(this);
+    this.handlePageHide = this.handlePageHide.bind(this);
   }
 
   /**
@@ -99,6 +100,10 @@ export class MeetingAnalyticsService {
 
     // Set up visibility change handler (for extra heartbeat when tab becomes hidden)
     document.addEventListener('visibilitychange', this.handleVisibilityChange);
+    // Tab close / refresh without a clean Jitsi leave: best-effort mark the
+    // session ended so the transcript-worker's VM stop guard doesn't see a
+    // ghost status='active' row for the full 3-minute heartbeat grace.
+    window.addEventListener('pagehide', this.handlePageHide);
 
     this.isTracking = true;
     console.log('[ANALYTICS] ✓ Tracking initialized');
@@ -489,14 +494,27 @@ export class MeetingAnalyticsService {
   }
 
   /**
+   * Page is going away (tab close, refresh, bfcache). Fire-and-forget end so
+   * we don't leave status='active' ghosts that block automatic VM stop.
+   */
+  private handlePageHide(): void {
+    if (!this.isTracking || this.hasEnded || !this.meetingSessionId) return;
+    console.log('[ANALYTICS] pagehide - ending session best-effort');
+    this.hasEnded = true;
+    this.stopHeartbeat();
+    void this.endMeetingSession();
+  }
+
+  /**
    * Cleanup resources
    */
   cleanup(): void {
     console.log('[ANALYTICS] Cleanup');
-    
+
     this.stopHeartbeat();
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
-    
+    window.removeEventListener('pagehide', this.handlePageHide);
+
     this.isTracking = false;
     this.meetingSessionId = null;
     this.currentParticipantId = null;

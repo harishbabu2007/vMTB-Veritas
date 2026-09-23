@@ -22,6 +22,8 @@ const deps: WorkerDeps = {
     model: config.llmModel,
   },
   vm: { activatorUrl: config.jitsiActivatorUrl },
+  stopMaxWaitMs: config.vmStopMaxWaitMs,
+  stopPollIntervalMs: config.vmStopPollIntervalMs,
 };
 
 const server = createServer(config, {

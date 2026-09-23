@@ -25,6 +25,14 @@ export interface Config {
   // Automatic VM teardown: after processing a completed meeting the worker
   // POSTs {url}/stop-jitsi (only when no other session is live). Empty = off.
   jitsiActivatorUrl: string;
+  /**
+   * How long stopVmIfQuiet may wait/retry within a single push delivery
+   * (live-session grace recheck + /stop-jitsi call retries). Must leave headroom
+   * under the Cloud Run request timeout (600s).
+   */
+  vmStopMaxWaitMs: number;
+  /** Delay between live-session rechecks / stop call retries. */
+  vmStopPollIntervalMs: number;
 }
 
 export function loadConfig(): Config {
@@ -59,5 +67,9 @@ export function loadConfig(): Config {
     // Cheap default: Gemini Flash-Lite via the OpenAI-compatible endpoint.
     llmModel: opt('LLM_MODEL', 'gemini-2.5-flash-lite'),
     jitsiActivatorUrl: opt('JITSI_ACTIVATOR_URL', ''),
+    // 4 minutes covers the 3-minute analytics heartbeat grace plus stop retries,
+    // while fitting inside the 600s Cloud Run timeout with processing headroom.
+    vmStopMaxWaitMs: Number.parseInt(opt('VM_STOP_MAX_WAIT_MS', '240000'), 10),
+    vmStopPollIntervalMs: Number.parseInt(opt('VM_STOP_POLL_INTERVAL_MS', '15000'), 10),
   };
 }

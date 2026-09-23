@@ -354,7 +354,7 @@ Your codebase already handles this correctly:
    - They wake up on-demand when someone hits them
 
 3. **GPU only runs during transcription**
-   - `stt-service` has `--min-instances=0 --max-instances=2`
+   - `stt-service` has `--min-instances=0 --max-instances=3`
    - L4 GPU bills only when warm (during active meetings)
 
 **Estimated monthly cost when idle (no meetings):**

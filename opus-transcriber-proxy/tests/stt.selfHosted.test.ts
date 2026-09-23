@@ -186,4 +186,35 @@ describe('SelfHostedSTTProvider', () => {
     expect(onError).not.toHaveBeenCalled();
     await server.close();
   });
+
+  it('fires onOpen on the initial connect', async () => {
+    const server = await startFakeSttServer();
+    const provider = new SelfHostedSTTProvider({ url: server.url, maxRetries: 0 });
+    const onOpen = vi.fn();
+    provider.onOpen = onOpen;
+
+    await provider.connect();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    await provider.close();
+    await server.close();
+  });
+
+  it('fires onOpen again after a background reconnect', async () => {
+    const server = await startFakeSttServer();
+    const provider = new SelfHostedSTTProvider({ url: server.url, maxRetries: 3, retryDelayMs: 20 });
+    const onOpen = vi.fn();
+    provider.onOpen = onOpen;
+
+    await provider.connect();
+    expect(onOpen).toHaveBeenCalledTimes(1);
+
+    // Drop the server-side socket -> scheduleReconnect -> open succeeds -> onOpen #2.
+    server.socket()?.close();
+    await new Promise((r) => setTimeout(r, 150));
+    expect(onOpen).toHaveBeenCalledTimes(2);
+
+    await provider.close();
+    await server.close();
+  });
 });
