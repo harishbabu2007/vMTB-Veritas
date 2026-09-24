@@ -340,7 +340,6 @@ export function MeetingDetail() {
               <div className="pt-3 border-t border-border">
                 <p className="text-xs text-text-subtle">
                   Generated {formatDate(transcript.mom.generated_at)} at {formatTime(transcript.mom.generated_at)}
-                  {transcript.mom.model && ` · Model: ${transcript.mom.model}`}
                 </p>
               </div>
             </div>
