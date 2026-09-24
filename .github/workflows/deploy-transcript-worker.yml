@@ -1,11 +1,12 @@
 # Deploy transcript-worker (post-meeting MoM worker) to Cloud Run.
 #
-# Run manually from the GitHub "Actions" tab. Uses Gemini (cheap Flash-Lite)
-# via Google's OpenAI-compatible endpoint for Minutes-of-Meeting.
+# Run manually from the GitHub "Actions" tab. Uses Vertex AI (cheap Flash-Lite)
+# via Google's OpenAI-compatible Chat Completions endpoint for MoM. Auth is the
+# runtime service account's ADC — no LLM_API_KEY secret.
 #
 # Required repository secrets: GCP_PROJECT_ID, GCP_WIF_PROVIDER, GCP_DEPLOY_SA
-# Required Secret Manager secrets: supabase-url, supabase-service-role-key,
-# llm-api-key (Gemini API key from AI Studio). See docs/DEPLOYMENT.md §5.
+# Required Secret Manager secrets: supabase-url, supabase-service-role-key.
+# Runtime SA needs roles/aiplatform.user (granted below / docs/DEPLOYMENT.md §5).
 
 name: Deploy transcript-worker
 
@@ -93,6 +94,13 @@ jobs:
             echo "::warning::jitsi-activation-backend not found; automatic VM stop will be disabled"
           fi
 
+          # Vertex AI Chat Completions: ADC only (no API key secret).
+          gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+            --member="serviceAccount:${RUNTIME_SA}@${PROJECT_ID}.iam.gserviceaccount.com" \
+            --role="roles/aiplatform.user" \
+            --condition=None \
+            --quiet || echo "::warning::could not grant roles/aiplatform.user — grant it manually (docs/DEPLOYMENT.md §5)"
+
           gcloud run deploy "$SERVICE" \
             --project "$PROJECT_ID" \
             --region "$REGION" \
@@ -102,8 +110,8 @@ jobs:
             --min-instances 0 \
             --max-instances 5 \
             --timeout 600 \
-            --set-env-vars "GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=$PROJECT_ID,LLM_PROVIDER=gemini,LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,LLM_MODEL=gemini-3.5-flash-lite,JITSI_ACTIVATOR_URL=$ACT_URL" \
-            --set-secrets "SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest,LLM_API_KEY=llm-api-key:latest"
+            --set-env-vars "GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=$PROJECT_ID,LLM_PROVIDER=vertex,LLM_MODEL=google/gemini-3.1-flash-lite,JITSI_ACTIVATOR_URL=$ACT_URL" \
+            --set-secrets "SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest"
 
       - name: Show service URL
         run: |

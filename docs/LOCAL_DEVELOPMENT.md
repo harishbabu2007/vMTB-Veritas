@@ -128,7 +128,7 @@ cannot reach `localhost` on your machine. Two ways around this:
 | `GCS_BUCKET` | `vmtb-new-transcripts` |
 | `GCP_PROJECT_ID` | `vmtb-new` |
 | `PUBSUB_PUSH_TOKEN` | *(empty = disabled, fine for local)* |
-| `LLM_PROVIDER` | `none` (skip MoM) — or `gemini`/`openai` with `LLM_API_KEY` to test MoM generation |
+| `LLM_PROVIDER` | `none` (skip MoM) — or `vertex` (needs `gcloud auth application-default login` + `GCP_PROJECT_ID`) / `openai`+`LLM_API_KEY` to test MoM generation |
 
 `stt-service` needs no `.env` for defaults (`STT_MODEL=medium`,
 multilingual). For a fast local CPU run:

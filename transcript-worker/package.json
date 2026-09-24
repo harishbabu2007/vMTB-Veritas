@@ -21,6 +21,7 @@
     "@google-cloud/storage": "^7.14.0",
     "@supabase/supabase-js": "^2.47.10",
     "dotenv": "^16.4.7",
+    "google-auth-library": "^11.1.0",
     "pino": "^9.5.0"
   },
   "devDependencies": {
