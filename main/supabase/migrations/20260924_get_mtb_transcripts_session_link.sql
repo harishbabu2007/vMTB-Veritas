@@ -15,8 +15,9 @@
 --      reconciliation approach in docs/JITSI_TRANSCRIPTION_CONFIG.md §5).
 --   2. Return session_id (best-matching meeting_sessions.id) so the frontend
 --      can join without guessing.
---   3. Gate on MTB membership (auth.uid()) — the previous RPC leaked any
+--   3. Gate on owner-or-member (auth.uid()) — the previous RPC leaked any
 --      MTB's transcripts to any authenticated caller who guessed the UUID.
+--      (Owners are not in mtb_members; only join-code members are.)
 -- ============================================================================
 
 DROP FUNCTION IF EXISTS public.get_mtb_transcripts(UUID);
@@ -38,15 +39,21 @@ RETURNS TABLE (
     session_id              UUID
 )
 LANGUAGE plpgsql
-STABLE
+-- VOLATILE (default): the auto-link below runs an UPDATE, which a
+-- STABLE function is not allowed to do at runtime.
 SECURITY DEFINER
 SET search_path = public
 AS $$
 BEGIN
-    -- Membership gate: only members of this MTB may read its transcripts.
-    -- (Alias mm is required: an unqualified mtb_id is ambiguous with the
-    -- mtb_id OUT parameter from RETURNS TABLE.)
+    -- Access gate: owner OR member. MTB owners are NOT stored in
+    -- mtb_members (only join-code members are), so a members-only check
+    -- would lock owners out of their own transcripts and also skip the
+    -- auto-link below. (Alias mm is required: an unqualified mtb_id is
+    -- ambiguous with the mtb_id OUT parameter from RETURNS TABLE.)
     IF NOT EXISTS (
+        SELECT 1 FROM public.mtbs m
+        WHERE m.id = p_mtb_id AND m.owner_id = auth.uid()
+    ) AND NOT EXISTS (
         SELECT 1 FROM public.mtb_members mm
         WHERE mm.mtb_id = p_mtb_id AND mm.user_id = auth.uid()
     ) THEN
