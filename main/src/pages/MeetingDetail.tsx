@@ -30,6 +30,7 @@ interface MomData {
 interface Transcript {
   id: string;
   meeting_id: string;
+  session_id: string | null;
   status: string;
   mom: MomData | null;
   error_message: string | null;
@@ -98,13 +99,21 @@ export function MeetingDetail() {
       setSession(sessionData);
       setError(null);
 
-      const { data: transcriptData } = await supabase
+      const { data: transcriptData, error: transcriptError } = await supabase
         .rpc('get_mtb_transcripts', { p_mtb_id: mtbId });
 
-      if (transcriptData) {
-        const match = transcriptData.find((t: any) => t.meeting_id === meetingId);
-        setTranscript(match || null);
+      if (transcriptError) {
+        // Don't wipe a previously good transcript on a transient RPC failure.
+        console.error('Failed to fetch transcripts:', transcriptError);
+        return;
       }
+
+      // session_id is the matched meeting_sessions.id from the RPC.
+      // meeting_id is the Jitsi conference UUID and never equals route meetingId.
+      const match = ((transcriptData as Transcript[] | null) || []).find(
+        (t) => t.session_id === meetingId,
+      );
+      setTranscript(match || null);
     } catch (err) {
       console.error('Failed to fetch meeting data:', err);
       setError('Failed to load meeting details');
@@ -114,17 +123,26 @@ export function MeetingDetail() {
   }, [meetingId, mtbId]);
 
   useEffect(() => {
-    fetchData();
+    void fetchData();
   }, [fetchData]);
 
+  // Poll while MoM is generating, or while no transcript row is visible yet
+  // and the meeting is recent (the PENDING row can appear after mount —
+  // previously `if (!transcript) return` meant we never started polling).
   useEffect(() => {
-    if (!transcript) return;
-    const status = transcript.status?.toLowerCase();
-    if (status === 'pending' || status === 'processing') {
-      const interval = setInterval(fetchData, MOM_REFRESH_INTERVAL_MS);
-      return () => clearInterval(interval);
-    }
-  }, [transcript?.status, fetchData]);
+    const status = transcript?.status?.toLowerCase();
+    const isGenerating = status === 'pending' || status === 'processing';
+    const sessionEndedMs = session?.ended_at ? Date.parse(session.ended_at) : null;
+    const recentlyActive =
+      session?.status === 'active' ||
+      (sessionEndedMs !== null && Date.now() - sessionEndedMs < 15 * 60_000);
+    const shouldPoll = isGenerating || (!transcript && recentlyActive);
+    if (!shouldPoll) return;
+    const interval = setInterval(() => {
+      void fetchData();
+    }, MOM_REFRESH_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [transcript?.status, transcript, session?.status, session?.ended_at, fetchData]);
 
   if (loading) {
     return (
@@ -223,8 +241,10 @@ export function MeetingDetail() {
           {(momStatus === 'pending' || momStatus === 'processing') && (
             <div className="bg-warning-bg border border-warning-border rounded-lg p-6 text-center">
               <Loader2 className="w-8 h-8 text-warning animate-spin mx-auto mb-3" />
-              <p className="text-sm font-medium text-warning-text">Minutes of Meeting are being generated</p>
-              <p className="text-xs text-warning mt-1">This page will refresh automatically every minute.</p>
+              <p className="text-sm font-medium text-warning-text">Transcription is being generated</p>
+              <p className="text-xs text-warning mt-1">
+                Meeting transcript and minutes of meeting are processing. This page will refresh automatically every minute.
+              </p>
             </div>
           )}
 
@@ -245,6 +265,15 @@ export function MeetingDetail() {
               <FileText className="w-8 h-8 text-text-faint mx-auto mb-3" />
               <p className="text-sm text-text-subtle">No transcript available for this meeting.</p>
               <p className="text-xs text-text-subtle mt-1">Transcripts are only available for meetings with live transcription enabled.</p>
+            </div>
+          )}
+
+          {/* MoM Status: Completed without MoM payload (LLM skipped / best-effort null) */}
+          {momStatus === 'completed' && !transcript?.mom && (
+            <div className="bg-bg border border-border rounded-lg p-6 text-center">
+              <FileText className="w-8 h-8 text-text-faint mx-auto mb-3" />
+              <p className="text-sm text-text-subtle">Transcript processed, but no minutes of meeting were generated.</p>
+              <p className="text-xs text-text-subtle mt-1">MoM generation is best-effort and may have been disabled for this run.</p>
             </div>
           )}
 

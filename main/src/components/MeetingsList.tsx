@@ -65,7 +65,7 @@ function MomStatusBadge({ status }: { status: MeetingHistoryItem['mom_status'] }
       return (
         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-warning-bg-strong text-warning-text">
           <span className="w-1.5 h-1.5 bg-warning-solid rounded-full animate-pulse" />
-          MoM Generating
+          Transcribing
         </span>
       );
     case 'failed':
