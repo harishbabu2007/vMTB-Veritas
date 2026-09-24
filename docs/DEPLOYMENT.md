@@ -206,15 +206,23 @@ printf '%s' 'https://YOUR-PROJECT.supabase.co' | \
   gcloud secrets create supabase-url --data-file=- --replication-policy=automatic
 printf '%s' 'PASTE_SERVICE_ROLE_KEY_HERE' | \
   gcloud secrets create supabase-service-role-key --data-file=- --replication-policy=automatic
-# llm-api-key is filled with the real Gemini key in §5; placeholder until then:
-printf '%s' 'placeholder' | \
-  gcloud secrets create llm-api-key --data-file=- --replication-policy=automatic
+# llm-api-key is optional (only for non-Vertex providers); Vertex uses ADC — see §5.
+if ! gcloud secrets describe llm-api-key --quiet >/dev/null 2>&1; then
+  printf '%s' 'placeholder' | \
+    gcloud secrets create llm-api-key --data-file=- --replication-policy=automatic
+fi
 
 for SECRET in supabase-url supabase-service-role-key llm-api-key; do
+  gcloud secrets describe "$SECRET" >/dev/null 2>&1 || continue
   gcloud secrets add-iam-policy-binding "$SECRET" \
     --member="serviceAccount:vmtb-services@$PROJECT_ID.iam.gserviceaccount.com" \
     --role="roles/secretmanager.secretAccessor"
 done
+
+# Vertex AI MoM (transcript-worker): grant the runtime SA Vertex user once.
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member="serviceAccount:vmtb-services@$PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
 ```
 
 > ⚠️ **Never paste real keys into this file or any committed file.** Placeholders
@@ -347,14 +355,17 @@ gcloud run deploy opus-transcriber-proxy \
 cd transcript-worker
 gcloud builds submit --tag \
   asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/transcript-worker .
+# Vertex AI MoM: runtime SA needs roles/aiplatform.user (ADC — no LLM_API_KEY).
+gcloud projects add-iam-policy-binding YOUR_PROJECT_ID \
+  --member="serviceAccount:vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com" \
+  --role="roles/aiplatform.user"
 gcloud run deploy transcript-worker \
   --image=asia-southeast1-docker.pkg.dev/YOUR_PROJECT_ID/vmtb-services/transcript-worker \
   --region=asia-southeast1 --no-allow-unauthenticated \
   --service-account=vmtb-services@YOUR_PROJECT_ID.iam.gserviceaccount.com \
-  --set-env-vars=GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=YOUR_PROJECT_ID,LLM_PROVIDER=gemini \
-  --set-env-vars=LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai,LLM_MODEL=gemini-2.5-flash-lite \
+  --set-env-vars=GCS_BUCKET=vmtb-transcripts,GCP_PROJECT_ID=YOUR_PROJECT_ID,LLM_PROVIDER=vertex \
+  --set-env-vars=LLM_MODEL=google/gemini-3.1-flash-lite \
   --set-secrets=SUPABASE_URL=supabase-url:latest,SUPABASE_SERVICE_ROLE_KEY=supabase-service-role-key:latest \
-  --set-secrets=LLM_API_KEY=llm-api-key:latest \
   --min-instances=0 --max-instances=5 --timeout=600   # 600s: VM stop re-checks live sessions for up to ~4 min
 
 # then wire Pub/Sub push with a token (see §4/§8 for the equivalent via the
@@ -413,30 +424,46 @@ echo "PROXY=$PROXY_URL"; echo "ACT=$ACT_URL"
 
 ---
 
-## 5. Gemini setup (Minutes-of-Meeting)
+## 5. Vertex AI setup (Minutes-of-Meeting)
 
-1. <https://aistudio.google.com/apikey> → **Create API key** (sign in with the
-   Google account on your billing-enabled GCP project, or any Google account —
-   free tier is generous for Flash-Lite).
-2. Store it (replaces the placeholder from §2.4 — same secret name, new value):
+Production uses **Vertex AI's OpenAI-compatible Chat Completions** endpoint —
+your GCP project's runtime service account authenticates with ADC (no
+AI Studio API key, no `llm-api-key` secret).
+
+1. One-time IAM (runtime SA → Vertex user):
    ```bash
-   printf '%s' 'YOUR_REAL_GEMINI_KEY' | \
-     gcloud secrets versions add llm-api-key --data-file=-
+   PROJECT_ID=vmtb-new
+   gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+     --member="serviceAccount:vmtb-services@$PROJECT_ID.iam.gserviceaccount.com" \
+     --role="roles/aiplatform.user"
    ```
-3. Redeploy **transcript-worker** via its Action button so the running
-   container picks up the new secret version + Gemini env vars.
-4. Config already set in the workflow:
-   `LLM_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`,
-   `LLM_MODEL=gemini-2.5-flash-lite` (cheapest Flash-Lite tier — swap to
-   `gemini-2.5-flash` if MoM quality needs a step up). Transient 429/5xx
-   errors are retried automatically (`transcript-worker/src/llm.ts`).
+2. Redeploy **transcript-worker** via its Action button. The workflow sets:
+   - `LLM_PROVIDER=vertex`
+   - `GCP_PROJECT_ID` (builds the base URL automatically)
+   - `LLM_MODEL=google/gemini-3.1-flash-lite` (cheapest stable Flash-Lite;
+     the `google/` prefix is required on Vertex's OpenAI API)
+   - No `LLM_API_KEY` secret is mounted.
+3. **Model choice / cost** (Vertex list prices, per 1M tokens, global endpoint):
+   | Model | Input | Output | Notes |
+   |---|---|---|---|
+   | `google/gemini-3.1-flash-lite` | $0.25 | $1.50 | **Default — cheapest stable** |
+   | `google/gemini-3.5-flash-lite` | $0.30 | $2.50 | Slightly stronger; still cheap |
+   | `google/gemini-2.5-flash-lite` | $0.10 | $0.40 | ~2.4× cheaper but **retires 2026-10-16** — do not use past that date |
+   | `google/gemini-3.5-flash` | $1.50 | $9.00 | Step up if MoM quality needs it |
+4. Transient 429/5xx errors are retried automatically
+   (`transcript-worker/src/llm.ts`). The worker uses the global Vertex
+   endpoint (`…/locations/global/endpoints/openapi`), which has the same list
+   price as regional endpoints.
 
-Quick sanity check of your key:
+Quick sanity check (uses your gcloud ADC token):
 
 ```bash
-curl "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" \
-  -H "Authorization: Bearer $GEMINI_API_KEY" -H 'content-type: application/json' \
-  -d '{"model":"gemini-2.5-flash-lite","response_format":{"type":"json_object"},
+TOKEN=$(gcloud auth print-access-token)
+PROJECT_ID=vmtb-new
+curl -X POST \
+  -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+  "https://aiplatform.googleapis.com/v1/projects/$PROJECT_ID/locations/global/endpoints/openapi/chat/completions" \
+  -d '{"model":"google/gemini-3.1-flash-lite","response_format":{"type":"json_object"},
        "messages":[{"role":"user","content":"Return {\"summary\":\"ok\"}"}]}'
 ```
 
@@ -981,7 +1008,7 @@ Notes:
 | Worker never runs; status stuck PENDING | push subscription broken — rerun the transcript-worker workflow (it repairs it) |
 | Worker wiring step fails with `unrecognized arguments: --push-auth-token` | old workflow version — latest wires the subscription via OIDC only (`--push-auth-service-account`); pull and re-run |
 | Worker wiring step fails with `User not authorized` (subscriptions) | CI deployer lacks Pub/Sub rights — grant `roles/pubsub.editor` to `vmtb-deployer@…` (§2.3), re-run the button |
-| Meeting FAILED with LLM error | bad/expired Gemini key → fix `llm-api-key` secret, redeploy worker |
+| Meeting FAILED with LLM error | Vertex ADC / IAM — `vmtb-services` needs `roles/aiplatform.user` (§5); or bad `LLM_BASE_URL`/`LLM_MODEL`. `401` on non-vertex provider → fix that provider's `LLM_API_KEY` |
 | WebSocket drops at exactly 60 min | Cloud Run hard cap; proxy/STT reconnect automatically — acceptable for MVP |
 | CORS error in browser console | add frontend origin to `CORS_ORIGINS` env of activation backend (§7.3 step 3), redeploy |
 | Loader shows "Network error (CORS or server down)" when starting a meeting | same as above — your Vercel origin is missing from the activation backend's `CORS_ORIGINS` |

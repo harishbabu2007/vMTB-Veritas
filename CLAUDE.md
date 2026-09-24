@@ -17,7 +17,7 @@ This repo also has a root `AGENTS.md` — kept intentionally short, as a pointer
 - **`jitsi-frontend/`** — separate React/Vite app at `meet.vmtb.in`; polls the activation backend until the VM is ready, then hosts the actual meeting.
 - **`opus-transcriber-proxy/`** — TypeScript Cloud Run service sitting between Jitsi's videobridge (JVB) and STT: decodes per-participant Opus audio to PCM16, streams it to `stt-service`, persists final transcript segments to Supabase, publishes `meeting.completed` to Pub/Sub.
 - **`stt-service/`** — Python FastAPI, Cloud Run GPU. WhisperLive-compatible WebSocket STT backed by faster-whisper (multilingual `medium` model — required for Indian-language support; do not swap in `small.en`).
-- **`transcript-worker/`** — TypeScript Cloud Run service triggered by Pub/Sub push; assembles a meeting's transcript segments, uploads to GCS, generates Minutes-of-Meeting via Gemini (`gemini-2.5-flash-lite` over Google's OpenAI-compatible endpoint — the code itself is provider-agnostic), marks the job complete in Supabase.
+- **`transcript-worker/`** — TypeScript Cloud Run service triggered by Pub/Sub push; assembles a meeting's transcript segments, uploads to GCS, generates Minutes-of-Meeting via Vertex AI (`google/gemini-3.1-flash-lite` over Vertex's OpenAI-compatible Chat Completions endpoint, ADC auth — code is provider-agnostic), marks the job complete in Supabase.
 - **`docs/`** — every cross-cutting architecture/deployment/workflow doc lives here now, one file per independent topic. See **`docs/README.md`** for the full index; the short version:
   - `CLOUD_INVENTORY.md` — ground truth for what's deployed where (read first).
   - `DATABASE_SCHEMA.md`, `DOCUMENT_AI_PIPELINE.md`, `AUTH_AND_NOTIFICATIONS.md`, `CASE_AND_MTB_WORKFLOW.md` — the `main/` app in depth.
@@ -103,7 +103,7 @@ The legacy voice-dictation pipeline — `main/src/services/voiceTranscriptionSer
 | GCP (`vmtb` project — old) | Cloud Run service (`trigger-ocr-service`, `asia-south1`) | Fronts the PaddleOCR job below |
 | GCP (`vmtb` project — old) | Cloud Run Job (`paddle-ocr-job`, GPU, `us-east4`) | One-shot PaddleOCR pass per document batch — the anonymization pipeline's OCR step |
 | Third-party | Gupshup | WhatsApp Business API for OTP and notifications |
-| Third-party | Gemini API (`gemini-2.5-flash-lite`) | Minutes-of-Meeting generation in `transcript-worker` (OpenAI-compatible endpoint; code is provider-agnostic) |
+| GCP (`vmtb-new` project) | Vertex AI Chat Completions (`google/gemini-3.1-flash-lite`) | Minutes-of-Meeting generation in `transcript-worker` (OpenAI-compatible endpoint + ADC; code is provider-agnostic) |
 
 ## Git Workflow
 

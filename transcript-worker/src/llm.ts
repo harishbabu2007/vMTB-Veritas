@@ -1,3 +1,4 @@
+import { GoogleAuth } from 'google-auth-library';
 import logger from './logger.js';
 import type { SegmentRow } from './supabase.js';
 import { assignSpeakers, groupBySpeaker } from './speakers.js';
@@ -18,11 +19,39 @@ export interface MomResult {
   model: string;
 }
 
+const VERTEX_SCOPES = ['https://www.googleapis.com/auth/cloud-platform'];
+
+/** ADC access token for Vertex (Cloud Run SA / gcloud ADC). Overridable in tests. */
+export async function vertexAccessToken(): Promise<string> {
+  const auth = new GoogleAuth({ scopes: VERTEX_SCOPES });
+  const token = await auth.getAccessToken();
+  if (!token) {
+    throw new Error('Vertex: could not obtain access token via Application Default Credentials');
+  }
+  return token;
+}
+
+async function resolveBearer(
+  config: LlmConfig,
+  getToken: () => Promise<string> = vertexAccessToken,
+): Promise<string> {
+  if (config.provider === 'vertex') return getToken();
+  return config.apiKey;
+}
+
+export function isLlmConfigured(config: LlmConfig): boolean {
+  if (config.provider === 'none') return false;
+  // Vertex authenticates with ADC — no static API key required.
+  if (config.provider === 'vertex') return Boolean(config.baseUrl);
+  return Boolean(config.apiKey);
+}
+
 /**
  * Generate structured Minutes-of-Meeting from the transcript via any
- * OpenAI-compatible chat endpoint (Gemini, OpenAI, Mistral, Ollama...).
- * Production uses Gemini's OpenAI-compatible endpoint with a cheap
- * Flash-Lite model (see .env.example).
+ * OpenAI-compatible chat endpoint (Vertex AI, Gemini AI Studio, Mistral...).
+ * Production uses Vertex AI's OpenAI-compatible endpoint with the cheapest
+ * stable Flash-Lite model (see .env.example). Vertex auth is ADC (Cloud Run
+ * service account) — no LLM_API_KEY.
  * Returns null when LLM is not configured — the worker then completes with a
  * null MoM rather than failing.
  */
@@ -31,8 +60,9 @@ export async function generateMom(
   config: LlmConfig,
   fetchImpl: typeof fetch = fetch,
   labels?: Map<string, string>,
+  getToken: () => Promise<string> = vertexAccessToken,
 ): Promise<MomResult | null> {
-  if (!config.apiKey || config.provider === 'none') {
+  if (!isLlmConfigured(config)) {
     logger.info('llm: not configured, skipping MoM generation');
     return null;
   }
@@ -44,13 +74,15 @@ export async function generateMom(
     .join('\n\n');
   const prompt = buildPrompt(transcriptText);
 
+  // Resolved once per call; google-auth-library caches/renews tokens itself.
+  const bearer = await resolveBearer(config, getToken);
   const url = `${config.baseUrl.replace(/\/$/, '')}/chat/completions`;
   const request = () =>
     fetchImpl(url, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
-        authorization: `Bearer ${config.apiKey}`,
+        authorization: `Bearer ${bearer}`,
       },
       body: JSON.stringify({
         model: config.model,

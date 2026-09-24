@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { parseMomJson } from '../src/llm.js';
+import { isLlmConfigured, generateMom, parseMomJson } from '../src/llm.js';
 import { buildArtifact, processMeeting } from '../src/worker.js';
 import type { WorkerDeps } from '../src/worker.js';
 import type { SegmentRow } from '../src/supabase.js';
@@ -189,6 +189,56 @@ describe('parseMomJson', () => {
   it('extracts a JSON object even with surrounding prose', () => {
     const out = parseMomJson('Here are the minutes:\n{"summary":"ok"}\nHope that helps!');
     expect(out.summary).toBe('ok');
+  });
+});
+
+describe('Vertex / provider config', () => {
+  const vertexCfg = {
+    provider: 'vertex',
+    baseUrl: 'https://aiplatform.googleapis.com/v1/projects/p/locations/global/endpoints/openapi',
+    apiKey: '',
+    model: 'google/gemini-3.1-flash-lite',
+  };
+
+  it('treats vertex as configured without an API key (ADC)', () => {
+    expect(isLlmConfigured(vertexCfg)).toBe(true);
+  });
+
+  it('treats provider=none as unconfigured', () => {
+    expect(isLlmConfigured({ provider: 'none', baseUrl: '', apiKey: 'k', model: 'm' })).toBe(false);
+  });
+
+  it('requires an API key for non-vertex providers', () => {
+    expect(isLlmConfigured({ provider: 'openai', baseUrl: 'https://x', apiKey: '', model: 'm' })).toBe(false);
+    expect(isLlmConfigured({ provider: 'openai', baseUrl: 'https://x', apiKey: 'k', model: 'm' })).toBe(true);
+  });
+
+  it('generates MoM via Vertex using the injected ADC token as Bearer', async () => {
+    const getToken = vi.fn().mockResolvedValue('ya29.vertex-token');
+    const fetchImpl = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ summary: 'v', decisions: [], action_items: [], discussion_points: [] }) } }],
+      }),
+    });
+    const out = await generateMom(segments, vertexCfg, fetchImpl as unknown as fetch, undefined, getToken);
+    expect(out).toMatchObject({ summary: 'v', model: 'google/gemini-3.1-flash-lite' });
+    expect(getToken).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchImpl.mock.calls[0]!;
+    expect(url).toContain('/chat/completions');
+    expect((init as RequestInit).headers).toMatchObject({
+      authorization: 'Bearer ya29.vertex-token',
+    });
+  });
+
+  it('skips MoM when provider is none even if a key is present', async () => {
+    const out = await generateMom(
+      segments,
+      { provider: 'none', baseUrl: 'https://x', apiKey: 'k', model: 'm' },
+      vi.fn() as unknown as fetch,
+    );
+    expect(out).toBeNull();
   });
 });
 

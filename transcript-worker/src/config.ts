@@ -49,6 +49,22 @@ export function loadConfig(): Config {
     throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required.');
   }
 
+  const llmProvider = opt('LLM_PROVIDER', 'none');
+  const gcpProjectId = opt('GCP_PROJECT_ID', '');
+  const vertexLocation = opt('VERTEX_LOCATION', 'global');
+  // Vertex OpenAI-compatible Chat Completions endpoint. Global endpoint has
+  // the same list price as regional (regional adds ~10% since 2026-07).
+  const vertexBaseUrl = gcpProjectId
+    ? `https://aiplatform.googleapis.com/v1/projects/${gcpProjectId}/locations/${vertexLocation}/endpoints/openapi`
+    : '';
+  const defaultBaseUrl =
+    llmProvider === 'vertex'
+      ? vertexBaseUrl
+      : 'https://generativelanguage.googleapis.com/v1beta/openai';
+  // Vertex requires a google/ model-id prefix on the OpenAI-compatible API.
+  const defaultModel =
+    llmProvider === 'vertex' ? 'google/gemini-3.1-flash-lite' : 'gemini-3.1-flash-lite';
+
   return {
     host: opt('HOST', '0.0.0.0'),
     port: Number.parseInt(opt('PORT', '8080'), 10),
@@ -56,16 +72,14 @@ export function loadConfig(): Config {
     supabaseUrl,
     supabaseServiceRoleKey,
     gcsBucket: required('GCS_BUCKET'),
-    gcpProjectId: opt('GCP_PROJECT_ID', ''),
+    gcpProjectId,
     pubsubPushToken: opt('PUBSUB_PUSH_TOKEN', ''),
-    llmProvider: opt('LLM_PROVIDER', 'none'),
-    llmBaseUrl: opt(
-      'LLM_BASE_URL',
-      'https://generativelanguage.googleapis.com/v1beta/openai',
-    ),
+    llmProvider,
+    llmBaseUrl: opt('LLM_BASE_URL', defaultBaseUrl),
     llmApiKey: opt('LLM_API_KEY', ''),
-    // Cheap default: Gemini Flash-Lite via the OpenAI-compatible endpoint.
-    llmModel: opt('LLM_MODEL', 'gemini-2.5-flash-lite'),
+    // Cheap default: Gemini 3.1 Flash-Lite (2.5-flash-lite is ~2.4× cheaper
+    // but Google retires it 2026-10-16 — see docs/DEPLOYMENT.md §5).
+    llmModel: opt('LLM_MODEL', defaultModel),
     jitsiActivatorUrl: opt('JITSI_ACTIVATOR_URL', ''),
     // 4 minutes covers the 3-minute analytics heartbeat grace plus stop retries,
     // while fitting inside the 600s Cloud Run timeout with processing headroom.

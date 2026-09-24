@@ -8,8 +8,8 @@ a Google Cloud Pub/Sub push subscription, it:
 2. **reads** the ordered final transcript segments from Supabase
 3. **uploads** transcript artifacts to Google Cloud Storage
    (`gs://<bucket>/meetings/<meeting_id>/transcript/transcript-v1.{json,txt}`)
-4. **generates** AI Minutes-of-Meeting via any OpenAI-compatible endpoint
-   (optional — production uses Gemini Flash-Lite)
+4. **generates** AI Minutes-of-Meeting via Vertex AI's OpenAI-compatible
+   endpoint (optional — cheapest stable Flash-Lite; ADC auth)
 5. **completes** the meeting (`PROCESSING → COMPLETED` with the GCS object key
    and MoM stored back in Supabase)
 
@@ -23,7 +23,7 @@ Pub/Sub ──push──▶ transcript-worker
                     │ claim (Supabase RPC)        idempotency lock
                     │ segments (Supabase)         ordered transcript
                     │ artifacts (GCS)             transcript-v1.json/.txt
-                    │ MoM (LLM)                   OpenAI-compatible (Gemini), optional
+                    │ MoM (LLM)                   Vertex AI Chat Completions (Flash-Lite), optional
                     │ complete (Supabase RPC)     status + object key + MoM
 ```
 
@@ -55,15 +55,16 @@ See `.env.example`. Key variables:
 | `HOST` / `PORT` | `0.0.0.0` / `8080` | Bind address/port |
 | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | — | Required (service role) |
 | `GCS_BUCKET` | — | Required. Bucket for transcript artifacts |
-| `GCP_PROJECT_ID` | — | GCP project (for ADC lookup; empty = use default) |
+| `GCP_PROJECT_ID` | — | GCP project (ADC + Vertex base URL; empty = metadata/default) |
 | `PUBSUB_PUSH_TOKEN` | *(empty)* | Bearer token configured on the push subscription. Empty disables auth (dev only) |
-| `LLM_PROVIDER` | `none` | `none`, `gemini`, or any OpenAI-compatible provider name |
-| `LLM_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Base URL for `/chat/completions` (Gemini OpenAI-compatible) |
-| `LLM_API_KEY` | — | Required to enable MoM generation (Gemini API key) |
-| `LLM_MODEL` | `gemini-2.5-flash-lite` | Cheap Flash-Lite model for MoM |
+| `LLM_PROVIDER` | `none` | `none`, `vertex` (production; ADC, no API key), or any OpenAI-compatible name |
+| `LLM_BASE_URL` | *(from `LLM_PROVIDER`)* | Vertex: `https://aiplatform.googleapis.com/v1/projects/{id}/locations/global/endpoints/openapi` when `GCP_PROJECT_ID` set; otherwise AI Studio OpenAI-compatible URL |
+| `LLM_API_KEY` | — | Required for non-vertex providers only (Vertex uses ADC) |
+| `LLM_MODEL` | *(from `LLM_PROVIDER`)* | Vertex: `google/gemini-3.1-flash-lite` (cheapest stable Flash-Lite; `google/` prefix required) |
 
-GCS authentication uses Application Default Credentials (Cloud Run's attached
-service account), so no key file is configured.
+GCS and Vertex AI authentication use Application Default Credentials
+(Cloud Run's attached service account needs `roles/aiplatform.user`), so no
+key file or `LLM_API_KEY` is configured.
 
 ## Development
 
