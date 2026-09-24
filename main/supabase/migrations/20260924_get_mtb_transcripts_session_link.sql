@@ -44,9 +44,11 @@ SET search_path = public
 AS $$
 BEGIN
     -- Membership gate: only members of this MTB may read its transcripts.
+    -- (Alias mm is required: an unqualified mtb_id is ambiguous with the
+    -- mtb_id OUT parameter from RETURNS TABLE.)
     IF NOT EXISTS (
-        SELECT 1 FROM public.mtb_members
-        WHERE mtb_id = p_mtb_id AND user_id = auth.uid()
+        SELECT 1 FROM public.mtb_members mm
+        WHERE mm.mtb_id = p_mtb_id AND mm.user_id = auth.uid()
     ) THEN
         RETURN;
     END IF;
