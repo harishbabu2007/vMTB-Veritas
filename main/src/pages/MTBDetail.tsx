@@ -321,7 +321,7 @@ export function MTBDetail() {
               <button
                 onClick={() => {
                   if (!mtb) return;
-                  const url = buildMeetingUrl(mtb);
+                  const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
                   window.open(url, '_blank');
                 }}
                 data-tour="mtb-meeting"

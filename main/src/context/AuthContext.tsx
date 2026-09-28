@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, ReactN
 import { supabase } from '../Supabase/client';
 import { THEME_CACHE_PREFIX } from '../utils/themeStorage';
 
-type AuthUser = { id: string; email: string | null; name?: string; avatarKey?: string | null };
+type AuthUser = { id: string; email: string | null; name?: string; profession?: string | null; avatarKey?: string | null };
 
 // 'unknown' while the profile row hasn't been checked yet for the current
 // session (a brief window right after sign-in, or at app boot). Route
@@ -21,6 +21,7 @@ interface AuthContextType {
   registrationComplete: boolean | null;
   markRegistrationComplete: () => void;
   updateAvatarKey: (avatarKey: string | null) => void;
+  updateProfileInfo: (name: string, profession: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (countryCode: string, phoneNumber: string, password: string) => Promise<void>;
   sendPhoneOtp: (countryCode: string, phoneNumber: string) => Promise<void>;
@@ -86,13 +87,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(prev => {
       if (!next) return prev === null ? prev : null;
       if (!prev || prev.id !== next.id) return next;
-      const merged = { ...next, name: next.name ?? prev.name, avatarKey: next.avatarKey ?? prev.avatarKey };
-      return prev.email === merged.email && prev.name === merged.name && prev.avatarKey === merged.avatarKey ? prev : merged;
+      const merged = { ...next, name: next.name ?? prev.name, profession: next.profession ?? prev.profession, avatarKey: next.avatarKey ?? prev.avatarKey };
+      return prev.email === merged.email && prev.name === merged.name && prev.profession === merged.profession && prev.avatarKey === merged.avatarKey ? prev : merged;
     });
   };
 
   const updateAvatarKey = (avatarKey: string | null) => {
     setUser(prev => (prev ? { ...prev, avatarKey } : prev));
+  };
+
+  // Keeps the cached name/profession in sync after a profile edit so the
+  // meeting join link (which carries name/role) never uses stale values.
+  const updateProfileInfo = (name: string, profession: string | null) => {
+    setUser(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, name, profession };
+      storeUser(next);
+      return next;
+    });
   };
 
   const backfillProfileFromMetadata = async (id: string) => {
@@ -114,8 +126,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         whatsapp_number: whatsappNumber,
       }, { onConflict: 'id' });
 
-      if (fullName) {
-        setUser(prev => (prev && prev.name !== fullName ? { ...prev, name: fullName } : prev));
+      if (fullName || profession) {
+        setUser(prev => {
+          if (!prev) return prev;
+          const changed = (fullName && prev.name !== fullName) || (profession && prev.profession !== profession);
+          if (!changed) return prev;
+          const next = { ...prev, name: fullName ?? prev.name, profession: profession ?? prev.profession };
+          storeUser(next);
+          return next;
+        });
       }
     } catch (_err) {
       // Ignore failures; do not block auth flow
@@ -132,22 +151,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_key, whatsapp_verified')
+        .select('full_name, profession, avatar_key, whatsapp_verified')
         .eq('id', id)
         .single();
-      const profile = data as { full_name?: string; avatar_key?: string | null; whatsapp_verified?: boolean | null } | null;
+      const profile = data as { full_name?: string; profession?: string | null; avatar_key?: string | null; whatsapp_verified?: boolean | null } | null;
       if (error || !profile) {
         setRegistrationStatus('incomplete');
         await backfillProfileFromMetadata(id);
         return;
       }
       const name = profile.full_name;
+      const profession = profile.profession ?? null;
       if (name) {
-        setUser(prev =>
-          prev && (prev.name !== name || prev.avatarKey !== profile.avatar_key)
-            ? { ...prev, name, avatarKey: profile.avatar_key ?? null }
-            : prev
-        );
+        setUser(prev => {
+          if (!prev) return prev;
+          if (prev.name === name && prev.profession === profession && prev.avatarKey === (profile.avatar_key ?? null)) return prev;
+          const next = { ...prev, name, profession, avatarKey: profile.avatar_key ?? null };
+          storeUser(next);
+          return next;
+        });
       } else {
         await backfillProfileFromMetadata(id);
       }
@@ -381,7 +403,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (error) throw error;
     const u = data.user;
     if (u) {
-      const userData = { id: u.id, email: u.email ?? null, name };
+      const userData = { id: u.id, email: u.email ?? null, name, profession: profession ?? null };
       setUser(userData);
       storeUser(userData);
       // Create profile record
@@ -428,7 +450,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, markRegistrationComplete, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete]);
+  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, markRegistrationComplete, updateAvatarKey, updateProfileInfo, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

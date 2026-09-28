@@ -3,6 +3,7 @@ import { CalendarDays, Clock, Users, Video, AlertCircle, FileText, ChevronRight 
 import { useActiveMeeting } from '../hooks/useActiveMeeting';
 import { useMeetingHistory, MeetingHistoryItem } from '../hooks/useMeetingHistory';
 import { buildMeetingUrl } from '../utils/roomName';
+import { useAuth } from '../context/AuthContext';
 import { useIsMobile } from '../hooks/useMobile';
 
 interface MeetingsListProps {
@@ -127,19 +128,20 @@ function MeetingCard({ meeting, mtbId }: { meeting: MeetingHistoryItem; mtbId: s
 }
 
 export function MeetingsList({ mtbId, mtb, onToggleNotification, togglingNotification }: MeetingsListProps) {
+  const { user } = useAuth();
   const { activeMeeting, loading: activeLoading } = useActiveMeeting(mtbId);
   const { meetings, loading: historyLoading, error: historyError } = useMeetingHistory(mtbId);
   const isMobile = useIsMobile();
 
   const joinMeeting = () => {
     if (!mtb) return;
-    const url = buildMeetingUrl(mtb);
+    const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
     window.open(url, '_blank');
   };
 
   const startMeeting = () => {
     if (!mtb) return;
-    const url = buildMeetingUrl(mtb);
+    const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
     window.open(url, '_blank');
   };
 
