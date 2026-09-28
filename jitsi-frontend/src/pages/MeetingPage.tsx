@@ -4,7 +4,7 @@ import ErrorPage from '../components/ErrorPage'
 import ThankYouPage from '../components/ThankYouPage'
 import { MeetingService, type ComponentState } from '../services/meetingService'
 import { meetingAnalytics } from '../services/meetingAnalytics'
-import { getMeetingParamsFromUrl, debugLog } from '../utils/sanitization'
+import { getMeetingParamsFromUrl, buildDisplayName, debugLog } from '../utils/sanitization'
 
 type PageState = 'LOADING' | 'READY' | 'ERROR' | 'THANK_YOU'
 
@@ -27,6 +27,7 @@ export default function MeetingPage() {
   const timerIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const roomNameRef = useRef<string>('')
   const mtbIdRef = useRef<string>('')
+  const displayNameRef = useRef<string | undefined>(undefined)
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null)
   const analyticsInitializedRef = useRef(false)
 
@@ -97,7 +98,13 @@ export default function MeetingPage() {
           configOverwrite: {
             disableSimulcast: false,
             enableWelcomePage: false,
-            prejoinPageEnabled: false,
+            // Show Jitsi's prejoin screen, but with the name below already
+            // filled in (and editable) via userInfo.displayName.
+            prejoinPageEnabled: true,
+            prejoinConfig: {
+              enabled: true,
+              hideDisplayName: false,
+            },
             startAudioMuted: false,
             startVideoMuted: false,
           },
@@ -107,6 +114,9 @@ export default function MeetingPage() {
             SHOW_POWERED_BY: false,
             HIDE_INVITE_MORE_HEADER: true,
           },
+          ...(displayNameRef.current
+            ? { userInfo: { displayName: displayNameRef.current } }
+            : {}),
         }
       )
 
@@ -241,9 +251,11 @@ export default function MeetingPage() {
     
     roomNameRef.current = meetingParams.roomName
     mtbIdRef.current = meetingParams.mtbId || ''
+    displayNameRef.current = buildDisplayName(meetingParams.displayName, meetingParams.displayRole)
     debugLog('[INIT] Room:', meetingParams.roomName)
     debugLog('[INIT] MTB ID:', meetingParams.mtbId)
     debugLog('[INIT] MTB Name:', meetingParams.mtbName)
+    debugLog('[INIT] Display name:', displayNameRef.current)
 
     // Initialize analytics if mtb_id is available
     if (meetingParams.mtbId && !analyticsInitializedRef.current) {

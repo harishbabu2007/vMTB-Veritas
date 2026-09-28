@@ -22,7 +22,7 @@ interface LayoutProps {
 export function Layout({ children, wide = false }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, updateAvatarKey } = useAuth();
+  const { logout, user, updateAvatarKey, updateProfileInfo } = useAuth();
   const { theme, setTheme } = useTheme();
   const { restartTour } = useOnboarding();
   const [showDropdown, setShowDropdown] = useState(false);
@@ -169,6 +169,10 @@ export function Layout({ children, wide = false }: LayoutProps) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
+
+      // Reflect the new name/profession in auth context (and its cache) right
+      // away so the meeting join link carries the updated values.
+      updateProfileInfo(profileName.trim(), profileProfession.trim());
 
       const whatsappChanged = profileWhatsapp.trim() !== originalWhatsapp.trim();
       if (!whatsappChanged) {
