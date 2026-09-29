@@ -7,11 +7,14 @@ import { MeetingsList } from '../components/MeetingsList';
 import { useCases, Case } from '../context/CasesContext';
 import { supabase } from '../Supabase/client';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix } from '../components/RoleRoute';
 import { showToast } from '../utils/toast';
 import { useIsMobile } from '../hooks/useMobile';
 import { useTourGroup } from '../hooks/useTourGroup';
 import { getMtbCaseStatusMeta } from '../utils/summaryStatus';
 import { useActiveMeeting } from '../hooks/useActiveMeeting';
+import { useRealtimeResync } from '../hooks/useRealtimeResync';
+import { useRealtimeAuthToken } from '../hooks/useRealtimeAuth';
 import { buildMeetingUrl } from '../utils/roomName';
 
 type MTBDetailTab = 'cases' | 'meetings';
@@ -19,8 +22,9 @@ type MTBDetailTab = 'cases' | 'meetings';
 export function MTBDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { cases, mtbs, mtbsLoading, addCaseToMTB, leaveMTB, updateMTBName, updateMTBNotification } = useCases();
-  const { user } = useAuth();
+  const { cases, mtbs, mtbsLoading, addCaseToMTB, leaveMTB, updateMTBName, updateMTBNotification, syncMtbCaseIds } = useCases();
+  const { user, role, effectiveOwnerId } = useAuth();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<MTBDetailTab>('cases');
   const [showAddCaseModal, setShowAddCaseModal] = useState(false);
@@ -47,7 +51,7 @@ export function MTBDetail() {
   const [scrollLeft, setScrollLeft] = useState(0);
 
   const mtb = mtbs.find((m) => m.id === id);
-  const isOwner = mtb?.ownerId === user?.id;
+  const isOwner = mtb?.ownerId === effectiveOwnerId;
   // Walkthrough tip: Add Case and Meeting. It only points at the Meeting
   // button; the modal with Start Meeting (which boots the meeting VM) is
   // never opened by the tour.
@@ -93,6 +97,10 @@ export function MTBDetail() {
           .eq('mtb_id', id);
         const caseIds = (mtbCaseIds || []).map(mc => mc.case_id);
         if (cancelled) return;
+        // This read is the only authoritative view of the board's membership
+        // -- a Realtime removal can't say which case left (see the mtb_cases
+        // subscription in CasesContext) -- so hand it back to context.
+        syncMtbCaseIds(id, caseIds);
         if (caseIds.length > 0) {
           // cases_viewer_safe, not the raw table: every member of this MTB
           // sees this list, and patient_name must be redacted for anyone
@@ -161,7 +169,7 @@ export function MTBDetail() {
     };
     fetchMTBCases();
     return () => { cancelled = true; };
-  }, [id, user?.id, mtbCaseKey, refreshTick]);
+  }, [id, user?.id, mtbCaseKey, refreshTick, syncMtbCaseIds]);
 
   // A shared case can change under the board at any time (the owner edits
   // documents, a new summary is generated, the owner re-verifies). Re-read
@@ -178,6 +186,53 @@ export function MTBDetail() {
       if (interval) window.clearInterval(interval);
     };
   }, [hasUnverifiedCase]);
+
+  // Reconnect/visibility resync (see useRealtimeResync). refreshTick is
+  // already this component's "re-read everything on screen" signal, so the
+  // resync is the same bump the focus handler above uses.
+  const realtimeToken = useRealtimeAuthToken();
+  const onBoardCasesResync = useRealtimeResync(() => setRefreshTick((t) => t + 1));
+  const onBoardOpinionsResync = useRealtimeResync(() => setRefreshTick((t) => t + 1));
+
+  // Cases added to or removed from THIS board. The membership subscription in
+  // CasesContext is INSERT-only because a Realtime delete on an RLS-enabled
+  // table carries only the primary key -- for mtb_cases that's a surrogate
+  // `id`, naming neither board nor case. Filtering on mtb_id is what recovers
+  // the missing information: the filter is matched against the old row (which
+  // REPLICA IDENTITY FULL does provide), so a delivered event here *is* this
+  // board, even though its payload can't say so. Hence re-read rather than
+  // patch -- and the re-read goes through cases_viewer_safe, so masking holds.
+  useEffect(() => {
+    if (!id || !realtimeToken) return;
+    const channel = supabase
+      .channel(`mtb-board-cases-${id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'mtb_cases', filter: `mtb_id=eq.${id}` },
+        () => setRefreshTick((t) => t + 1)
+      )
+      .subscribe(onBoardCasesResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [id, realtimeToken, onBoardCasesResync]);
+
+  // An opinion posted on any of this board's cases changes the "Reviewed by
+  // you" marks and the per-case opinion counts, both of which are read in the
+  // fetch above. Neither is derived from mtb_cases, so the membership
+  // subscription in CasesContext doesn't cover them -- this bumps the same
+  // refreshTick that focus does, re-reading the counts through the existing
+  // path rather than trying to recompute them from the payload.
+  useEffect(() => {
+    if (!id || !realtimeToken) return;
+    const channel = supabase
+      .channel(`mtb-board-opinions-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'case_opinions', filter: `mtb_id=eq.${id}` },
+        () => setRefreshTick((t) => t + 1)
+      )
+      .subscribe(onBoardOpinionsResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [id, realtimeToken, onBoardOpinionsResync]);
 
   // Drag-to-scroll handlers
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -318,30 +373,49 @@ export function MTBDetail() {
                   <span>{leavingMTB ? 'Leaving...' : 'Leave'}</span>
                 </button>
               )}
-              <button
-                onClick={() => {
-                  if (!mtb) return;
-                  const url = buildMeetingUrl(mtb);
-                  window.open(url, '_blank');
-                }}
-                data-tour="mtb-meeting"
-                className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
-                }`}
-              >
-                <Video className="w-4 h-4" />
-                <span>{activeMeeting ? 'Join Meeting' : 'Start Meeting'}</span>
-              </button>
-              <button
-                onClick={() => setShowAddCaseModal(true)}
-                data-tour="mtb-add-case"
-                className={`flex items-center justify-center gap-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${
-                  isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
-                }`}
-              >
-                <Plus className="w-4 h-4" />
-                <span>{isMobile ? 'Add' : 'Add Case'}</span>
-              </button>
+              {/* Site Data Coordinators have no meeting access at all (no
+                  meeting session to have history for, from this role) --
+                  removed entirely, not just hidden, matching the Meetings
+                  tab removal below. */}
+              {role !== 'site_data_coordinator' && (
+                <button
+                  onClick={() => {
+                    if (!mtb) return;
+                    const url = buildMeetingUrl(mtb);
+                    window.open(url, '_blank');
+                  }}
+                  data-tour="mtb-meeting"
+                  // An MTB Expert can only ever join a meeting someone else
+                  // started, never start a fresh one -- disabled until
+                  // activeMeeting flips true, at which point the label and
+                  // action become "Join Meeting" for everyone alike. This is
+                  // a client-side nudge only: starting/joining a meeting is a
+                  // raw redirect to the Jitsi server with no Supabase call to
+                  // gate server-side (see docs/JITSI_VM_OPERATIONS.md).
+                  disabled={!activeMeeting && role === 'mtb_expert'}
+                  title={!activeMeeting && role === 'mtb_expert' ? 'Waiting for someone else to start the meeting' : undefined}
+                  className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                    isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
+                  }`}
+                >
+                  <Video className="w-4 h-4" />
+                  <span>{activeMeeting ? 'Join Meeting' : 'Start Meeting'}</span>
+                </button>
+              )}
+              {/* MTB Experts cannot add cases to a board (server-enforced
+                  too, via a RESTRICTIVE RLS policy on mtb_cases). */}
+              {role !== 'mtb_expert' && (
+                <button
+                  onClick={() => setShowAddCaseModal(true)}
+                  data-tour="mtb-add-case"
+                  className={`flex items-center justify-center gap-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${
+                    isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
+                  }`}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>{isMobile ? 'Add' : 'Add Case'}</span>
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -349,7 +423,11 @@ export function MTBDetail() {
         {/* Tab Navigation */}
         <div className="border-b border-border">
           <nav className="-mb-px flex items-center gap-6">
-            {(['cases', 'meetings'] as MTBDetailTab[]).map((tab) => (
+            {(['cases', 'meetings'] as MTBDetailTab[])
+              // Meeting history/MOM is a separate tab from the Start/Join
+              // button above -- both must be independently removed for SDC.
+              .filter((tab) => tab !== 'meetings' || role !== 'site_data_coordinator')
+              .map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -382,15 +460,19 @@ export function MTBDetail() {
                 No Cases Yet
               </h3>
               <p className="text-sm text-text-muted mb-4">
-                Start collaborating by adding your first case to this MTB. Share verified cases with experts to get valuable insights and treatment recommendations.
+                {role === 'mtb_expert'
+                  ? 'No cases have been shared to this MTB yet.'
+                  : 'Start collaborating by adding your first case to this MTB. Share verified cases with experts to get valuable insights and treatment recommendations.'}
               </p>
-              <button
-                onClick={() => setShowAddCaseModal(true)}
-                className="inline-flex items-center justify-center gap-2 text-on-solid rounded-lg px-4 py-2 font-medium hover:opacity-90 transition-opacity bg-primary-solid"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Add Your First Case</span>
-              </button>
+              {role !== 'mtb_expert' && (
+                <button
+                  onClick={() => setShowAddCaseModal(true)}
+                  className="inline-flex items-center justify-center gap-2 text-on-solid rounded-lg px-4 py-2 font-medium hover:opacity-90 transition-opacity bg-primary-solid"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Your First Case</span>
+                </button>
+              )}
             </div>
           </div>
         ) : isMobile ? (
@@ -400,13 +482,13 @@ export function MTBDetail() {
               <div
                 key={caseItem.id}
                 className="bg-surface rounded-xl shadow-sm border border-border p-4 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(`/mtb/${id}/case/${caseItem.id}`)}
+                onClick={() => navigate(`${rolePrefix}/mtb/${id}/case/${caseItem.id}`)}
               >
                 <div className="flex justify-between items-start mb-2">
                   <h3 className="font-medium text-text text-sm line-clamp-1 flex-1 mr-2">
                     {caseItem.caseName}
                   </h3>
-                  {caseItem.ownerId === user?.id ? (
+                  {caseItem.ownerId === effectiveOwnerId ? (
                     <span className="px-2 py-0.5 text-xs rounded-full bg-status-verified-bg text-status-verified-text font-medium">Owner</span>
                   ) : (
                     <span className="px-2 py-0.5 text-xs rounded-full bg-status-processing-bg text-status-processing-text font-medium">Member</span>
@@ -484,7 +566,7 @@ export function MTBDetail() {
                 {mtbCases.map((caseItem) => (
                   <tr 
                     key={caseItem.id} 
-                    onClick={() => navigate(`/mtb/${id}/case/${caseItem.id}`)}
+                    onClick={() => navigate(`${rolePrefix}/mtb/${id}/case/${caseItem.id}`)}
                     className="hover:bg-status-processing-bg transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 text-sm font-medium text-text" style={{ maxWidth: '200px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -521,7 +603,7 @@ export function MTBDetail() {
                       {caseItem.createdDate}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-text-muted">
-                      {caseItem.ownerId === user?.id ? 'You' : 'Other'}
+                      {caseItem.ownerId === effectiveOwnerId ? 'You' : 'Other'}
                     </td>
                   </tr>
                 ))}
@@ -701,7 +783,7 @@ export function MTBDetail() {
                   await leaveMTB(id);
                   showToast.success('You have left the MTB');
                   setShowLeaveConfirmModal(false);
-                  navigate('/mtbs');
+                  navigate(`${rolePrefix}/mtbs`);
                 } catch (err) {
                   console.error('Failed to leave MTB:', err);
                   showToast.error('Failed to leave MTB. Please try again.');

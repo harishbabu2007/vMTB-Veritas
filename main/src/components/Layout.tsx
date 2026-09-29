@@ -2,6 +2,7 @@ import { ReactNode, useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, MessageSquare, Settings, ChevronDown, Bell, Upload, Archive, Compass, Sun, Moon, Monitor } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix, roleHomePath } from './RoleRoute';
 import { useTheme } from '../context/ThemeContext';
 import { useOnboarding } from '../context/OnboardingContext';
 import { Modal } from './Modal';
@@ -22,7 +23,8 @@ interface LayoutProps {
 export function Layout({ children, wide = false }: LayoutProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user, updateAvatarKey } = useAuth();
+  const { logout, user, role, updateAvatarKey } = useAuth();
+  const rolePrefix = useRolePrefix();
   const { theme, setTheme } = useTheme();
   const { restartTour } = useOnboarding();
   const [showDropdown, setShowDropdown] = useState(false);
@@ -310,7 +312,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
     navigate('/login', { replace: true });
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === `${rolePrefix}${path}`;
 
   const greetingText = (() => {
     const emailPrefix = user?.email ? user.email.split('@')[0] : '';
@@ -335,45 +337,51 @@ export function Layout({ children, wide = false }: LayoutProps) {
         <div className="w-full px-4 lg:px-6">
           <div className="flex justify-between items-center h-12">
             <div className="flex items-center space-x-8">
-              <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate('/my-cases')}>
-                <img 
-                  src="https://i.ibb.co/vxP6Cs3c/logo.png" 
-                  alt="VMTB" 
+              <div className="flex items-center space-x-2 cursor-pointer" onClick={() => navigate(roleHomePath(role))}>
+                <img
+                  src="https://i.ibb.co/vxP6Cs3c/logo.png"
+                  alt="VMTB"
                   className="h-10 w-auto"
                 />
                 <span className="text-xxl font-semibold text-text">vMTB</span>
               </div>
 
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => navigate('/my-cases')}
-                  data-tour="nav-my-cases"
-                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                    isActive('/my-cases')
-                      ? 'text-text'
-                      : 'text-text-muted hover:text-text'
-                  }`}
-                >
-                  My Cases
-                  {isActive('/my-cases') && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                  )}
-                </button>
-                <button
-                  onClick={() => navigate('/mtbs')}
-                  data-tour="nav-mtbs"
-                  className={`px-4 py-2 text-sm font-medium transition-colors relative ${
-                    isActive('/mtbs')
-                      ? 'text-text'
-                      : 'text-text-muted hover:text-text'
-                  }`}
-                >
-                  MTBs
-                  {isActive('/mtbs') && (
-                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
-                  )}
-                </button>
-              </div>
+              {/* MTB Expert is a single-page role (MTBs list/detail only) --
+                  no case-creation, no separate "My Cases" destination to
+                  switch between, so the nav bar itself is omitted rather
+                  than showing one disabled tab next to a working one. */}
+              {role !== 'mtb_expert' && (
+                <div className="flex space-x-1">
+                  <button
+                    onClick={() => navigate(`${rolePrefix}/my-cases`)}
+                    data-tour="nav-my-cases"
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                      isActive('/my-cases')
+                        ? 'text-text'
+                        : 'text-text-muted hover:text-text'
+                    }`}
+                  >
+                    My Cases
+                    {isActive('/my-cases') && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => navigate(`${rolePrefix}/mtbs`)}
+                    data-tour="nav-mtbs"
+                    className={`px-4 py-2 text-sm font-medium transition-colors relative ${
+                      isActive('/mtbs')
+                        ? 'text-text'
+                        : 'text-text-muted hover:text-text'
+                    }`}
+                  >
+                    MTBs
+                    {isActive('/mtbs') && (
+                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="flex items-center space-x-4">
@@ -435,27 +443,34 @@ export function Layout({ children, wide = false }: LayoutProps) {
                       <MessageSquare className="w-4 h-4" />
                       <span>Feedback</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setShowDropdown(false);
-                        navigate('/my-cases?view=archived');
-                      }}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
-                    >
-                      <Archive className="w-4 h-4" />
-                      <span>Archived cases</span>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setShowDropdown(false);
-                        void restartTour();
-                        navigate('/my-cases');
-                      }}
-                      className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
-                    >
-                      <Compass className="w-4 h-4" />
-                      <span>Restart Tour</span>
-                    </button>
+                    {/* Both point at My Cases, which doesn't exist for the
+                        single-page MTB Expert role -- omitted rather than
+                        navigating somewhere that isn't theirs. */}
+                    {role !== 'mtb_expert' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            navigate(`${rolePrefix}/my-cases?view=archived`);
+                          }}
+                          className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
+                        >
+                          <Archive className="w-4 h-4" />
+                          <span>Archived cases</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowDropdown(false);
+                            void restartTour();
+                            navigate(`${rolePrefix}/my-cases`);
+                          }}
+                          className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
+                        >
+                          <Compass className="w-4 h-4" />
+                          <span>Restart Tour</span>
+                        </button>
+                      </>
+                    )}
                     <hr className="my-1.5 border-border" />
                     <div className="px-4 py-2">
                       <p className="text-xs font-medium text-text-muted mb-1.5">Theme</p>

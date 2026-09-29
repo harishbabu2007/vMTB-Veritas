@@ -18,8 +18,10 @@ repo is structured as a monorepo.
 ## Application (`main/`)
 
 - **[`DATABASE_SCHEMA.md`](DATABASE_SCHEMA.md)** — every Postgres table and
-  view, column-by-column, plus which tables actually enforce RLS (a handful;
-  `profiles` was found enabled live on 2026-09-21) and a flagged
+  view, column-by-column, plus which tables actually enforce RLS (a
+  handful; `profiles` was found enabled live on 2026-09-21, and
+  `case_opinions`/`case_questions`/`mtbs`/`mtb_cases` were enabled
+  2026-09-27 for the account-roles feature) and a flagged
   committed-secret finding.
 - **[`DOCUMENT_AI_PIPELINE.md`](DOCUMENT_AI_PIPELINE.md)** — how an uploaded
   case document becomes an anonymized, AI-summarized report: the AWS Lambda
@@ -29,12 +31,14 @@ repo is structured as a monorepo.
   OAuth / phone+password / WhatsApp OTP login flows, the notification Edge
   Functions, and the per-user light/dark theme (engine, semantic colour
   tokens, the `check:theme` guard).
-- **[`CASE_AND_MTB_WORKFLOW.md`](CASE_AND_MTB_WORKFLOW.md)** — the case
-  creation wizard, case viewing/collaboration, MTB pages, and meeting
-  launch. Also where patient age/sex come from (the documents, not the
-  user), the age/sex-gated verification flow, first-verification tab
-  locking, and the capped regenerate action. Also the first-time guided
-  walkthrough, its sample case and sample board, and its tips.
+- **[`CASE_AND_MTB_WORKFLOW.md`](CASE_AND_MTB_WORKFLOW.md)** — the three
+  account roles (Clinician/Site Data Coordinator/MTB Expert) and their
+  routing/permissions, the case creation wizard, case viewing/collaboration,
+  MTB pages, and meeting launch. Also where patient age/sex come from (the
+  documents, not the user), the age/sex-gated verification flow,
+  first-verification tab locking, and the capped regenerate action. Also
+  the first-time guided walkthrough (role-aware), its sample case and
+  sample board, and its tips.
 
 ## Meeting & transcription pipeline
 

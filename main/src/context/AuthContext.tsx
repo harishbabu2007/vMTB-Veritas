@@ -4,6 +4,8 @@ import { THEME_CACHE_PREFIX } from '../utils/themeStorage';
 
 type AuthUser = { id: string; email: string | null; name?: string; avatarKey?: string | null };
 
+export type UserRole = 'clinician' | 'site_data_coordinator' | 'mtb_expert';
+
 // 'unknown' while the profile row hasn't been checked yet for the current
 // session (a brief window right after sign-in, or at app boot). Route
 // gates (App.tsx) must treat 'unknown' like `loading` -- not "complete" --
@@ -19,7 +21,20 @@ interface AuthContextType {
   // null = still checking (treat like `loading`); false = signed in but
   // registration (WhatsApp verification) never finished.
   registrationComplete: boolean | null;
+  // null = still checking (same "unknown" treatment as registrationComplete).
+  role: UserRole | null;
+  linkedClinicianId: string | null;
+  // For a clinician/mtb_expert, their own id. For a site_data_coordinator,
+  // the linked clinician's id -- so every case/MTB write and ownership
+  // check the SDC performs lands on and reads as the clinician's own data.
+  effectiveOwnerId: string | null;
   markRegistrationComplete: () => void;
+  // Like markRegistrationComplete: AuthContext's own role/linked_clinician_id
+  // state is refreshed off auth *events*, not table writes, so it doesn't
+  // know a just-finished signup's chosen role until the next profile load.
+  // Signup.tsx calls this right after writing the real values to `profiles`
+  // so the very next route guard (RoleRoute) sees them immediately.
+  setKnownRole: (role: UserRole, linkedClinicianId?: string | null) => void;
   updateAvatarKey: (avatarKey: string | null) => void;
   login: (email: string, password: string) => Promise<void>;
   loginWithPhone: (countryCode: string, phoneNumber: string, password: string) => Promise<void>;
@@ -47,11 +62,17 @@ const canUseStorage = () => typeof window !== 'undefined' && !!window.localStora
 
 const storeUser = (user: AuthUser | null) => {
   if (!canUseStorage()) return;
-  if (!user) {
-    window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-    return;
+  try {
+    if (!user) {
+      window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
+  } catch {
+    // localStorage can throw even when present (Safari private browsing /
+    // "Block All Cookies") — the cached user is a convenience, not a
+    // requirement, so just skip persisting it.
   }
-  window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(user));
 };
 
 const readStoredUser = (): AuthUser | null => {
@@ -70,8 +91,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [isInPasswordRecovery, setIsInPasswordRecovery] = useState(false);
   const [registrationStatus, setRegistrationStatus] = useState<RegistrationStatus>('unknown');
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [linkedClinicianId, setLinkedClinicianId] = useState<string | null>(null);
   const isAuthenticated = !!user;
   const registrationComplete = registrationStatus === 'unknown' ? null : registrationStatus === 'complete';
+  const effectiveOwnerId = role === 'site_data_coordinator' ? linkedClinicianId : (user?.id ?? null);
   // Which user id `registrationStatus` currently reflects, so a stale
   // status from a previous user can't briefly apply to a newly-signed-in
   // one before its own check resolves.
@@ -132,10 +156,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('full_name, avatar_key, whatsapp_verified')
+        .select('full_name, avatar_key, whatsapp_verified, role, linked_clinician_id')
         .eq('id', id)
         .single();
-      const profile = data as { full_name?: string; avatar_key?: string | null; whatsapp_verified?: boolean | null } | null;
+      const profile = data as {
+        full_name?: string;
+        avatar_key?: string | null;
+        whatsapp_verified?: boolean | null;
+        role?: UserRole | null;
+        linked_clinician_id?: string | null;
+      } | null;
       if (error || !profile) {
         setRegistrationStatus('incomplete');
         await backfillProfileFromMetadata(id);
@@ -151,6 +181,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         await backfillProfileFromMetadata(id);
       }
+      setRole(profile.role ?? 'clinician');
+      setLinkedClinicianId(profile.linked_clinician_id ?? null);
       setRegistrationStatus(profile.whatsapp_verified ? 'complete' : 'incomplete');
     } catch (_err) {
       // Ignore missing profile; keep auth working without name
@@ -166,11 +198,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (registrationUserIdRef.current !== id) {
       registrationUserIdRef.current = id;
       setRegistrationStatus('unknown');
+      setRole(null);
+      setLinkedClinicianId(null);
     }
     return loadProfile(id);
   };
 
   const markRegistrationComplete = () => setRegistrationStatus('complete');
+
+  const setKnownRole = (newRole: UserRole, newLinkedClinicianId: string | null = null) => {
+    setRole(newRole);
+    setLinkedClinicianId(newLinkedClinicianId);
+  };
 
   useEffect(() => {
     // Check if we're on reset-password page with a hash (recovery link)
@@ -215,6 +254,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         storeUser(null);
         registrationUserIdRef.current = null;
         setRegistrationStatus('unknown');
+        setRole(null);
+        setLinkedClinicianId(null);
       }
       
       // Set loading false after initial session check
@@ -413,22 +454,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsInPasswordRecovery(false);
       registrationUserIdRef.current = null;
       setRegistrationStatus('unknown');
+      setRole(null);
+      setLinkedClinicianId(null);
       if (canUseStorage()) {
-        window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
-        for (let i = window.localStorage.length - 1; i >= 0; i--) {
-          const key = window.localStorage.key(i);
-          // Per-user theme hints stay: they're keyed by user id, so they can't
-          // reach another person, and keeping them stops the returning user's
-          // theme flashing light while their profile loads.
-          if (key && !key.startsWith(THEME_CACHE_PREFIX) && (key.startsWith('sb-') || key.includes('supabase') || key.includes('vmtb'))) {
-            window.localStorage.removeItem(key);
+        try {
+          window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+          for (let i = window.localStorage.length - 1; i >= 0; i--) {
+            const key = window.localStorage.key(i);
+            // Per-user theme hints stay: they're keyed by user id, so they can't
+            // reach another person, and keeping them stops the returning user's
+            // theme flashing light while their profile loads.
+            if (key && !key.startsWith(THEME_CACHE_PREFIX) && (key.startsWith('sb-') || key.includes('supabase') || key.includes('vmtb'))) {
+              window.localStorage.removeItem(key);
+            }
           }
+        } catch {
+          // Storage access can throw mid-loop (Safari private browsing /
+          // "Block All Cookies") — logout has already cleared in-memory
+          // state above, so a partial clear here isn't a functional problem.
         }
       }
     }
   };
 
-  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, markRegistrationComplete, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete]);
+  const value = useMemo(() => ({ isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, role, linkedClinicianId, effectiveOwnerId, markRegistrationComplete, setKnownRole, updateAvatarKey, login, loginWithPhone, sendPhoneOtp, verifyPhoneOtp, signInWithGoogle, signup, requestPasswordReset, logout }), [isAuthenticated, user, loading, isInPasswordRecovery, registrationComplete, role, linkedClinicianId, effectiveOwnerId]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

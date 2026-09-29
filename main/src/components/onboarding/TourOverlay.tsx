@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, MousePointer2, X } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import { useRolePrefix } from '../RoleRoute';
 import { useOnboarding } from '../../context/OnboardingContext';
 import { useIsMobile } from '../../hooks/useMobile';
 import { useTourAction } from '../../hooks/useTourGroup';
@@ -71,18 +72,19 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 export function TourOverlay() {
   const { activeGroup, activeStart } = useOnboarding();
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   // The walkthrough's own moves between screens. Each is a button the user
   // pressed in a tour card.
-  useTourAction('go-mtbs', async () => navigate('/mtbs'));
-  useTourAction('go-sample-board', async () => navigate('/sample-board'));
-  useTourAction('go-new-case', async () => navigate('/cases/new/step-1'));
+  useTourAction('go-mtbs', async () => navigate(`${rolePrefix}/mtbs`));
+  useTourAction('go-sample-board', async () => navigate(`${rolePrefix}/sample-board`));
+  useTourAction('go-new-case', async () => navigate(`${rolePrefix}/cases/new/step-1`));
   if (!activeGroup) return null;
   return <TourRun key={`${activeGroup}:${activeStart}`} groupId={activeGroup} start={activeStart} />;
 }
 
 function TourRun({ groupId, start }: { groupId: TourGroupId; start: number }) {
   const { completeGroup, stopAll, deferGroup, runAction } = useOnboarding();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const isMobile = useIsMobile();
   const group = TOUR_GROUPS[groupId];
   const steps = group.steps;
@@ -106,9 +108,10 @@ function TourRun({ groupId, start }: { groupId: TourGroupId; start: number }) {
   const bodyId = useId();
 
   const available = useCallback((step: TourStep) => {
+    if (step.allowedRoles && role && !step.allowedRoles.includes(role)) return false;
     const names = targetNames(step, isMobileRef.current);
     return names.length === 0 || findTarget(names) !== null;
-  }, []);
+  }, [role]);
 
   // The nearest step from `from` (in direction `dir`) that can be shown now.
   const nextAvailable = useCallback((from: number, dir: 1 | -1) => {

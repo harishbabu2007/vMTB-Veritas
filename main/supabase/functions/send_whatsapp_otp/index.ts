@@ -52,6 +52,35 @@ serve(async (req) => {
       );
     }
 
+    // Rate limit: a short cooldown between sends, plus a cap on how many can
+    // be requested for one phone number in a longer window. Previously
+    // nothing throttled this at all.
+    const now = Date.now();
+    const cooldownSince = new Date(now - 60 * 1000).toISOString();
+    const windowSince = new Date(now - 15 * 60 * 1000).toISOString();
+
+    const { data: recentOtps, error: recentErr } = await supabase
+      .from("whatsapp_otps")
+      .select("created_at")
+      .eq("phone", phone)
+      .gte("created_at", windowSince)
+      .order("created_at", { ascending: false });
+
+    if (!recentErr && recentOtps) {
+      if (recentOtps.length > 0 && recentOtps[0].created_at > cooldownSince) {
+        return new Response(
+          JSON.stringify({ error: "Please wait a minute before requesting another OTP." }),
+          { status: 429, headers: corsHeaders }
+        );
+      }
+      if (recentOtps.length >= 5) {
+        return new Response(
+          JSON.stringify({ error: "Too many OTP requests. Please try again in a few minutes." }),
+          { status: 429, headers: corsHeaders }
+        );
+      }
+    }
+
     const otp = generateOtp();
     const otpHash = await sha256(otp);
 

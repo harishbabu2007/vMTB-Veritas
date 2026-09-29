@@ -27,7 +27,7 @@ export function Modal({ isOpen, onClose, title, children, size = 'default' }: Mo
       />
 
       {/* Dialog - Mobile responsive */}
-      <div className={`relative z-[100000] bg-surface rounded-xl shadow-xl w-full max-h-[90vh] flex flex-col
+      <div className={`relative z-[100000] bg-surface rounded-xl shadow-xl w-full max-h-[90dvh] flex flex-col
         ${sizeClasses}
         max-[640px]:mx-2 max-[640px]:max-w-[calc(100%-1rem)] max-[640px]:rounded-lg
       `}>

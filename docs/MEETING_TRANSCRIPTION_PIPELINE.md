@@ -53,8 +53,9 @@ these services currently run in `asia-southeast1`/Singapore).
 `meeting_id` is the JVB transcription session id: the value Jicofo substitutes
 into `jicofo.transcription.url-template` for `{{MEETING_ID}}`. It is an opaque
 TEXT (the Jitsi conference meeting id) and is **not** `meeting_sessions.id` and
-**not** `mtb_id`. `mtb_id` is NULL in the MVP. Reconcile later via Prosody room
-metadata or a join on room name + start window.
+**not** `mtb_id`. The proxy writes `mtb_id` as NULL (it never learns the MTB).
+Reconciliation is now implemented as a lazy join-on-time-window, in the
+`get_mtb_transcripts` RPC below — not yet live, see that entry.
 
 ## Data flow, in detail
 
@@ -103,6 +104,25 @@ metadata or a join on room name + start window.
 
 All transitions are single-source-of-truth RPCs, so the proxy and worker can
 never disagree about a meeting's state.
+
+**`get_mtb_transcripts(p_mtb_id UUID)`** (`SECURITY DEFINER`, read side,
+`main/supabase/migrations/20260924_get_mtb_transcripts_session_link.sql`) —
+the read RPC behind `main/`'s Meeting History UI (`useMeetingHistory`,
+`MeetingDetail.tsx`). Gates on owner-or-member of `p_mtb_id` (MTB owners
+aren't in `mtb_members`, so both are checked); this replaces an earlier
+version of the function that had no access gate at all and returned any
+MTB's transcripts to any authenticated caller who guessed the UUID. On each
+call it first auto-links any still-NULL `mtb_id` transcript to this MTB by
+matching `meeting_transcripts.started_at` against that MTB's
+`meeting_sessions` window (session start − 5 min through session end + 60
+min, nearest match), then returns every row now linked to `p_mtb_id`
+including `session_id` (the matched `meeting_sessions.id`, since
+`meeting_id` is the opaque JVB id and never equals it) so the frontend can
+join without guessing. **Not yet applied to the live database** (last
+checked 2026-09-25 against project `gwvqxetjheveelqrkjhg` — the file exists
+in this repo but `list_migrations` doesn't show it; until it's applied, the
+Meeting History UI still gets zero rows back and the old, ungated version of
+this RPC — if it's the one actually live — remains in effect.
 
 ## Storage
 
@@ -177,6 +197,8 @@ never disagree about a meeting's state.
   real-time path minimal.
 - **MoM is best-effort** — LLM config is optional; meetings complete with a
   null MoM when no LLM is configured.
-- **MVP scope**: `mtb_id` NULL, JVB not run inside this repo, no realtime UI
-  wiring yet (the segments table is already in the `supabase_realtime`
-  publication for a future live-transcript feature).
+- **MVP scope**: `mtb_id` is written NULL by the proxy and only gets
+  backfilled lazily per-MTB, on the first `get_mtb_transcripts` call for
+  that MTB (not yet live — see that RPC above); JVB not run inside this
+  repo; no realtime UI wiring yet (the segments table is already in the
+  `supabase_realtime` publication for a future live-transcript feature).

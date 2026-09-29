@@ -20,6 +20,7 @@ export function ForgotPassword() {
 
   // Auxiliary State
   const [userId, setUserId] = useState<string | null>(null);
+  const [resetToken, setResetToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resendTimer, setResendTimer] = useState(0);
@@ -156,11 +157,12 @@ export function ForgotPassword() {
         otp: otpString,
       });
 
-      if (!res.success || !res.userId) {
+      if (!res.success || !res.userId || !res.resetToken) {
         throw new Error(res.error || 'Invalid OTP or account not found');
       }
 
       setUserId(res.userId);
+      setResetToken(res.resetToken);
       setStep('reset');
     } catch (err: any) {
       setError(err?.message || 'Failed to verify OTP');
@@ -185,7 +187,7 @@ export function ForgotPassword() {
       return;
     }
 
-    if (!userId) {
+    if (!userId || !resetToken) {
       setError('Session expired. Please restart password reset.');
       setStep('phone');
       return;
@@ -197,6 +199,7 @@ export function ForgotPassword() {
       const res = await completePasswordReset({
         userId,
         newPassword,
+        resetToken,
         phone: fullPhone,
       });
 

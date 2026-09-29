@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { safeLocalStorage } from '../utils/safeLocalStorage';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY || import.meta.env.VITE_SUPABASE_API) as string;
@@ -18,7 +19,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
-    storage: window.localStorage,
+    storage: safeLocalStorage,
     flowType: 'pkce',
   }
 });

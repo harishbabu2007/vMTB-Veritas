@@ -7,7 +7,73 @@ data-access layer for `cases`, `mtbs`, and every related table) and
 `main/src/context/CaseCreationContext.tsx` (pure client-side draft state for
 the creation wizard).
 
-## Case creation wizard (3 steps)
+## Account roles and routing
+
+Every account has one **permanent** `role`, chosen once at signup and
+locked forever by a DB trigger the moment registration completes (`profiles`
+schema detail: `docs/DATABASE_SCHEMA.md`). Everything below this section
+describes the **Clinician** experience unless a role is called out.
+
+- **Clinician** — the original, full-access role. Unprefixed routes
+  (`/my-cases`, `/mtbs`, `/case/:id`, …).
+- **Site Data Coordinator (SDC)** — an assistant acting *on behalf of* one
+  linked clinician (`profiles.linked_clinician_id`, chosen at signup via
+  `findClinicianByPhone`, see `docs/AUTH_AND_NOTIFICATIONS.md`). Full parity
+  with Clinician for creating and editing cases. **May archive a case but not
+  delete one** — archiving is reversible so it stays available; deleting isn't,
+  so it belongs to the clinician alone. Enforced in three places: the Danger
+  zone section is dropped entirely for this role, `CasesContext.deleteCase`
+  refuses, and `trg_cases_delete_role` blocks it in the database. Also
+  **excluded**: no Opinions tab or "Ask Question" on a case
+  (`ViewCase.tsx`, `canPostOpinions`/tab filter both exclude this role), and
+  no meeting history tab or Start/Join Meeting button on an MTB
+  (`MTBDetail.tsx`). Routes under `/sdc/*`.
+- **MTB Expert** — reviewer-only: can view cases/MTBs and post opinions, but
+  cannot create a case (no `/mtb-exp/my-cases` or case-creation routes exist
+  at all), create an MTB, or add a case to one (`MTBs.tsx`/`MTBDetail.tsx`
+  hide both controls; also blocked server-side, see below). Home is
+  `/mtb-exp/mtbs`. Meeting-start is only **client-side** gated (the button
+  stays disabled until a meeting is already active) — the real Start/Join
+  action is a raw `window.open()` with no Supabase call to enforce against,
+  so this is a UX nudge, not a security boundary; real enforcement would
+  need a change to `jitsi-activation-backend` (out of scope so far).
+
+**Routing**: `RoleRoute` (`src/components/RoleRoute.tsx`, replaced the old
+`ProtectedRoute`) wraps every protected route with an `allowedRoles` list
+and redirects to `roleHomePath(role)` otherwise. Each page is registered up
+to three times in `App.tsx` — bare, `/sdc/*`, `/mtb-exp/*` — pointing at the
+same element; `useRolePrefix()` supplies the right prefix to every internal
+`navigate()` call.
+
+**Effective ownership**: `AuthContext` exposes `effectiveOwnerId` —
+`linkedClinicianId` for an SDC, otherwise the signed-in user's own id — and
+`CasesContext`'s `userId` is now this value, not the raw signed-in id, so an
+SDC's case/MTB reads and writes attribute to the linked clinician. A
+separate `ownUserId` (always the raw signed-in id) is kept for the two
+places ownership is genuinely personal, not delegated: joining/leaving an
+MTB by invite code (`mtb_members`) — an SDC's own membership must not
+silently enroll the clinician too.
+
+**Server-side enforcement**: RLS `RESTRICTIVE` policies back the two
+UI-level restrictions that matter for data integrity — SDC cannot insert
+into `case_opinions`/`case_questions`; MTB Expert cannot insert into `mtbs`
+(create) or `mtb_cases` (add case to MTB) — even via a direct API call
+bypassing the UI. Full policy detail: "Row Level Security" in
+`docs/DATABASE_SCHEMA.md`.
+
+**`effectiveOwnerId` has a database counterpart, and RLS policies must use
+it.** Any policy written as `auth.uid() = owner_id` is wrong for an SDC,
+because the actor (`auth.uid()`) and the owner (`effectiveOwnerId`) are
+deliberately different accounts — such a policy rejects every SDC write and
+hides the clinician's rows from them. Owner-scoped policies therefore compare
+against `public.effective_owner_id()` (see `docs/DATABASE_SCHEMA.md`), which
+returns the linked clinician for an SDC and the caller's own id otherwise.
+Policies about *membership* or about *who is acting* correctly stay on
+`auth.uid()` — the same `ownUserId` vs `effectiveOwnerId` split the client
+makes. Getting this backwards is how the first version of these policies
+silently broke MTB create/rename for coordinators.
+
+## Case creation wizard (2 steps)
 
 1. **`NewCaseStep1.tsx`** — a deliberately minimal "Case Details" block plus a
    full-width upload area. It collects exactly two fields: **Patient Name**
@@ -35,26 +101,36 @@ the creation wizard).
    component is intentionally untouched). The recorder sits in a labelled
    **Dictate** pill at the right end of the header (the `.dictate-control`
    wrapper in `src/index.css` styles it from outside); the character count is
-   under the textarea. Stores `caseExplanation` into
-   context and advances to `/cases/review`.
-3. **`ReviewCase.tsx`** — the review screen, and the actual orchestrator of
-   case creation + the document-AI pipeline handoff:
-   1. `getUploadConfiguration()` POSTs to `.../dev/get-upload-urls` to obtain
-      a `request_id` plus S3 presigned POST fields.
-   2. Uploads each pending file directly to S3 via `FormData` POST.
-   3. Inserts the `cases` row (via `CasesContext.createCase`, initial status
-      `processing`) plus `case_documents` metadata, `case_questions`
-      (the user's optional "questions for experts"), and — if the user
-      chose to share immediately — `mtb_cases` rows.
-   4. Navigates away to `/my-cases` immediately, then **in the background**
-      inserts `case_additional_documents` (the case explanation) and POSTs
-      to `.../dev/trigger-converter-files-to-png` to kick off the document-AI
-      pipeline (`docs/DOCUMENT_AI_PIPELINE.md`).
+   under the textarea. Its submit calls `useCreateCase().handleCreateCase`
+   directly — there is no separate review step. That hook is the actual
+   orchestrator of case creation + the document-AI pipeline handoff:
+   1. **Blocks creation before any upload or API call** if there are zero
+      clinical files *and* the explanation is empty — the only hard
+      requirement is at least one of the two; either alone is enough.
+   2. `getUploadConfiguration()` POSTs to `.../dev/get-upload-urls` to obtain
+      a `request_id` plus S3 presigned POST fields, then uploads each
+      pending file directly to S3 via `FormData` POST (skipped entirely for
+      a text-only case).
+   3. Inserts the `cases` row (`CasesContext.createCase`, initial status
+      `processing`) plus `case_documents` metadata. Unlike the old 3-step
+      flow, this no longer inserts `case_questions` or shares to any MTB at
+      creation time — "questions for experts" and MTB sharing now only
+      happen after the case exists, from the case page (see "Settings tab"
+      and "Add question" below).
+   4. Navigates to `/my-cases` immediately, then **in the background**
+      inserts `case_additional_documents` (the case explanation, if any) and
+      starts the case's first pipeline run (`startInitialRun`/`startRun` in
+      `src/services/pipelineService.ts`; falls back to the older untracked
+      `.../dev/trigger-converter-files-to-png` call if a tracked run
+      couldn't be created) — see `docs/DOCUMENT_AI_PIPELINE.md`.
 
-`CaseCreationContext.tsx` also declares an `s3Credentials` field that is
-**never actually populated** — `ReviewCase.tsx` fetches its own upload
-credentials independently rather than reusing it; harmless dead state, not
-wired to anything.
+   A case made only of the walkthrough's sample report skips all of this
+   (upload, database, pipeline) and just opens `/sample-case`.
+
+`ReviewCase.tsx` and the `/cases/review` route were removed when the wizard
+collapsed from 3 steps to 2. `CaseCreationContext.tsx` still declares an
+`s3Credentials` field that is **never actually populated** — harmless dead
+state, not wired to anything.
 
 ## Patient age and sex are AI-extracted, never typed in
 
@@ -109,12 +185,17 @@ the schema, not a default that can be relaxed.
   "awaiting verification" pill (`getMtbCaseStatusMeta` in
   `src/utils/summaryStatus.ts`) in place of the Reviewed / Not reviewed badge,
   and the list re-polls every 30 s while any listed case is unverified and
-  whenever the window regains focus. The case counts on `MTBs.tsx` and
-  `ReviewCase.tsx` (`mtb.cases`, built in `CasesContext.refetchMTBs`) count
-  those cases too. Only *adding* a case is verified-gated: the add-case modal
+  whenever the window regains focus. The case count on `MTBs.tsx`
+  (`mtb.cases`, built in `CasesContext.refetchMTBs`) counts those cases too.
+  Only *adding* a case is verified-gated: the add-case modal
   offers owned, verified, non-archived cases not already in the MTB;
-  rename/leave/notification-toggle; a "Meeting" modal (see below); a stubbed
-  "Meeting History / MoM" section (placeholder only, not implemented).
+  rename/leave/notification-toggle; a "Meeting" modal (see below); and a real
+  "Meeting History" section (`<MeetingsList>`, backed by `useMeetingHistory`)
+  listing this MTB's `meeting_sessions`, each joined to its transcript/MoM
+  status (`get_mtb_transcripts` RPC — none/pending/processing/completed/failed
+  via `MomStatusBadge`), polling every 30s; a card links to
+  `/mtb/:mtbId/meeting/:meetingId` (`MeetingDetail.tsx`) for the full minutes.
+  Backend detail: `docs/MEETING_TRANSCRIPTION_PIPELINE.md`.
 
 ## Case viewing/collaboration — `ViewCase.tsx`
 
@@ -177,11 +258,18 @@ mode. The Case field is system-generated and stays read-only even then.
   sees `cases.verified_snapshot` (summary, age, sex, cancer type, "Your data")
   and the documents as of that generation, under a banner: "The owner has
   updated this case. The changes aren't verified yet…".
-- **"You" badge and patient-name visibility are context-dependent** — the
-  "You" badge shows only when the owner is viewing through an MTB
-  (`isOwner && fromMTB`), since it is meaningless on My Cases where every case
-  is theirs. The patient name is visible to the owner always, and hidden from
-  non-owner MTB members (`isOwner || !fromMTB`).
+- **"You" badge is context-dependent** — it shows only when the owner is
+  viewing through an MTB (`isOwner && fromMTB`), since it is meaningless on
+  My Cases where every case is theirs.
+- **Patient name is owner-only, enforced server-side.** `ViewCase.tsx`'s
+  `showPatientName = isOwner || !fromMTB` is a UI nicety only, not the real
+  control — it's a client-side, route-shape check that a bookmarked
+  `/case/:id` link (no `?from=mtb`) could bypass. The actual enforcement is
+  `cases_viewer_safe` (`docs/DATABASE_SCHEMA.md`), a Postgres view that nulls
+  `patient_name` server-side unless the caller owns the case; every
+  non-owner-reachable read (`CasesContext.getCaseById`/`fetchCaseRow`,
+  `MTBDetail`'s shared-case list) goes through it instead of the raw `cases`
+  table.
 - Polls every 10s while `summaryStatus === 'processing'` to auto-refresh
   once the AI pipeline finishes.
 - **MTB-scoped opinions** — when the case owner views the case, it discovers
@@ -215,6 +303,28 @@ First-time users get a guided walkthrough (`components/onboarding/TourOverlay.ts
 steps and copy in `onboarding/steps.ts`, state in `context/OnboardingContext.tsx`).
 It is shown once per account, on first use after signup; there is no way to
 replay it. Accounts that existed before it shipped never see it.
+
+**Role-aware since 2026-09-27** (see "Account roles" above): each
+`TourGroup`/`TourStep` in `steps.ts` can carry an `allowedRoles` list
+(undefined = every role); `OnboardingContext`'s group-picker and
+`TourOverlay`'s step-skip both check it. Two milestone keys
+(`case_flow`/`mtb_flow`, set only by finishing the case/MTB guided
+sections) and the global "everything waits for welcome" gate are resolved
+through `isKeySatisfied()`, which treats a key as satisfied for a role that
+can never reach the one group that sets it — otherwise MTB Expert (no
+case-creation route at all) would be permanently blocked from every later
+group, including ones it can genuinely use (`mtbs`, `mtb_board`). The
+"walkthrough is over" check (`applicableSavedKeys()`) is filtered to the
+current role too, so a key no group ever sets for that role (e.g.
+`opinions` for an SDC) doesn't keep the walkthrough "not finished" forever.
+Per-role effect: MTB Expert only sees `welcome`→`mtbs`→`mtb_board` (every
+case-creation/isOwner-gated group and step is `allowedRoles`-excluded); SDC
+sees everything Clinician does except the `opinions` tip (inverted: this
+group excludes SDC, not MTB Expert, since SDC is the one role that can't
+post opinions). `SampleCase.tsx`'s Opinions tab and `SampleBoard.tsx`'s
+Meeting button are now also role-filtered to match the real pages
+(`ViewCase.tsx`/`MTBDetail.tsx`), so the guided tour doesn't show SDC a
+control it doesn't actually have.
 
 **Guided part**, in order:
 
@@ -289,9 +399,9 @@ The sample report is a fictional placeholder: replace
 `src/onboarding/sampleCase.ts`. A case made only from the sample is **never
 uploaded, saved or processed**:
 
-- `ReviewCase` sees that every pending file is the sample (`PendingFile.isSample`)
-  and hides "Share with MTBs". On Create it skips presign, S3, `createCase` and
-  the pipeline start entirely. It puts the details in
+- `useCreateCase.ts` sees that every pending file is the sample
+  (`PendingFile.isSample`, `isSampleCase`). On Create it skips presign, S3,
+  `createCase` and the pipeline start entirely. It puts the details in
   `CaseCreationContext.sampleDemo` (memory only) and opens `/sample-case`.
 - `/sample-case` (`pages/SampleCase.tsx`) is local-only: status, summary edits,
   Verify, opinions (the mic uses the real dictation API) and a static treatment
