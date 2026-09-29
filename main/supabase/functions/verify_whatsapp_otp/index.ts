@@ -15,6 +15,39 @@ async function hashOTP(otp: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
+async function hmacHex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// reset_verify hands out one of these after a real OTP check; reset_password
+// requires it. This is what actually ties the two calls together — without
+// it, reset_password had nothing stopping it being called on its own with an
+// arbitrary user_id and no OTP at all.
+async function makeResetToken(userId: string, secret: string): Promise<string> {
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes to complete step 3
+  const mac = await hmacHex(secret, `reset:${userId}:${expiresAt}`);
+  return `${expiresAt}.${mac}`;
+}
+
+async function verifyResetToken(userId: string, token: unknown, secret: string): Promise<boolean> {
+  if (typeof token !== "string" || !token.includes(".")) return false;
+  const [expiresAtStr, mac] = token.split(".");
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isFinite(expiresAt) || !mac) return false;
+  if (Date.now() > expiresAt) return false;
+  const expectedMac = await hmacHex(secret, `reset:${userId}:${expiresAt}`);
+  return expectedMac === mac;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -32,16 +65,24 @@ Deno.serve(async (req) => {
       profession,
       hospital,
       user_id,
-      action
+      action,
+      reset_token,
+      role,
+      linked_clinician_id
     } = body;
 
+    // role/linked_clinician_id are logged because they are the one part of
+    // this payload whose absence is invisible in the result: a dropped role
+    // still upserts a perfectly valid profile, just a clinician one.
     console.log("[verify_whatsapp_otp] Request:", JSON.stringify({
       phone,
       otp: otp ? "***" : undefined,
       email,
       passwordPresent: !!password,
       user_id,
-      action
+      action,
+      role,
+      linked_clinician_id
     }));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -77,6 +118,20 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: "User ID and new password are required." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // This action has no OTP of its own — it only trusts that reset_verify
+      // ran a real OTP check moments earlier. That trust must be provable,
+      // not just asserted by the caller, or anyone with a user_id (or a
+      // registered phone number) could reset any account's password with no
+      // OTP at all. reset_token is the proof: a short-lived, server-signed
+      // ticket minted by reset_verify for this exact user_id.
+      const validToken = await verifyResetToken(targetUserId, reset_token, supabaseServiceRoleKey);
+      if (!validToken) {
+        return new Response(
+          JSON.stringify({ error: "Your password reset session has expired. Please verify your OTP again." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -157,11 +212,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mark OTP as verified
-    await supabaseAdmin
+    // Atomically claim the OTP: the WHERE verified = false makes this a
+    // compare-and-swap, so if two requests raced to this point (double-click,
+    // replay) only one can flip verified false→true and proceed below — the
+    // other gets 0 rows back and is rejected, instead of both going on to run
+    // Action B / reset_password a second time.
+    const { data: claimedOtp, error: claimErr } = await supabaseAdmin
       .from("whatsapp_otps")
       .update({ verified: true })
-      .eq("id", otpRecord.id);
+      .eq("id", otpRecord.id)
+      .eq("verified", false)
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr || !claimedOtp) {
+      return new Response(
+        JSON.stringify({ error: "This OTP has already been used. Please request a new one." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("[verify_whatsapp_otp] OTP verified successfully!");
 
@@ -182,8 +251,10 @@ Deno.serve(async (req) => {
         );
       }
 
+      const resetToken = await makeResetToken(profiles[0].id, supabaseServiceRoleKey);
+
       return new Response(
-        JSON.stringify({ success: true, user_id: profiles[0].id }),
+        JSON.stringify({ success: true, user_id: profiles[0].id, reset_token: resetToken }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -341,16 +412,30 @@ Deno.serve(async (req) => {
       if (full_name) profileData.full_name = full_name;
       if (profession) profileData.profession = profession;
       if (hospital) profileData.hospital = hospital;
+      // Only ever written here at signup completion, while whatsapp_verified
+      // is still false on the existing row -- profiles_role_immutable locks
+      // both columns the instant this same upsert flips whatsapp_verified
+      // to true, so this is the one and only place role/linked_clinician_id
+      // are ever set intentionally.
+      if (role) profileData.role = role;
+      if (linked_clinician_id) profileData.linked_clinician_id = linked_clinician_id;
 
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
         .upsert(profileData, { onConflict: "id" });
 
       if (profileError) {
-        console.error("[verify_whatsapp_otp] Step B3 WARNING: Profile upsert error:", JSON.stringify(profileError, Object.getOwnPropertyNames(profileError)));
-      } else {
-        console.log("[verify_whatsapp_otp] Step B3 SUCCESS: Profile upserted successfully");
+        // This upsert is the one and only place role/linked_clinician_id are
+        // ever written -- silently returning success here would leave the
+        // caller believing their role choice was saved when it wasn't.
+        console.error("[verify_whatsapp_otp] Step B3 CRITICAL ERROR: Profile upsert failed:", JSON.stringify(profileError, Object.getOwnPropertyNames(profileError)));
+        return new Response(
+          JSON.stringify({ error: `Failed to save profile: ${profileError.message || JSON.stringify(profileError)}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+
+      console.log("[verify_whatsapp_otp] Step B3 SUCCESS: Profile upserted successfully");
 
       return new Response(
         JSON.stringify({ success: true }),

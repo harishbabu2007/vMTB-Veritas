@@ -149,6 +149,8 @@ export async function verifyWhatsAppOTPForExistingUser(params: {
   fullName?: string;
   profession?: string;
   hospital?: string;
+  role?: string;
+  linkedClinicianId?: string | null;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const formattedPhone = formatPhoneNumber(params.phone);
@@ -162,6 +164,8 @@ export async function verifyWhatsAppOTPForExistingUser(params: {
       full_name: params.fullName,
       profession: params.profession,
       hospital: params.hospital,
+      role: params.role,
+      linked_clinician_id: params.linkedClinicianId,
     };
 
     console.log("verify_whatsapp_otp (existing user) payload:", payload);
@@ -240,7 +244,7 @@ export async function verifyWhatsAppOTPForLogin(params: {
 export async function verifyWhatsAppOTPForReset(params: {
   phone: string;
   otp: string;
-}): Promise<{ success: boolean; userId?: string; error?: string }> {
+}): Promise<{ success: boolean; userId?: string; resetToken?: string; error?: string }> {
   try {
     const formattedPhone = formatPhoneNumber(params.phone);
 
@@ -267,6 +271,7 @@ export async function verifyWhatsAppOTPForReset(params: {
     return {
       success: true,
       userId: data.user_id,
+      resetToken: data.reset_token,
     };
   } catch (error) {
     console.error('Error verifying WhatsApp OTP for password reset:', error);
@@ -276,17 +281,22 @@ export async function verifyWhatsAppOTPForReset(params: {
 }
 
 /**
- * Completes password reset for verified user.
+ * Completes password reset for verified user. `resetToken` is the short-lived
+ * ticket returned by verifyWhatsAppOTPForReset — the Edge Function requires
+ * it as proof that an OTP was actually verified for this account; without it,
+ * this call would just be an unauthenticated password reset by user_id.
  */
 export async function completePasswordReset(params: {
   userId: string;
   newPassword: string;
+  resetToken: string;
   phone?: string;
 }): Promise<{ success: boolean; error?: string }> {
   try {
     const payload = {
       user_id: params.userId,
       password: params.newPassword,
+      reset_token: params.resetToken,
       phone: params.phone ? formatPhoneNumber(params.phone) : undefined,
       action: 'reset_password',
     };
@@ -344,5 +354,50 @@ export async function isPhoneNumberRegistered(
   } catch (err) {
     console.error('Error checking duplicate phone number:', err);
     return { registered: false };
+  }
+}
+
+/**
+ * Resolves a phone number to an existing, fully-registered clinician's
+ * profile id -- used at Site Data Coordinator signup to link the new
+ * account to the clinician it acts on behalf of. Deliberately returns the
+ * resolved id (not the phone string itself) so a later phone-number change
+ * on the clinician's account can't retroactively affect an already-
+ * established link (see profiles.linked_clinician_id).
+ */
+export type ClinicianLookupResult =
+  | { ok: true; id: string; fullName: string | null }
+  | { ok: false; reason: 'not_found' | 'ambiguous' | 'not_clinician' | 'unverified' | 'error' };
+
+export async function findClinicianByPhone(phone: string): Promise<ClinicianLookupResult> {
+  try {
+    const cleanPhone = formatPhoneNumber(phone);
+    if (!cleanPhone) return { ok: false, reason: 'not_found' };
+
+    // Not maybeSingle(): the same number can legitimately exist in two stored
+    // formats (`+91…` and `91…` — the case isPhoneNumberRegistered above
+    // already anticipates), and maybeSingle() collapses that into a PostgREST
+    // error indistinguishable from "no such number".
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, role, whatsapp_verified')
+      .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`)
+      .limit(2);
+
+    if (error) {
+      console.error('Error resolving clinician by phone:', error);
+      return { ok: false, reason: 'error' };
+    }
+    if (!data || data.length === 0) return { ok: false, reason: 'not_found' };
+    if (data.length > 1) return { ok: false, reason: 'ambiguous' };
+
+    const match = data[0];
+    if (match.role !== 'clinician') return { ok: false, reason: 'not_clinician' };
+    if (!match.whatsapp_verified) return { ok: false, reason: 'unverified' };
+
+    return { ok: true, id: match.id, fullName: match.full_name ?? null };
+  } catch (err) {
+    console.error('Error resolving clinician by phone:', err);
+    return { ok: false, reason: 'error' };
   }
 }

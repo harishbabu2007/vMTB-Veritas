@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useRolePrefix } from '../components/RoleRoute';
 import { DismissButton } from '../components/DismissButton';
 import { useCaseCreation, PendingFile } from '../context/CaseCreationContext';
 import { supabase } from '../Supabase/client';
@@ -46,6 +47,7 @@ const loadSampleFile = async (signal: AbortSignal): Promise<File> => {
 
 export default function NewCaseStep1() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
   const { step1Data, setStep1Data, pendingFiles, setPendingFiles, addFiles, removeFile, clearAll } = useCaseCreation();
   const { caseSectionRunning, resetCaseSection } = useOnboarding();
@@ -335,7 +337,7 @@ export default function NewCaseStep1() {
       const step1 = { ...formData, caseName, cancerType: cancerTypeValue };
       setFormData(step1);
       setStep1Data(step1);
-      navigate('/cases/new/step-2');
+      navigate(`${rolePrefix}/cases/new/step-2`);
     } catch (err: any) {
       setError(err?.message || 'Failed to validate case name');
     } finally {
@@ -542,7 +544,7 @@ export default function NewCaseStep1() {
               type="button"
               onClick={() => {
                 clearAll();
-                navigate('/my-cases');
+                navigate(`${rolePrefix}/my-cases`);
               }}
               className={`px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-surface-hover transition-colors ${isMobile ? 'w-full' : ''}`}
             >

@@ -193,6 +193,12 @@ export function VoiceRecorder({
       return;
     }
 
+    if (typeof MediaRecorder === 'undefined') {
+      setErrorMsg('Voice recording is not supported on this browser.');
+      showToast.error('Voice recording is not supported on this browser.');
+      return;
+    }
+
     console.log('[VoiceRecorder] Requesting microphone access...');
 
     try {
@@ -227,7 +233,11 @@ export function VoiceRecorder({
       const dataArray = new Uint8Array(analyser.frequencyBinCount);
       dataArrayRef.current = dataArray;
 
-      // Choose codec — always record as WebM (backend expects original.webm)
+      // Prefer WebM/Opus (what the backend already expects). Safari doesn't
+      // support audio/webm at all, so both checks fail there and we fall back
+      // to the browser's own default container (typically MP4/AAC on
+      // Safari) — recorder.mimeType below reflects whatever was actually
+      // picked, so the blob/upload downstream is labeled correctly either way.
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
@@ -301,8 +311,12 @@ export function VoiceRecorder({
 
     // Gather final data before stopping
     recorder.onstop = async () => {
-      console.log('[VoiceRecorder] MediaRecorder onstop fired. Assembling audio WebM blob...');
-      const audioBlob = new Blob(chunksRef.current, { type: 'audio/webm' });
+      // recorder.mimeType reflects the container the browser actually used
+      // (e.g. audio/mp4 on Safari), not necessarily audio/webm — label the
+      // blob with the real format instead of assuming WebM.
+      const recordedMimeType = recorder.mimeType || 'audio/webm';
+      console.log(`[VoiceRecorder] MediaRecorder onstop fired. Assembling audio blob as ${recordedMimeType}...`);
+      const audioBlob = new Blob(chunksRef.current, { type: recordedMimeType });
       console.log(`[VoiceRecorder] Audio blob created. Size: ${audioBlob.size} bytes (${(audioBlob.size / 1024 / 1024).toFixed(2)} MB)`);
 
       // Stop timer, animation + stream but keep state as processing

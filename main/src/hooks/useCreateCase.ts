@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCaseCreation } from '../context/CaseCreationContext';
 import { useCases } from '../context/CasesContext';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix } from '../components/RoleRoute';
 import { useOnboarding } from '../context/OnboardingContext';
 import { showToast } from '../utils/toast';
 import { newRequestId, startInitialRun, startRun } from '../services/pipelineService';
@@ -133,6 +134,7 @@ const triggerBackendProcessing = async (params: {
  */
 export function useCreateCase() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const { user } = useAuth();
   const { step1Data, pendingFiles, caseExplanation, clearAll, setSampleDemo } = useCaseCreation();
   const { createCase } = useCases();
@@ -166,7 +168,7 @@ export function useCreateCase() {
       // here would re-render this page (navigation is a transition) and its
       // "no draft" redirect would win.
       isNavigatingAway.current = true;
-      navigate('/sample-case');
+      navigate(`${rolePrefix}/sample-case`);
       return;
     }
 
@@ -218,7 +220,7 @@ export function useCreateCase() {
       if (caseSectionRunning) complete(['case_flow']);
 
       isNavigatingAway.current = true;
-      navigate('/my-cases');
+      navigate(`${rolePrefix}/my-cases`);
 
       try {
         if (additionalDataToSend) {

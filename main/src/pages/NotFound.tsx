@@ -2,15 +2,20 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../context/AuthContext';
+import { roleHomePath } from '../components/RoleRoute';
 
 // Catch-all for unknown routes. Signed-in users keep the app header so they
 // can navigate away; signed-out visitors get a standalone page pointing to login.
 export function NotFound() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, role } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  if (loading) {
+  // Unlike every other in-app page, this one is routed outside RoleRoute, so
+  // it has to wait for `role` itself: rendering the Layout while role is still
+  // null shows an MTB Expert the full clinician nav and a "Go to My Cases"
+  // button pointing at a route they can't open.
+  if (loading || (isAuthenticated && role === null)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-bg">
         <div className="text-text-muted">Loading...</div>
@@ -18,8 +23,8 @@ export function NotFound() {
     );
   }
 
-  const homePath = isAuthenticated ? '/my-cases' : '/login';
-  const homeLabel = isAuthenticated ? 'Go to My Cases' : 'Go to login';
+  const homePath = isAuthenticated ? roleHomePath(role) : '/login';
+  const homeLabel = isAuthenticated ? (role === 'mtb_expert' ? 'Go to MTBs' : 'Go to My Cases') : 'Go to login';
 
   const content = (
     <div className="flex flex-col items-center text-center py-16 px-4">

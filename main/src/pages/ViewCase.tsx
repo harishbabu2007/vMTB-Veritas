@@ -14,8 +14,9 @@ import { InlineOpinionInput } from '../components/InlineOpinionInput';
 import { useTourGroup } from '../hooks/useTourGroup';
 import { TreatmentPlanFollowUp } from '../components/TreatmentPlanFollowUp';
 import { VoiceRecorder } from '../components/VoiceRecorder';
-import { useCases, Case, Opinion, Question } from '../context/CasesContext';
+import { useCases, Case, Opinion, Question, OpinionRow, mapOpinionRow } from '../context/CasesContext';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix } from '../components/RoleRoute';
 import { supabase } from '../Supabase/client';
 import { showToast } from '../utils/toast';
 import { useIsMobile } from '../hooks/useMobile';
@@ -24,25 +25,38 @@ import { DismissButton } from '../components/DismissButton';
 import { getMtbCaseStatusMeta } from '../utils/summaryStatus';
 import { CaseUpdateStatus } from '../components/CaseUpdateStatus';
 import { useCaseRunState } from '../hooks/useCaseRunState';
+import { useRealtimeResync } from '../hooks/useRealtimeResync';
+import { useRealtimeAuthToken } from '../hooks/useRealtimeAuth';
 import { useRunActions } from '../hooks/useRunActions';
 import { PipelineError } from '../services/pipelineService';
 
 type TabType = 'summary' | 'reports' | 'opinions' | 'treatmentfollowup' | 'settings';
+const TAB_VALUES: TabType[] = ['summary', 'reports', 'opinions', 'treatmentfollowup', 'settings'];
 
 export function ViewCase() {
   const { id, mtbId: mtbIdFromPath } = useParams<{ id: string; mtbId?: string }>();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
+  const rolePrefix = useRolePrefix();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { mtbs, getCaseById, getCaseOpinions, refreshCase, addOpinion, deleteCase, verifySummary, saveSummaryEdit, regenerateSummary, removeCaseFromMTB, addCaseToMTBs, archiveCase, unarchiveCase } = useCases();
-  const { user } = useAuth();
+  const { user, role, effectiveOwnerId } = useAuth();
   const isMobile = useIsMobile();
   const [caseData, setCaseData] = useState<Case | null>(null);
   const [loading, setLoading] = useState(false);
   const loadedCaseIdRef = useRef<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabType>('summary');
+  // Seeded from ?tab= so a reload (or a shared link) lands back on the same
+  // tab, the same way mtbId/from already work. This only validates that the
+  // name is a real tab -- whether it's actually reachable right now (locked,
+  // or the Opinions tab for a Site Data Coordinator) isn't known until
+  // caseData/role are, so that's re-checked below once they are.
+  const initialTabFromUrl = (): TabType => {
+    const fromUrl = searchParams.get('tab');
+    return fromUrl && (TAB_VALUES as string[]).includes(fromUrl) ? (fromUrl as TabType) : 'summary';
+  };
+  const [activeTab, setActiveTab] = useState<TabType>(initialTabFromUrl);
   // Reports and Treatment stay mounted after their first visit so switching
   // tabs doesn't refetch them.
-  const [visitedTabs, setVisitedTabs] = useState<Set<TabType>>(() => new Set(['summary']));
+  const [visitedTabs, setVisitedTabs] = useState<Set<TabType>>(() => new Set(['summary', initialTabFromUrl()]));
   const [checkingStatus, setCheckingStatus] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -123,7 +137,7 @@ export function ViewCase() {
   // owner hasn't signed off. Cases verified before snapshots existed have no
   // snapshot and keep showing the live version.
   const memberSnapshot =
-    caseData && user && caseData.ownerId !== user.id && caseData.verifiedSnapshot &&
+    caseData && effectiveOwnerId && caseData.ownerId !== effectiveOwnerId && caseData.verifiedSnapshot &&
     caseData.verifiedGeneration != null && caseData.verifiedGeneration !== caseData.contentGeneration
       ? caseData.verifiedSnapshot
       : null;
@@ -172,7 +186,7 @@ export function ViewCase() {
     document.execCommand('insertText', false, text);
   };
 
-  const isOwner = caseData?.ownerId === user?.id;
+  const isOwner = caseData?.ownerId === effectiveOwnerId;
   const viewMode = isOwner ? 'owner' : 'visitor';
   // A brand-new case has summaryStatus undefined/'processing' with no summary
   // text yet at all — the null/undefined check alone catches that. An edit
@@ -298,7 +312,7 @@ export function ViewCase() {
         }
 
         let defaultMtbId: string | null = currentMtbId;
-        if (baseData.ownerId === user?.id) {
+        if (baseData.ownerId === effectiveOwnerId) {
           setOpinionMtbs(sharedMtbs);
           if (!(currentMtbId && sharedMtbs.some(m => m.id === currentMtbId))) {
             defaultMtbId = sharedMtbs[0]?.id || null;
@@ -327,17 +341,105 @@ export function ViewCase() {
     fetchCase();
     return () => { cancelled = true; };
     // Context functions are stable; keyed only on what identifies the view.
-  }, [id, user?.id, currentMtbId, getCaseById, getCaseOpinions]);
+  }, [id, effectiveOwnerId, currentMtbId, getCaseById, getCaseOpinions]);
 
-  // Snap back to the Summary tab if the active tab is locked -- e.g. a
-  // never-verified case loaded while a stale/deep-linked non-summary tab
-  // was selected.
+  // Snap back to the Summary tab if the active tab isn't actually reachable
+  // -- e.g. a never-verified case loaded while a stale/deep-linked
+  // non-summary tab (?tab=...) was selected, or a Site Data Coordinator's
+  // link pointed at Opinions, a tab that role never gets a button for.
   useEffect(() => {
     if (!caseData) return;
     if (activeTab !== 'summary' && !everVerified) {
       setActiveTab('summary');
+      return;
     }
-  }, [caseData, everVerified, activeTab]);
+    if (activeTab === 'opinions' && role === 'site_data_coordinator') {
+      setActiveTab('summary');
+    }
+  }, [caseData, everVerified, activeTab, role]);
+
+  // Keep ?tab= in sync with the active tab (mirrors mtbId/from above), so a
+  // reload or a shared link returns to the same tab. Uses the functional
+  // updater so mtbId/from -- set independently -- are never clobbered.
+  useEffect(() => {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev);
+      if (activeTab === 'summary') {
+        next.delete('tab');
+      } else {
+        next.set('tab', activeTab);
+      }
+      return next;
+    }, { replace: true });
+  }, [activeTab, setSearchParams]);
+
+  // Reconnect/visibility resync for the opinions feed (see
+  // useRealtimeResync): re-reads this MTB's discussion rather than trusting
+  // that nothing was posted while the socket was down.
+  const realtimeToken = useRealtimeAuthToken();
+  const onOpinionsResync = useRealtimeResync(() => {
+    if (activeOpinionMtbId) void loadOpinionsForMtb(activeOpinionMtbId);
+  });
+
+  // Live opinions: a new post/answer/reply from another viewer appears
+  // without a reload. Scoped to this one case (case_opinions RLS's own
+  // SELECT policy is already `USING (true)` -- "view all" -- so this
+  // subscription exposes nothing a direct read of this table couldn't
+  // already return; see docs/DATABASE_SCHEMA.md's RLS section) and further
+  // narrowed to the MTB actually being viewed, so switching MTB context
+  // doesn't attribute another board's discussion here. Only mounted while
+  // the Opinions tab is reachable at all (not for a Site Data Coordinator,
+  // who has no Opinions tab), matching where caseData.opinions is read.
+  useEffect(() => {
+    if (!id || !activeOpinionMtbId || role === 'site_data_coordinator' || !realtimeToken) return;
+    const channel = supabase
+      // Name includes the MTB: this channel is torn down and recreated on
+      // every MTB-context switch, and two instances must never share a name.
+      .channel(`case-opinions-${id}-${activeOpinionMtbId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'case_opinions', filter: `case_id=eq.${id}` },
+        (payload) => {
+          const row = payload.new as OpinionRow;
+          if (row.mtb_id !== activeOpinionMtbId) return;
+          const opinion = mapOpinionRow(row);
+          setCaseData(prev => {
+            if (!prev) return prev;
+            if ((prev.opinions || []).some(o => o.id === opinion.id)) return prev;
+            return { ...prev, opinions: [...(prev.opinions || []), opinion] };
+          });
+        }
+      )
+      .subscribe(onOpinionsResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [id, activeOpinionMtbId, role, realtimeToken, onOpinionsResync]);
+
+  // Live questions: the owner posting a new question for experts. Without
+  // this, handleAddQuestion only updates the poster's own state, so a member
+  // or MTB Expert with the Opinions tab open never sees the question they're
+  // being asked to answer. INSERT only -- nothing in the app edits or deletes
+  // a question (no UI calls either path), so there is nothing else to mirror.
+  useEffect(() => {
+    if (!id || role === 'site_data_coordinator' || !realtimeToken) return;
+    const channel = supabase
+      .channel(`case-questions-${id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'case_questions', filter: `case_id=eq.${id}` },
+        (payload) => {
+          const row = payload.new as { id?: string; question_text?: string };
+          if (!row?.id) return;
+          const question: Question = { id: row.id, text: row.question_text ?? '' };
+          setCaseData(prev => {
+            if (!prev) return prev;
+            if ((prev.questions || []).some(q => q.id === question.id)) return prev;
+            return { ...prev, questions: [...(prev.questions || []), question] };
+          });
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, role, realtimeToken]);
 
   useEffect(() => {
     if (!caseData) return;
@@ -575,6 +677,12 @@ export function ViewCase() {
 
   const handleAddQuestion = async () => {
     if (!id || !newQuestionText.trim()) return;
+    // Defense-in-depth alongside the RESTRICTIVE RLS policy on
+    // case_questions -- a Site Data Coordinator never adds questions.
+    if (role === 'site_data_coordinator') {
+      showToast.error('Site Data Coordinators cannot add questions.');
+      return;
+    }
 
     setAddingQuestion(true);
     try {
@@ -606,7 +714,7 @@ export function ViewCase() {
     setDeleting(true);
     try {
       await deleteCase(id);
-      navigate('/my-cases');
+      navigate(`${rolePrefix}/my-cases`);
     } catch (err) {
       console.error('Failed to delete case:', err);
     } finally {
@@ -615,7 +723,11 @@ export function ViewCase() {
     }
   };
 
-  const canPostOpinions = Boolean(activeOpinionMtbId) && (isOwner || fromMTB);
+  // Defense-in-depth: the Opinions tab is removed entirely for a Site Data
+  // Coordinator (see the tab-array filter above), but this flag also gates
+  // the reply/post controls directly, in case a stale route/state still
+  // resolves activeOpinionMtbId.
+  const canPostOpinions = Boolean(activeOpinionMtbId) && (isOwner || fromMTB) && role !== 'site_data_coordinator';
 
   // Walkthrough tips: reviewing and verifying your own case once its summary
   // is ready, and posting opinions the first time the Opinions tab is usable.
@@ -652,7 +764,7 @@ export function ViewCase() {
       setMtbToRemove(null);
       if (removedId === currentMtbId) {
         // The MTB this page was opened through no longer has the case.
-        navigate(`/case/${id}`, { replace: true });
+        navigate(`${rolePrefix}/case/${id}`, { replace: true });
       } else if (removedId === selectedOpinionMtbId) {
         const next = remaining[0]?.id ?? null;
         setSelectedOpinionMtbId(next);
@@ -700,7 +812,7 @@ export function ViewCase() {
     try {
       await archiveCase(id);
       showToast.success('Case archived');
-      navigate('/my-cases?view=archived');
+      navigate(`${rolePrefix}/my-cases?view=archived`);
     } catch (err) {
       console.error('Failed to archive case:', err);
       showToast.error(err instanceof Error ? err.message : 'Failed to archive the case. Please try again.');
@@ -764,7 +876,13 @@ export function ViewCase() {
               >
                 <ArrowLeft className="w-5 h-5" />
               </button>
-              {(['summary', 'reports', 'opinions', 'treatmentfollowup', 'settings'] as TabType[]).map((tab) => {
+              {(['summary', 'reports', 'opinions', 'treatmentfollowup', 'settings'] as TabType[])
+                // Site Data Coordinators never post opinions/questions/answers
+                // (server-enforced too, via a RESTRICTIVE RLS policy) -- the
+                // tab is removed entirely, not just hidden, so it isn't
+                // reachable at all and the remaining tabs reflow naturally.
+                .filter((tab) => tab !== 'opinions' || role !== 'site_data_coordinator')
+                .map((tab) => {
                 // Locked until the case has been verified for the first time
                 // (caseData.firstVerifiedAt), not by live summaryStatus — a
                 // later regeneration (redaction edit, Regenerate Summary)
@@ -1188,7 +1306,7 @@ export function ViewCase() {
                       <ul className="border-t border-border divide-y divide-border">
                         {opinionMtbs.map((sharedMtb) => {
                           const contextMtb = mtbs.find(m => m.id === sharedMtb.id);
-                          const role = contextMtb ? (contextMtb.ownerId === user?.id ? 'Owner' : 'Member') : null;
+                          const role = contextMtb ? (contextMtb.ownerId === effectiveOwnerId ? 'Owner' : 'Member') : null;
                           return (
                             <li key={sharedMtb.id} className="flex items-center justify-between gap-4 px-6 py-3">
                               <div className="flex items-center gap-3 min-w-0">
@@ -1247,25 +1365,32 @@ export function ViewCase() {
                     )}
                   </section>
 
-                  {/* Danger zone */}
-                  <section className="bg-surface rounded-xl shadow-sm border border-danger-border p-6 flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <h3 className="text-base font-semibold text-danger-text">Danger zone</h3>
-                      <p className="text-sm text-text-muted mt-1">
-                        Permanently delete this case and all its documents, opinions and questions. This can't be undone.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setDeleteConfirmText('');
-                        setShowDeleteConfirm(true);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors flex-shrink-0"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>Delete case</span>
-                    </button>
-                  </section>
+                  {/* Danger zone. Archiving above is reversible and stays
+                      available to a Site Data Coordinator; deleting isn't, so
+                      it belongs to the clinician alone. The whole section is
+                      dropped rather than the button, since deleting is all it
+                      offers. Also blocked in CasesContext.deleteCase and by
+                      trg_cases_delete_role. */}
+                  {role !== 'site_data_coordinator' && (
+                    <section className="bg-surface rounded-xl shadow-sm border border-danger-border p-6 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <h3 className="text-base font-semibold text-danger-text">Danger zone</h3>
+                        <p className="text-sm text-text-muted mt-1">
+                          Permanently delete this case and all its documents, opinions and questions. This can't be undone.
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setDeleteConfirmText('');
+                          setShowDeleteConfirm(true);
+                        }}
+                        className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors flex-shrink-0"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        <span>Delete case</span>
+                      </button>
+                    </section>
+                  )}
                 </>
               ) : (
                 <div className="bg-surface rounded-xl shadow-sm border border-border p-6 text-center">
@@ -1376,7 +1501,7 @@ export function ViewCase() {
                         </div>
                       )}
 
-                      {isOwner && (
+                      {isOwner && role !== 'site_data_coordinator' && (
                         <button
                           onClick={() => setShowAddQuestionModal(true)}
                           data-tour="ask-question"
@@ -1683,7 +1808,7 @@ export function ViewCase() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-text truncate">{mtb.name}</p>
                     <p className="text-xs text-text-muted">
-                      {mtb.ownerId === user?.id ? 'Owner' : 'Member'} · {mtb.experts} expert{mtb.experts === 1 ? '' : 's'}
+                      {mtb.ownerId === effectiveOwnerId ? 'Owner' : 'Member'} · {mtb.experts} expert{mtb.experts === 1 ? '' : 's'}
                     </p>
                   </div>
                 </label>

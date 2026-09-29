@@ -2,6 +2,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEffect, useState, useRef } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { useRolePrefix } from '../components/RoleRoute';
 
 import { StatusInfoIcon } from '../components/StatusInfoIcon';
 import { useCases } from '../context/CasesContext';
@@ -16,6 +17,7 @@ type CaseView = 'active' | 'archived';
 
 export function MyCases() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const { cases, casesLoading: loading, refreshProcessingCases } = useCases();
   // Active vs archived lives in the URL (?view=archived) so the profile menu's
   // "Archived cases" link and browser back/forward land on the right list.
@@ -192,7 +194,7 @@ export function MyCases() {
         <div className="flex justify-between items-center">
           <h1 data-tour="my-cases-heading" className="text-2xl font-bold text-text">My Cases</h1>
           <button
-            onClick={() => navigate('/cases/new/step-1')}
+            onClick={() => navigate(`${rolePrefix}/cases/new/step-1`)}
             data-tour="add-case"
             className="flex items-center justify-center space-x-2 text-on-solid rounded-lg transition px-4 py-2 font-medium bg-primary-solid hover:bg-primary-solid-hover"
           >
@@ -234,7 +236,7 @@ export function MyCases() {
                 <div
                   key={caseItem.id}
                   className="bg-surface rounded-xl shadow-sm border border-border p-4 cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => navigate(`/case/${caseItem.id}`)}
+                  onClick={() => navigate(`${rolePrefix}/case/${caseItem.id}`)}
                 >
                   <div className="flex justify-between items-start mb-2">
                     <h3 className="font-medium text-text text-sm line-clamp-1 flex-1 mr-2">
@@ -321,7 +323,7 @@ export function MyCases() {
               ) : filteredAndSortedCases.map((caseItem) => (
                 <tr 
                   key={caseItem.id} 
-                  onClick={() => navigate(`/case/${caseItem.id}`)}
+                  onClick={() => navigate(`${rolePrefix}/case/${caseItem.id}`)}
                   className="hover:bg-status-processing-bg transition-colors cursor-pointer"
                 >
                   <td className="px-4 py-3 text-sm font-medium text-text">

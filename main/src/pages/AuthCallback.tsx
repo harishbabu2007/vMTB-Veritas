@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../Supabase/client';
 
 /**
  * AuthCallback handles the Google OAuth redirect.
  * After Google authenticates, Supabase redirects here.
- * 
+ *
  * Logic:
- * - If the Google email already exists in the profiles table → go to dashboard
- * - If it does NOT exist → redirect to signup form with Google email/id in state
- * - If navigated here with ?flow=signup, always redirect to signup form
+ * - Registration is only complete once `profiles.whatsapp_verified` is true
+ *   (a bare `profiles` row can exist for an abandoned signup — see
+ *   AuthContext.loadProfile). This check runs regardless of whether the
+ *   user arrived via the login button or the signup button (?flow=signup),
+ *   so an already-registered account can never be routed back to the
+ *   signup form just because "Sign up" was clicked instead of "Log in".
+ * - Already registered → dashboard.
+ * - Not yet registered → signup form, with Google email/id in state.
  */
 export function AuthCallback() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [status, setStatus] = useState('Authenticating...');
 
   useEffect(() => {
@@ -71,57 +75,46 @@ export function AuthCallback() {
         return;
       }
 
-      // Check if this is a signup flow (user came from signup page)
-      const params = new URLSearchParams(location.search);
-      const flow = params.get('flow');
-
-      if (flow === 'signup') {
-        // Always go to signup form for signup flow
-        setStatus('Setting up your account...');
-        navigate('/signup', {
-          state: {
-            googleEmail,
-            googleUserId,
-            googleName,
-            googleAuthenticated: true,
-          },
-          replace: true,
-        });
-        return;
-      }
-
-      // Login flow: check if user has a profile (completed registration)
+      // A user is "registered" iff whatsapp_verified is true — the same
+      // definition AuthContext.loadProfile uses. This runs no matter which
+      // button (Login or Sign up) sent the user through Google OAuth, so a
+      // fully registered account is always sent to the dashboard, never
+      // back to the signup form.
       setStatus('Checking your account...');
-      
+
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
-        .select('id, full_name')
+        .select('id, whatsapp_verified')
         .eq('id', googleUserId)
         .single();
 
-      if (profileError || !profile) {
-        // No profile exists → user hasn't completed registration
-        // Redirect to signup form with Google data
-        setStatus('Setting up your account...');
-        navigate('/signup', {
-          state: {
-            googleEmail,
-            googleUserId,
-            googleName,
-            googleAuthenticated: true,
-          },
-          replace: true,
-        });
+      const alreadyRegistered = !profileError && !!profile?.whatsapp_verified;
+
+      if (alreadyRegistered) {
+        setStatus('Welcome back! Redirecting...');
+        // Not a hardcoded '/my-cases' -- AuthRedirect waits for AuthContext's
+        // own role load (already in flight from the auth-state-change
+        // handler) and sends this account to its own role-appropriate home.
+        navigate('/', { replace: true });
         return;
       }
 
-      // Profile exists → user is registered, go to dashboard
-      setStatus('Welcome back! Redirecting...');
-      navigate('/my-cases', { replace: true });
+      // No profile row, or a profile row exists but signup was never
+      // finished → send them to complete signup.
+      setStatus('Setting up your account...');
+      navigate('/signup', {
+        state: {
+          googleEmail,
+          googleUserId,
+          googleName,
+          googleAuthenticated: true,
+        },
+        replace: true,
+      });
     };
 
     handleCallback();
-  }, [navigate, location.search]);
+  }, [navigate]);
 
   return (
     <div className="min-h-screen bg-bg flex items-center justify-center px-4 py-8">

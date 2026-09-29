@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
+import { useRolePrefix } from '../components/RoleRoute';
 import { DismissButton } from '../components/DismissButton';
 import { useCaseCreation } from '../context/CaseCreationContext';
 import { useIsMobile } from '../hooks/useMobile';
@@ -11,6 +12,7 @@ import { useTourGroup } from '../hooks/useTourGroup';
 
 export default function NewCaseStep2() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
   const { step1Data, caseExplanation, setCaseExplanation } = useCaseCreation();
   useTourGroup('step2', Boolean(step1Data));
@@ -46,7 +48,7 @@ export default function NewCaseStep2() {
 
   // Redirect if no step1Data
   if (!step1Data) {
-    navigate('/cases/new/step-1');
+    navigate(`${rolePrefix}/cases/new/step-1`);
     return null;
   }
 
@@ -58,7 +60,7 @@ export default function NewCaseStep2() {
 
   const handleBack = () => {
     setCaseExplanation(explanation);
-    navigate('/cases/new/step-1');
+    navigate(`${rolePrefix}/cases/new/step-1`);
   };
 
   return (

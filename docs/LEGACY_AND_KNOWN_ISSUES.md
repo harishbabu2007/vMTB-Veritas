@@ -58,12 +58,14 @@ Call sites (`TranscriptionSource` type): `step2` (case creation),
   column off `case_documents` that does not exist in the migration schema
   (only `type` does) — this read is always `undefined`. Likely a latent,
   harmless bug rather than a real feature gap.
-- **`NewCaseStep1_backup.tsx`, `NewCaseStep2_backup.tsx`,
-  `ReviewCase_backup.tsx`** — stale backup copies under `main/src/pages/`,
-  not routed anywhere. Safe to ignore; candidates for deletion whenever
-  someone wants to clean up. (Only `NewCaseStep2_backup.tsx` was confirmed
-  present and un-imported on 2026-09-21; it still holds raw palette colours
-  and is skipped by `npm run check:theme`.) `main/src/components/Reports.tsx.backup`
+- **`NewCaseStep2_backup.tsx`** — a stale backup copy under
+  `main/src/pages/`, not routed anywhere. Safe to ignore; a candidate for
+  deletion whenever someone wants to clean up; it still holds raw palette
+  colours and is skipped by `npm run check:theme`. (`NewCaseStep1_backup.tsx`
+  and `ReviewCase_backup.tsx`, previously listed here, are no longer present
+  — confirmed gone as of 2026-09-25, alongside `ReviewCase.tsx` itself when
+  the case creation wizard collapsed from 3 steps to 2, see
+  `docs/CASE_AND_MTB_WORKFLOW.md`.) `main/src/components/Reports.tsx.backup`
   is a `.backup` copy of `Reports.tsx`, likewise dead.
 - **Theme gaps left on purpose (2026-09-21).** (1) `VoiceRecorder.css` is
   light-only (pale blue gradient bar, light error box, hardcoded greys) and
@@ -97,10 +99,52 @@ Call sites (`TranscriptionSource` type): `step2` (case creation),
 ## Security findings (standing, not fixed as part of any doc pass)
 
 - **RLS is disabled on most Postgres tables** (originally counted as 16 of
-  19; `profiles` has since been found enabled live — see
-  `docs/DATABASE_SCHEMA.md`, other tables not re-checked) — access control is
+  19; `profiles` has since been found enabled live, and `case_opinions`/
+  `case_questions`/`mtbs`/`mtb_cases` were deliberately enabled 2026-09-27
+  for the new account-roles restrictions — see `docs/DATABASE_SCHEMA.md`,
+  other tables not re-checked) — access control on everything else is still
   enforced almost entirely in application code, not the database. Full
   per-table breakdown: `docs/DATABASE_SCHEMA.md`.
+- **RESOLVED 2026-09-27 — `verify_whatsapp_otp`'s deployed version was stale
+  relative to the repo.** The live copy (v19, last updated 2026-09-18) never
+  read the `role`/`linked_clinician_id` signup fields, so every Site Data
+  Coordinator / MTB Expert signup silently persisted as `role = 'clinician'`
+  while the function returned `200 {success:true}`. Redeployed as v21 and
+  verified by fetching the live source back. Kept here as the reference case
+  for the class of bug: **an Edge Function edit changes nothing until it is
+  explicitly deployed, and nothing in this repo detects the gap.** Detail:
+  "WhatsApp OTP" in `docs/AUTH_AND_NOTIFICATIONS.md`.
+- **RESOLVED 2026-09-28 — production `send_whatsapp_otp` had no OTP rate
+  limit.** The per-phone throttle (60-second cooldown, max 5 sends per 15
+  minutes, HTTP 429) existed in the repo but had never been deployed; live was
+  still v2, byte-identical apart from that block, so OTP sending was
+  unthrottled. Deployed as v3. Same root cause as the `verify_whatsapp_otp`
+  case above: a repo-only Edge Function change is not live until deployed.
+- **Deleting a user can silently fail while the audit log says it succeeded.**
+  Most tables cascade from `auth.users`, but `case_document_redactions`
+  (`created_by`/`removed_by`), `case_document_versions.created_by` and
+  `case_follow_ups.created_by` are `NO ACTION`, so any account that has
+  edited or redacted a document cannot be deleted — the delete transaction
+  fails, yet an `auth_audit_logs` `user_deleted` entry is still written.
+  Observed live on 2026-09-27 (account with 7 redaction rows survived its own
+  deletion event). `profiles_linked_clinician_id_fkey` is a second such
+  blocker once a Site Data Coordinator is linked to that clinician. No app
+  code deletes accounts, so this is dashboard-only — but don't trust the audit
+  trail alone to confirm an account is gone.
+- **The onboarding tour-restart test helper is not granted to
+  `authenticated`.** `onboarding_test_restart_if_new_sign_in()`
+  (`20260919_onboarding_test_restart.sql`) fails with "permission denied for
+  function" every time `OnboardingContext.load()` calls it; the call is
+  wrapped in `.catch(() => undefined)`, so it fails silently and the
+  `onboarding_test_restart` flag does nothing. Use a fresh account or the
+  Settings "restart tour" action (which updates `profiles` directly) instead.
+- **MTB Expert's meeting-start restriction is client-side only** — the
+  Start/Join Meeting button is disabled until a meeting is already active,
+  but the action itself is a raw `window.open()` with no Supabase call, so
+  there's nothing server-side to enforce against (real enforcement would
+  need a change to `jitsi-activation-backend`). A UX nudge, not a security
+  boundary — deliberate, not an oversight. Detail: "Account roles" in
+  `docs/CASE_AND_MTB_WORKFLOW.md`.
 - **RLS is also off on the 3 tables added for the manual anonymization
   editor** (`case_document_redactions`, `case_document_versions`,
   `case_document_retention` — `main/supabase/migrations/20260914_manual_redaction_editor.sql`),
@@ -131,11 +175,60 @@ Call sites (`TranscriptionSource` type): `step2` (case creation),
   also shows up in `docs/LOCAL_DEVELOPMENT.md`. **This needs a human
   decision (rotate the key at minimum) — it's flagged here, not
   auto-remediated, per instruction to make doc-only changes.**
+- **The live `get_mtb_transcripts` RPC has no access gate** (if the version
+  actually deployed is the one that predates
+  `main/supabase/migrations/20260924_get_mtb_transcripts_session_link.sql`):
+  any authenticated caller who guesses an MTB's UUID can read all of its
+  meeting transcripts/MoM. A fixed version (owner-or-member check) exists in
+  that migration file, but as of 2026-09-25 it's **not applied** to the live
+  database (`gwvqxetjheveelqrkjhg` — confirmed via `list_migrations`). Apply
+  it to close this. Detail: `docs/MEETING_TRANSCRIPTION_PIPELINE.md`.
 - **A plaintext LangSmith API key** sits in the dead
   `VMTB-BEDROCK-DOCKER-US-V1` Lambda's environment variables (`us-east-1`).
   Since that Lambda is confirmed dead, deleting it outright would remove
   the exposed secret with it — flagged for a human decision in
   `docs/CLOUD_INVENTORY.md`, not done here.
+- **`cases` is in the Realtime publication while its RLS is off**
+  (`20260929_realtime_cases_and_opinions.sql`, applied 2026-09-29). Any
+  authenticated client can open a `postgres_changes` subscription on `cases`
+  with no filter — or with another user's `owner_id` — and stream every case
+  row live, `patient_name` included; the app's own `owner_id=eq.` filter is a
+  delivery convenience, not a boundary. **No data is reachable this way that
+  a direct REST `select *` on `cases` didn't already return** (same RLS gap,
+  same blanket grants — the first bullet in this section), so this widens an
+  existing hole into a live feed rather than opening a new one. It is
+  tracked here as part of that standing `cases` RLS finding, not as a
+  separate one. Note that enabling RLS on `cases` would *not* by itself fix
+  the `patient_name` half: RLS filters rows, not columns, and Realtime
+  always ships the raw base-table row — see "Realtime publication" in
+  `docs/DATABASE_SCHEMA.md`.
+
+## Known gap: no live case-detail updates for MTB members
+
+A member viewing a case shared into their board (`ViewCase`, non-owner) gets
+**no Realtime updates for the case row itself** — a new summary, a
+verification, an archive or a patient-detail edit by the owner appears only
+when they reload, refocus the window, or hit `MTBDetail`'s 30-second
+interval (which runs only while some listed case is unverified).
+
+This is deliberate, not an oversight. The obvious fix — subscribing members
+to `cases` filtered by id — cannot be made safe: Realtime replays the raw
+base-table row, so it bypasses `cases_viewer_safe` and delivers
+`patient_name` to that member's browser, and RLS cannot mask a column. The
+designed fix is **Broadcast-from-database**: a trigger on `cases` calling
+`realtime.send()` with an authored, minimal payload (case id, generation,
+status — never PII) to a per-case topic, with an RLS policy on
+`realtime.messages` controlling who may join it. Both `realtime.send` and
+`realtime.broadcast_changes` exist on the live project (verified
+2026-09-29); `realtime.messages` has RLS enabled and **zero policies**, so
+private topics are currently join-denied for everyone and that policy is the
+first thing that work needs.
+
+Deferred deliberately so the board-membership live-update work could land
+and be verified first. Until it's built, the focus/interval refresh above is
+the only freshness mechanism members have. Owners and their coordinators are
+unaffected — `useCaseRunState` already polls their own case detail (4s while
+a run is active, 30s idle, visibility-aware).
 
 ## Stale documentation left in place (per user decision, flagged not edited)
 

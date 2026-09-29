@@ -73,7 +73,9 @@ export function Login() {
 
       await loginWithPhone(countryCode, cleanPhone, password);
       showToast.success('Logged in successfully!');
-      navigate('/my-cases');
+      // Not a hardcoded '/my-cases' -- AuthRedirect waits for the just-
+      // triggered role load and sends this account to its own home.
+      navigate('/');
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Login failed';
       if (message.toLowerCase().includes('no account') || message.toLowerCase().includes('not found')) {
@@ -240,7 +242,7 @@ export function Login() {
       }
 
       showToast.success('Logged in successfully!');
-      navigate('/my-cases', { replace: true });
+      navigate('/', { replace: true });
     } catch (err) {
       const message = err instanceof Error ? err.message : 'OTP verification failed';
       setError(message);

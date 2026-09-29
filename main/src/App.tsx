@@ -23,16 +23,18 @@ import { ViewCase } from './pages/ViewCase';
 import { NotFound } from './pages/NotFound';
 import { SampleCase } from './pages/SampleCase';
 import { SampleBoard } from './pages/SampleBoard';
+import { RoleRoute, roleHomePath } from './components/RoleRoute';
 
 function AuthRedirect() {
-  const { isAuthenticated, loading, isInPasswordRecovery, registrationComplete } = useAuth();
+  const { isAuthenticated, loading, isInPasswordRecovery, registrationComplete, role } = useAuth();
   const location = useLocation();
 
   // registrationComplete === null means "still checking" for a signed-in
   // user, same as `loading` -- an abandoned Google signup (a real session,
   // no finished profile) must not flash through to /my-cases while that
-  // check is still in flight.
-  if (loading || (isAuthenticated && registrationComplete === null)) {
+  // check is still in flight. Once registration is complete, `role` gets
+  // the same "still checking" treatment before it's used to pick a home.
+  if (loading || (isAuthenticated && (registrationComplete === null || (registrationComplete && role === null)))) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-text-muted">Loading...</div>
@@ -57,7 +59,7 @@ function AuthRedirect() {
     return <Navigate to="/signup" replace />;
   }
 
-  return <Navigate to={isAuthenticated ? "/my-cases" : "/login"} />;
+  return <Navigate to={isAuthenticated ? roleHomePath(role) : "/login"} />;
 }
 
 function AuthRecoveryHandler() {
@@ -81,42 +83,6 @@ function AuthRecoveryHandler() {
   }, [location.pathname, location.search, location.hash, navigate]);
 
   return null;
-}
-
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading, registrationComplete } = useAuth();
-  const location = useLocation();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="text-text-muted font-medium animate-pulse">Loading...</div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
-  }
-
-  // Same "still checking" window as AuthRedirect -- don't render a
-  // protected page for a session whose registration status isn't known yet.
-  if (registrationComplete === null) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
-        <div className="text-text-muted font-medium animate-pulse">Loading...</div>
-      </div>
-    );
-  }
-
-  // Signed in via Google but never finished the WhatsApp verification step
-  // -- every protected route sends them back to finish signup instead of
-  // silently granting access.
-  if (registrationComplete === false) {
-    return <Navigate to="/signup" replace />;
-  }
-
-  return <>{children}</>;
 }
 
 function App() {
@@ -169,86 +135,41 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
 
-            <Route
-              path="/my-cases"
-              element={
-                <ProtectedRoute>
-                  <MyCases />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cases/new/step-1"
-              element={
-                <ProtectedRoute>
-                  <NewCaseStep1 />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/cases/new/step-2"
-              element={
-                <ProtectedRoute>
-                  <NewCaseStep2 />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sample-case"
-              element={
-                <ProtectedRoute>
-                  <SampleCase />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/sample-board"
-              element={
-                <ProtectedRoute>
-                  <SampleBoard />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mtbs"
-              element={
-                <ProtectedRoute>
-                  <MTBs />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mtb/:id"
-              element={
-                <ProtectedRoute>
-                  <MTBDetail />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/case/:id"
-              element={
-                <ProtectedRoute>
-                  <ViewCase />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mtb/:mtbId/case/:id"
-              element={
-                <ProtectedRoute>
-                  <ViewCase />
-                </ProtectedRoute>
-              }
-            />
-            <Route
-              path="/mtb/:mtbId/meeting/:meetingId"
-              element={
-                <ProtectedRoute>
-                  <MeetingDetail />
-                </ProtectedRoute>
-              }
-            />
+            {/* Clinician (bare paths) */}
+            <Route path="/my-cases" element={<RoleRoute allowedRoles={['clinician']}><MyCases /></RoleRoute>} />
+            <Route path="/cases/new/step-1" element={<RoleRoute allowedRoles={['clinician']}><NewCaseStep1 /></RoleRoute>} />
+            <Route path="/cases/new/step-2" element={<RoleRoute allowedRoles={['clinician']}><NewCaseStep2 /></RoleRoute>} />
+            <Route path="/sample-case" element={<RoleRoute allowedRoles={['clinician']}><SampleCase /></RoleRoute>} />
+            <Route path="/sample-board" element={<RoleRoute allowedRoles={['clinician']}><SampleBoard /></RoleRoute>} />
+            <Route path="/mtbs" element={<RoleRoute allowedRoles={['clinician']}><MTBs /></RoleRoute>} />
+            <Route path="/mtb/:id" element={<RoleRoute allowedRoles={['clinician']}><MTBDetail /></RoleRoute>} />
+            <Route path="/case/:id" element={<RoleRoute allowedRoles={['clinician']}><ViewCase /></RoleRoute>} />
+            <Route path="/mtb/:mtbId/case/:id" element={<RoleRoute allowedRoles={['clinician']}><ViewCase /></RoleRoute>} />
+            <Route path="/mtb/:mtbId/meeting/:meetingId" element={<RoleRoute allowedRoles={['clinician']}><MeetingDetail /></RoleRoute>} />
+
+            {/* Site Data Coordinator -- full parity with clinician except
+                Opinions and meetings (gated inside the shared components
+                themselves), so it reuses the same page components under
+                /sdc/*. No meeting route: SDC has no meeting access at all. */}
+            <Route path="/sdc/my-cases" element={<RoleRoute allowedRoles={['site_data_coordinator']}><MyCases /></RoleRoute>} />
+            <Route path="/sdc/cases/new/step-1" element={<RoleRoute allowedRoles={['site_data_coordinator']}><NewCaseStep1 /></RoleRoute>} />
+            <Route path="/sdc/cases/new/step-2" element={<RoleRoute allowedRoles={['site_data_coordinator']}><NewCaseStep2 /></RoleRoute>} />
+            <Route path="/sdc/sample-case" element={<RoleRoute allowedRoles={['site_data_coordinator']}><SampleCase /></RoleRoute>} />
+            <Route path="/sdc/sample-board" element={<RoleRoute allowedRoles={['site_data_coordinator']}><SampleBoard /></RoleRoute>} />
+            <Route path="/sdc/mtbs" element={<RoleRoute allowedRoles={['site_data_coordinator']}><MTBs /></RoleRoute>} />
+            <Route path="/sdc/mtb/:id" element={<RoleRoute allowedRoles={['site_data_coordinator']}><MTBDetail /></RoleRoute>} />
+            <Route path="/sdc/case/:id" element={<RoleRoute allowedRoles={['site_data_coordinator']}><ViewCase /></RoleRoute>} />
+            <Route path="/sdc/mtb/:mtbId/case/:id" element={<RoleRoute allowedRoles={['site_data_coordinator']}><ViewCase /></RoleRoute>} />
+
+            {/* MTB Expert -- no case-creation, no My Cases, no meeting-start
+                route (meeting is only ever reached from an MTB board it
+                belongs to, so /mtb-exp/mtb/:mtbId/meeting/:meetingId is the
+                only meeting route this role needs). */}
+            <Route path="/mtb-exp/mtbs" element={<RoleRoute allowedRoles={['mtb_expert']}><MTBs /></RoleRoute>} />
+            <Route path="/mtb-exp/mtb/:id" element={<RoleRoute allowedRoles={['mtb_expert']}><MTBDetail /></RoleRoute>} />
+            <Route path="/mtb-exp/case/:id" element={<RoleRoute allowedRoles={['mtb_expert']}><ViewCase /></RoleRoute>} />
+            <Route path="/mtb-exp/mtb/:mtbId/case/:id" element={<RoleRoute allowedRoles={['mtb_expert']}><ViewCase /></RoleRoute>} />
+            <Route path="/mtb-exp/mtb/:mtbId/meeting/:meetingId" element={<RoleRoute allowedRoles={['mtb_expert']}><MeetingDetail /></RoleRoute>} />
 
             <Route path="/" element={<AuthRedirect />} />
             <Route path="*" element={<NotFound />} />
