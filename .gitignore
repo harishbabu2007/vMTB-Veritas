@@ -98,3 +98,6 @@ desktop.ini
 *.swp
 
 .claude/
+
+# foglamp scan (contains edit token)
+.foglamp/

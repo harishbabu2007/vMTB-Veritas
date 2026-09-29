@@ -5,6 +5,7 @@ import { useMeetingHistory, MeetingHistoryItem } from '../hooks/useMeetingHistor
 import { buildMeetingUrl } from '../utils/roomName';
 import { useAuth } from '../context/AuthContext';
 import { useIsMobile } from '../hooks/useMobile';
+import { useRolePrefix } from './RoleRoute';
 
 interface MeetingsListProps {
   mtbId: string;
@@ -87,11 +88,12 @@ function MomStatusBadge({ status }: { status: MeetingHistoryItem['mom_status'] }
 
 function MeetingCard({ meeting, mtbId }: { meeting: MeetingHistoryItem; mtbId: string }) {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
 
   return (
     <div
-      onClick={() => navigate(`/mtb/${mtbId}/meeting/${meeting.id}`)}
+      onClick={() => navigate(`${rolePrefix}/mtb/${mtbId}/meeting/${meeting.id}`)}
       className={`bg-surface rounded-xl border border-border hover:border-info-border hover:shadow-sm transition-all cursor-pointer ${
         isMobile ? 'p-3' : 'p-4'
       }`}

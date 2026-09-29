@@ -1,3 +1,5 @@
+import type { UserRole } from '../context/AuthContext';
+
 // The first-time walkthrough.
 //
 // Guided part: a welcome on My Cases, then a hands-on case section (the
@@ -124,6 +126,11 @@ export interface TourStep {
   // A second button on the last step: finishes, then runs `secondaryRun`.
   secondaryLabel?: string;
   secondaryRun?: TourActionName;
+  // Roles that see this step. Undefined = every role. For a step whose
+  // target only exists for some roles, the missing-target skip in
+  // TourOverlay already handles it -- this is for a step (like a `run`
+  // step with no target) that would otherwise show and act regardless.
+  allowedRoles?: UserRole[];
 }
 
 export interface TourGroup {
@@ -140,9 +147,21 @@ export interface TourGroup {
   // Coming back to this screen after finishing its group (browser Back
   // mid-section) shows only this step: the one that moves on.
   resumeStep?: number;
+  // Roles this group applies to at all. Undefined = every role. A role
+  // excluded here never requests/starts the group, and (see
+  // isKeySatisfied below) any other group that `requires` a key this one
+  // `completes` treats that key as vacuously satisfied for this role.
+  allowedRoles?: UserRole[];
 }
 
-const CASE_SECTION = { requires: ['welcome'] as OnboardingKey[], blockedBy: ['case_flow'] as OnboardingKey[] };
+// MTB Expert never owns a case (no My Cases/case-creation route at all,
+// App.tsx) -- every group gated on owning or creating one excludes it.
+const CASE_CAPABLE_ROLES: UserRole[] = ['clinician', 'site_data_coordinator'];
+const CASE_SECTION = {
+  requires: ['welcome'] as OnboardingKey[],
+  blockedBy: ['case_flow'] as OnboardingKey[],
+  allowedRoles: CASE_CAPABLE_ROLES,
+};
 const MTB_SECTION = { requires: ['case_flow'] as OnboardingKey[], blockedBy: ['mtb_flow'] as OnboardingKey[] };
 
 export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
@@ -153,6 +172,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
     // The user is on their way into the case section; don't point them there
     // again on the way out of My Cases.
     alsoFinishes: ['case_resume'],
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: null,
@@ -319,6 +339,10 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   mtb_intro: {
     kind: 'guided',
     ...MTB_SECTION,
+    // Only ever requested from My Cases (MyCases.tsx), which MTB Expert has
+    // no route to at all -- explicit here anyway so isKeySatisfied's
+    // "inapplicable, therefore vacuously done" logic is correct for it.
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: { desktop: 'nav-mtbs', mobile: 'mobile-menu' },
@@ -329,6 +353,10 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
       },
     ],
   },
+  // No allowedRoles: /mtb-exp/mtbs is MTB Expert's own home, and this
+  // group's Create-MTB step already self-skips for that role via the
+  // existing missing-target check (the button itself is role-gated,
+  // MTBs.tsx).
   mtbs: {
     kind: 'guided',
     ...MTB_SECTION,
@@ -349,12 +377,20 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
         primaryLabel: 'Show sample board',
         title: 'See inside a board',
         body: 'Here’s a sample board, so you know where things are.',
+        // No /mtb-exp/sample-board route exists -- unlike the other
+        // per-role exclusions here, this step's target is `null` (a
+        // centred "run" card), so there's no missing-DOM-element for the
+        // usual auto-skip to catch; it needs to be explicit.
+        allowedRoles: CASE_CAPABLE_ROLES,
       },
     ],
   },
   sample_board: {
     kind: 'guided',
     ...MTB_SECTION,
+    // No /mtb-exp/sample-board route (App.tsx) -- this group can never be
+    // reached by MTB Expert regardless, but explicit for isKeySatisfied.
+    allowedRoles: CASE_CAPABLE_ROLES,
     completes: ['mtb_flow', 'mtb_board'],
     steps: [
       { target: 'mtb-add-case', title: 'Add a case', body: 'Share a verified case so members can review it.' },
@@ -379,6 +415,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   // ─── Tips ─────────────────────────────────────────────────────────────
   case_status: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'case-pending',
@@ -389,6 +426,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   case_review: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'tab-summary',
@@ -412,6 +450,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   reports: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'report-card',
@@ -427,6 +466,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   document_viewer: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'viewer-mode',
@@ -437,6 +477,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   redact: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'redact-tools',
@@ -452,6 +493,11 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   opinions: {
     kind: 'tip',
+    // Inverse of every other case tip: Site Data Coordinator is the one
+    // role that can't post opinions (canPostOpinions, ViewCase.tsx) --
+    // MTB Expert can. The "Ask the board" step still self-skips for MTB
+    // Expert via the existing missing-target check (isOwner-gated).
+    allowedRoles: ['clinician', 'mtb_expert'],
     steps: [
       {
         target: 'opinion-input',
@@ -466,6 +512,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   treatment: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'treatment-plan',
@@ -481,6 +528,7 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   case_settings: {
     kind: 'tip',
+    allowedRoles: CASE_CAPABLE_ROLES,
     steps: [
       {
         target: 'case-settings',
@@ -491,6 +539,12 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
   },
   mtb_board: {
     kind: 'tip',
+    // No allowedRoles on the group itself -- unlike sample_board, an MTB
+    // Expert does reach a real board (their own home route) and needs this
+    // tip too. The meeting step is split in two below because, per
+    // MTBDetail.tsx, an MTB Expert can only ever join a meeting someone else
+    // started, never start one -- one shared "Start or join" body would be
+    // wrong for that role.
     steps: [
       {
         target: 'mtb-add-case',
@@ -500,11 +554,53 @@ export const TOUR_GROUPS: Record<TourGroupId, TourGroup> = {
       {
         target: 'mtb-meeting',
         title: 'Meetings',
+        body: 'Join this board’s video meeting once someone starts it.',
+        allowedRoles: ['mtb_expert'],
+      },
+      {
+        target: 'mtb-meeting',
+        title: 'Meetings',
         body: 'Start or join this board’s video meeting, and notify members when it starts.',
+        allowedRoles: ['clinician', 'site_data_coordinator'],
       },
     ],
   },
 };
+
+export const isGroupApplicable = (id: TourGroupId, role: UserRole): boolean => {
+  const allowed = TOUR_GROUPS[id].allowedRoles;
+  return !allowed || allowed.includes(role);
+};
+
+// Does `key` apply to this role at all? For the two milestone keys that
+// aren't themselves a TourGroupId, applicability is inherited from the one
+// group whose last step actually marks them seen (SampleCase.tsx's
+// `complete(['case_flow', 'case_review'])` for case_flow;
+// sample_board's `completes: ['mtb_flow', 'mtb_board']` for mtb_flow) --
+// otherwise a role that can never reach that group (no route to it) would
+// be permanently blocked by every other group whose `requires` names it.
+export const isKeyApplicable = (key: OnboardingKey, role: UserRole): boolean => {
+  if (key === 'welcome') return isGroupApplicable('welcome', role);
+  if (key === 'case_flow') return isGroupApplicable('sample_tabs', role);
+  if (key === 'mtb_flow') return isGroupApplicable('sample_board', role);
+  return isGroupApplicable(key as TourGroupId, role);
+};
+
+// A `requires` dependency counts as met if the key was genuinely seen, or
+// if it can never be seen by this role in the first place. Deliberately
+// NOT used for `blockedBy`: "blocked by X" must stay a literal seen[X]
+// check, or a role for whom X is vacuously "satisfied" would also be
+// wrongly treated as having already run (and so skip) the group X blocks.
+export const isKeySatisfied = (key: OnboardingKey, role: UserRole, seen: Partial<Record<OnboardingKey, string>>): boolean =>
+  Boolean(seen[key]) || !isKeyApplicable(key, role);
+
+// The role-relevant subset of ALL_SAVED_KEYS -- the walkthrough is over
+// once every key that actually applies to this role has been seen. Without
+// this filter, a key no group ever sets for a given role (e.g. `opinions`
+// for a Site Data Coordinator, or any isOwner-gated tip for an MTB Expert)
+// would keep the walkthrough "not finished" forever.
+export const applicableSavedKeys = (role: UserRole): OnboardingKey[] =>
+  ALL_SAVED_KEYS.filter(key => isKeyApplicable(key, role));
 
 export const resolveText = (text: Text | undefined, ctx: TourContext): string | undefined =>
   typeof text === 'function' ? text(ctx) : text;

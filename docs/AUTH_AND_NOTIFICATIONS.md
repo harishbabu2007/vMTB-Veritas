@@ -20,6 +20,41 @@ Used by both `Login.tsx` and `Signup.tsx` (`Signup.tsx`'s first step,
 `google-gate`, makes Google OAuth **mandatory** before the rest of the signup
 form).
 
+**Abandoned Google signup is gated app-wide, not just at this redirect (fixed
+2026-09-25).** Google OAuth issues a real Supabase session (`isAuthenticated
+= true`) *before* the rest of signup — the phone number, the WhatsApp OTP
+step, `profiles.whatsapp_verified`. `AuthCallback.tsx`'s profile check above
+only runs on the literal OAuth-redirect page load; closing the tab mid-form
+(or on the OTP step) and reopening the site used to skip it entirely, since
+`AuthRedirect`/`ProtectedRoute` (`App.tsx`) gated purely on `isAuthenticated`
+— landing an unregistered-but-authenticated session straight in the app.
+
+Fix: `AuthContext` now also tracks `registrationComplete` (`boolean | null`,
+`null` = still checking), read off `profiles.whatsapp_verified` in the same
+query that already fetched the display name — not off whether a `profiles`
+row merely exists, since `backfillProfileFromMetadata` can create a bare row
+(e.g. just a Google display name) for a signup that was never finished.
+`AuthRedirect` and `ProtectedRoute` treat `registrationComplete === null` the
+same as the existing `loading` flag (brief spinner), and send the user to
+`/signup` instead of into the app when it's `false`. `Signup.tsx`'s
+`handleVerifyOTP` calls the new `markRegistrationComplete()` right after the
+profile upsert succeeds, before navigating to `/my-cases` — without it,
+`ProtectedRoute` would still see the pre-verification status (it only
+updates off auth *events*, not table writes) and bounce the just-finished
+signup straight back to `/signup`.
+
+Known residual gap: two tabs on the same abandoned session, one finishing
+signup while the other still shows the old form — the second tab's own
+`registrationComplete` doesn't cross-tab-sync, so it needs a reload (which
+re-checks `profiles` fresh) to pick up the completed registration; it does
+not get permanently stuck.
+
+`loginWithPhone`/`verifyPhoneOtp` (below) don't have this gap: both require
+the phone to already match an existing `profiles.whatsapp_number`, which
+only exists once signup actually finished. `AuthContext.signup`/`login`
+(native email+password) have the same shape of gap in principle but are
+dead code — see `docs/LEGACY_AND_KNOWN_ISSUES.md`.
+
 ### Phone + password
 
 `Login.tsx`'s `handlePhonePasswordLogin` → `isPhoneNumberRegistered`
@@ -48,7 +83,30 @@ directly):
 - **`verify_whatsapp_otp`** — a single multiplexed endpoint keyed by
   `payload.action` (or its absence):
   - *(default, signup completion)* — verifies the OTP, sets the account
-    password, confirms the phone in `auth.users`, upserts `profiles`.
+    password, confirms the phone in `auth.users`, upserts `profiles`
+    (Step B3) with `whatsapp_verified: true` plus, if present in the
+    request, `role`/`linked_clinician_id` (see "Account roles" in
+    `docs/CASE_AND_MTB_WORKFLOW.md` — this is the one place those two
+    columns are ever written). Step B3 now returns a real error response if
+    the upsert fails, instead of silently returning `{success: true}` (fixed
+    2026-09-27 — the earlier silent-failure meant a role choice could be
+    dropped with no signal to the user).
+
+    **Deployment history worth knowing, because it caused a real bug.** Until
+    2026-09-27 the *deployed* copy was version 19, last updated 2026-09-18 —
+    it never read `role`/`linked_clinician_id` at all, so every Site Data
+    Coordinator / MTB Expert signup silently persisted as a plain clinician,
+    with the function still returning `200 {success:true}`. It was also
+    missing the atomic compare-and-swap OTP claim and the `reset_token`
+    hardening below. Redeployed as version 21 on 2026-09-27 17:50 UTC, then as
+    **version 22 on 2026-09-28** (adding `role`/`linked_clinician_id` to the
+    request log line); the live source was fetched back and confirmed both
+    times. **Still unverified end-to-end:** as of v22 no signup had yet run
+    against a fixed version, so the role round-trip has never actually
+    succeeded in this project — it needs one real Site Data Coordinator signup
+    to confirm. The request log line now carries `role`/`linked_clinician_id`
+    precisely so that check is readable from the function logs rather than only
+    from the resulting `profiles` row.
   - `action: 'login'` — returns an `{email, email_otp}` pair; the client
     then calls `supabase.auth.verifyOtp({type: 'email'})` itself to
     establish a real session. **WhatsApp-OTP login piggybacks on
@@ -64,7 +122,9 @@ Client wrappers for all of the above: `main/src/services/whatsappOtp.ts`
 `verifyWhatsAppOTPForLogin`, `verifyWhatsAppOTPForReset`,
 `completePasswordReset`, `isPhoneNumberRegistered`,
 `extractEdgeFunctionError` for parsing Edge Function error bodies into
-user-facing strings).
+user-facing strings, `findClinicianByPhone` — looks up a clinician profile
+by WhatsApp number for the Site Data Coordinator signup step, see "Account
+roles" in `docs/CASE_AND_MTB_WORKFLOW.md`).
 
 ### Pages wired to these flows
 

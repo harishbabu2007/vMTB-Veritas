@@ -133,10 +133,14 @@ The fix: `200-OK-V2` (`main/Cloud Functions/AWS/200-OK-V2/lambda_function.py`)
 sits in front of `VMTB-CONVERT-DOC2PNG-V2`. It fires a POST at `TARGET_API_URL`
 (the real `/converter-files-to-png` route) with a 5-second socket timeout,
 **deliberately ignores the response or any error from it**, and always returns
-`200 OK` immediately. The frontend (`ReviewCase.tsx`, `Reports.tsx`) calls
-`/trigger-converter-files-to-png` — i.e., it always goes through this wrapper,
-never the real converter route directly. This is intentional infrastructure,
-not dead code or a stub to be "fixed."
+`200 OK` immediately. Nothing in the app calls the real converter route
+directly — it always goes through this wrapper. Case creation
+(`useCreateCase.ts`) calls `/trigger-converter-files-to-png` only as a
+fallback (the normal path is the tracked `start_initial_run` run, which
+reaches this wrapper a different way — see "Edits and pipeline runs" in
+`docs/DOCUMENT_AI_PIPELINE.md`); `Reports.tsx`'s own document edits go
+through that same tracked-run path, not this route directly. This is
+intentional infrastructure, not dead code or a stub to be "fixed."
 
 ## Supabase
 

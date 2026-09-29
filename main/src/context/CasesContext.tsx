@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, ReactNode } from 'react';
 import { supabase } from '../Supabase/client';
 import { useAuth } from './AuthContext';
+import { useRealtimeResync } from '../hooks/useRealtimeResync';
+import { useRealtimeAuthToken } from '../hooks/useRealtimeAuth';
 import {
   PipelineError,
   SummaryEdit,
@@ -140,6 +142,8 @@ interface CasesContextType {
   addFollowUp: (caseId: string, followUp: string) => Promise<void>;
   getCaseById: (id: string, options?: GetCaseByIdOptions) => Promise<Case | null>;
   getCaseOpinions: (caseId: string, mtbId: string) => Promise<Opinion[]>;
+  /** Push a board's authoritative case-id list back into context after a refetch. */
+  syncMtbCaseIds: (mtbId: string, caseIds: string[]) => void;
 }
 
 const CasesContext = createContext<CasesContextType | undefined>(undefined);
@@ -167,7 +171,7 @@ interface CaseRow {
   owner_id?: string;
 }
 
-interface OpinionRow {
+export interface OpinionRow {
   id: string;
   case_id: string;
   question_id: string | null;
@@ -206,7 +210,7 @@ const mapCaseRow = (row: CaseRow): Case => ({
   ownerId: row.owner_id,
 });
 
-const mapOpinionRow = (o: OpinionRow): Opinion => ({
+export const mapOpinionRow = (o: OpinionRow): Opinion => ({
   id: o.id,
   caseId: o.case_id,
   questionId: o.question_id || null,
@@ -218,8 +222,15 @@ const mapOpinionRow = (o: OpinionRow): Opinion => ({
 });
 
 export function CasesProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
-  const userId = user?.id ?? null;
+  const { user, role, effectiveOwnerId } = useAuth();
+  // For a clinician/mtb_expert this is just their own id; for a
+  // site_data_coordinator it's the linked clinician's id, so every
+  // case/MTB read+write below lands on and reads as the clinician's own
+  // data. MTB *membership* (joinMTB/leaveMTB) is a personal relationship,
+  // not a clinician-delegated one, so those two call sites deliberately
+  // use `ownUserId` instead -- see the comments at each site.
+  const userId = effectiveOwnerId;
+  const ownUserId = user?.id ?? null;
   const [cases, setCases] = useState<Case[]>([]);
   const [mtbs, setMTBs] = useState<MTB[]>([]);
   const [casesLoading, setCasesLoading] = useState(false);
@@ -228,6 +239,8 @@ export function CasesProvider({ children }: { children: ReactNode }) {
   const mtbsLoadedFor = useRef<string | null>(null);
   const casesRef = useRef<Case[]>([]);
   casesRef.current = cases;
+  const mtbsRef = useRef<MTB[]>([]);
+  mtbsRef.current = mtbs;
 
   // Replace one case in the owner's list with a freshly read row, keeping any
   // fields the row doesn't carry.
@@ -307,11 +320,16 @@ export function CasesProvider({ children }: { children: ReactNode }) {
         .eq('owner_id', userId);
       if (ownedError) throw ownedError;
 
-      // Fetch MTBs where user is a member
+      // Fetch MTBs where the signed-in user personally is a member -- a
+      // membership row is a personal relationship (see joinMTB/leaveMTB),
+      // not something an SDC's linked clinician acquires by proxy, so this
+      // reads ownUserId, not the effective-owner userId above. An SDC's MTB
+      // list is therefore the union of "MTBs the linked clinician owns"
+      // (the query above) and "MTBs the SDC personally joined" (below).
       const { data: memberMTBs, error: memberError } = await supabase
         .from('mtb_members')
         .select('mtb_id')
-        .eq('user_id', userId);
+        .eq('user_id', ownUserId);
       if (memberError) throw memberError;
 
       const memberMtbIds = (memberMTBs || []).map(m => m.mtb_id);
@@ -357,7 +375,7 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     } finally {
       if (isFirstLoad) setMtbsLoading(false);
     }
-  }, [userId]);
+  }, [userId, ownUserId]);
 
   // Keyed on the user id, not the user object: auth events that re-deliver
   // the same user must not refetch everything.
@@ -372,6 +390,182 @@ export function CasesProvider({ children }: { children: ReactNode }) {
       mtbsLoadedFor.current = null;
     }
   }, [userId, refetchCases, refetchMTBs]);
+
+  // Realtime delivers nothing for the window a socket was down and never
+  // backfills it, so each subscription below resyncs through the same fetch
+  // that loaded it in the first place -- on reconnect, and when the tab
+  // becomes visible again. Three separate hooks rather than one shared
+  // callback so a reconnect on the boards feed doesn't also refetch cases.
+  const onCasesResync = useRealtimeResync(refetchCases);
+  const onMtbsResync = useRealtimeResync(refetchMTBs);
+  const onMtbDetailsResync = useRealtimeResync(refetchMTBs);
+  // Every subscription below waits for this. A channel that joins before the
+  // socket has the user's JWT is stuck with anon claims for good, which for
+  // the RLS-enabled tables (mtb_cases, mtbs) means it silently receives
+  // nothing -- see useRealtimeAuth.
+  const realtimeToken = useRealtimeAuthToken();
+
+  // Upsert one row into the list: the same shape for an INSERT and an UPDATE,
+  // and id-keyed so a user's own optimistic write echoing back doesn't
+  // duplicate it.
+  const applyCaseRow = useCallback((row: CaseRow) => {
+    const updated = mapCaseRow(row);
+    setCases(prev => (
+      prev.some(c => c.id === updated.id)
+        ? prev.map(c => (c.id === updated.id ? { ...c, ...updated } : c))
+        : [updated, ...prev]
+    ));
+  }, []);
+
+  // The authoritative case-id list for one board, pushed back from whoever
+  // just re-read it. Removals can't be derived from a Realtime DELETE (see
+  // the mtb_cases subscription below), so the component that refetched the
+  // board is the only place that knows the truth -- without this, a removed
+  // case would keep counting towards the board's total on the MTBs list and
+  // stay excluded from "add case" until the next full refetch.
+  const syncMtbCaseIds = useCallback((mtbId: string, caseIds: string[]) => {
+    setMTBs(prev => prev.map(m => {
+      if (m.id !== mtbId) return m;
+      const same = m.cases.length === caseIds.length && m.cases.every(id => caseIds.includes(id));
+      return same ? m : { ...m, cases: caseIds };
+    }));
+  }, []);
+
+  // Live cases: a linked coordinator adding/archiving a case, or their
+  // clinician doing the same, shows up for the other side without a reload.
+  // One filter value (owner_id = effectiveOwnerId) already covers both
+  // directions, since a clinician and their coordinator resolve to the same
+  // userId here -- see the comment on `userId` above.
+  //
+  // Security note: `cases` has RLS off (docs/DATABASE_SCHEMA.md), so this
+  // filter is a delivery convenience, not an access boundary -- but the
+  // table is already fully readable via a direct REST call today regardless
+  // (same doc), so this subscription adds no exposure beyond that standing,
+  // separately-tracked gap. It also can't route through `cases_viewer_safe`
+  // (Realtime only fires off base-table writes, not views), so the payload
+  // carries raw `patient_name` -- fine here because every subscriber under
+  // this exact filter (the owner, or their linked coordinator) already has
+  // full access to their own patient_name through every other read path.
+  // Do not reuse this filter shape for an MTB-member subscription without
+  // adding the same masking the view provides.
+  useEffect(() => {
+    if (!userId || !realtimeToken) return;
+    const channel = supabase
+      .channel(`cases-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'cases', filter: `owner_id=eq.${userId}` },
+        (payload) => applyCaseRow(payload.new as CaseRow)
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'cases', filter: `owner_id=eq.${userId}` },
+        (payload) => applyCaseRow(payload.new as CaseRow)
+      )
+      // DELETE is a separate, deliberately unfiltered subscription. A delete's
+      // old row carries only the replica identity, which for `cases` is the
+      // default (primary key) -- so `owner_id` isn't in it, the
+      // `owner_id=eq.` filter above can't match, and a filtered DELETE is
+      // never delivered at all. Unfiltered it arrives, and it is safe to take
+      // unfiltered precisely because it is PK-only: the payload is one uuid,
+      // no case data of any kind. An id for a case we don't hold just filters
+      // nothing out.
+      .on(
+        'postgres_changes',
+        { event: 'DELETE', schema: 'public', table: 'cases' },
+        (payload) => {
+          const oldId = (payload.old as { id?: string })?.id;
+          if (oldId) setCases(prev => prev.filter(c => c.id !== oldId));
+        }
+      )
+      .subscribe(onCasesResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, realtimeToken, onCasesResync, applyCaseRow]);
+
+  // Live board membership: a case shared into (or removed from) any board
+  // this user can see. Patching `mtbs[].cases` is all this needs to do --
+  // MTBDetail's own fetch is keyed on that list (its `mtbCaseKey`), so the
+  // board's case table re-reads itself, and it re-reads through
+  // `cases_viewer_safe`. That's why this is the safe shape where a `cases`
+  // subscription wouldn't be: the payload here is two foreign keys and no
+  // patient data, and the masked view stays on the path that renders.
+  //
+  // Deliberately unfiltered: mtb_cases has RLS enabled (verified live
+  // 2026-09-29) with owner- and member-scoped SELECT policies, so Realtime
+  // evaluates them per subscriber and the server decides what this client
+  // may see. A client-side mtb_id filter would have to be rebuilt every time
+  // the user's board list changed, and would add nothing to that.
+  //
+  // INSERT only, and that is a hard limit rather than a choice. For an
+  // RLS-enabled table, realtime.apply_rls() strips a DELETE's old_record down
+  // to primary-key columns ("if RLS enabled, we can't secure deletes so filter
+  // to pkey") no matter what the replica identity is. mtb_cases's primary key
+  // is a surrogate `id`, so a removal arrives as one opaque uuid naming
+  // neither the board nor the case -- there is nothing this handler could do
+  // with it. Removals are handled where the board id is already known, by the
+  // mtb_id-filtered subscription in MTBDetail, which calls syncMtbCaseIds to
+  // push the authoritative list back here.
+  useEffect(() => {
+    if (!userId || !realtimeToken) return;
+    const channel = supabase
+      .channel(`mtb-cases-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mtb_cases' },
+        (payload) => {
+          const row = payload.new as { mtb_id?: string; case_id?: string };
+          if (!row?.mtb_id || !row?.case_id) return;
+          const { mtb_id: mtbId, case_id: caseId } = row;
+          setMTBs(prev => prev.map(m => (
+            m.id === mtbId && !m.cases.includes(caseId) ? { ...m, cases: [...m.cases, caseId] } : m
+          )));
+        }
+      )
+      .subscribe(onMtbsResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, realtimeToken, onMtbsResync]);
+
+  // Live board details: a rename or a notification toggle made in another
+  // session. Unfiltered for the same reason as mtb_cases above -- mtbs has
+  // RLS enabled, so the server scopes delivery to boards this user owns or
+  // belongs to.
+  //
+  // An INSERT is a board this user owns, created in another session or tab
+  // (anyone else's is hidden by RLS until they join, and joining refetches).
+  // It refetches rather than patching, because a board's `experts`/`cases`
+  // counts are computed by refetchMTBs, not carried on the row -- and a new
+  // board is rare enough that precision isn't worth the extra bookkeeping.
+  // There is no delete-a-board path in the app at all (no deleteMTB anywhere
+  // in src/), so there is no DELETE to handle.
+  useEffect(() => {
+    if (!userId || !realtimeToken) return;
+    const channel = supabase
+      .channel(`mtbs-${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'mtbs' },
+        (payload) => {
+          const row = payload.new as { id?: string };
+          if (!row?.id || mtbsRef.current.some(m => m.id === row.id)) return;
+          void refetchMTBs();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'mtbs' },
+        (payload) => {
+          const row = payload.new as { id?: string; name?: string; notification_enabled?: boolean | null };
+          if (!row?.id) return;
+          setMTBs(prev => prev.map(m => (
+            m.id === row.id
+              ? { ...m, name: row.name ?? m.name, notificationEnabled: row.notification_enabled ?? true }
+              : m
+          )));
+        }
+      )
+      .subscribe(onMtbDetailsResync);
+    return () => { supabase.removeChannel(channel); };
+  }, [userId, realtimeToken, onMtbDetailsResync, refetchMTBs]);
 
   const createCase = useCallback(async (
     caseData: Omit<Case, 'id' | 'createdDate' | 'ownerId'> & { requestId?: string },
@@ -465,6 +659,10 @@ export function CasesProvider({ children }: { children: ReactNode }) {
 
   const deleteCase = useCallback(async (id: string) => {
     if (!userId) throw new Error('User not authenticated');
+    // A coordinator passes the owner check below (they act as the owner), so
+    // this is the only thing separating "can archive" from "can delete" on
+    // the client. Enforced server-side too, by trg_cases_delete_role.
+    if (role === 'site_data_coordinator') throw new Error('Site Data Coordinators cannot delete a case');
 
     // Verify ownership
     const { data: caseData, error: fetchError } = await supabase
@@ -491,7 +689,7 @@ export function CasesProvider({ children }: { children: ReactNode }) {
 
     setCases(prev => prev.filter(c => c.id !== id));
     setMTBs(prev => prev.map(m => (m.cases.includes(id) ? { ...m, cases: m.cases.filter(cid => cid !== id) } : m)));
-  }, [userId]);
+  }, [userId, role]);
 
   // Verification goes through verify_case_summary(): it refuses while a new
   // summary is being generated, and refuses if the case changed after the
@@ -569,6 +767,9 @@ export function CasesProvider({ children }: { children: ReactNode }) {
 
   const createMTB = useCallback(async (name: string) => {
     if (!userId) throw new Error('User not authenticated');
+    // Defense-in-depth alongside the RESTRICTIVE RLS policy on mtbs -- an
+    // MTB Expert has no case-creation/board-ownership role in this product.
+    if (role === 'mtb_expert') throw new Error('MTB Experts cannot create MTBs');
     const joinCode = Math.random().toString(36).substring(2, 10).toUpperCase();
     const { data, error } = await supabase
       .from('mtbs')
@@ -595,7 +796,7 @@ export function CasesProvider({ children }: { children: ReactNode }) {
       joinCode: data.join_code,
       notificationEnabled: data.notification_enabled ?? true,
     }]);
-  }, [userId]);
+  }, [userId, role]);
 
   const joinMTB = useCallback(async (joinCode: string) => {
     if (!userId) throw new Error('User not authenticated');
@@ -607,42 +808,52 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     if (mtbError) throw mtbError;
     if (!mtb) throw new Error('Invalid join code');
 
-    // Prevent owner from joining their own MTB
+    // Prevent owner from joining their own MTB (userId here is the
+    // effective owner, so this correctly also blocks an SDC from "joining"
+    // an MTB their own linked clinician owns).
     if (mtb.owner_id === userId) {
       throw new Error('You cannot join your own MTB');
     }
 
-    const { error } = await supabase.from('mtb_members').insert({ mtb_id: mtb.id, user_id: userId });
+    // Membership is a personal relationship, not clinician-delegated (see
+    // the ownUserId comment above CasesProvider) -- an SDC joining an MTB
+    // by typing in a join code shouldn't silently enroll the clinician,
+    // who may not know about it. Use ownUserId, not the effective userId.
+    const { error } = await supabase.from('mtb_members').insert({ mtb_id: mtb.id, user_id: ownUserId });
     if (error) throw error;
     // Member and case counts for the joined board aren't known locally.
     await refetchMTBs();
-  }, [userId, refetchMTBs]);
+  }, [userId, ownUserId, refetchMTBs]);
 
   const leaveMTB = useCallback(async (mtbId: string) => {
-    if (!userId) throw new Error('User not authenticated');
+    if (!ownUserId) throw new Error('User not authenticated');
 
-    // Remove user from mtb_members
+    // Remove user from mtb_members -- ownUserId to match the personal-
+    // membership insert in joinMTB above.
     const { error } = await supabase
       .from('mtb_members')
       .delete()
       .eq('mtb_id', mtbId)
-      .eq('user_id', userId);
+      .eq('user_id', ownUserId);
 
     if (error) throw error;
     setMTBs(prev => prev.filter(m => m.id !== mtbId));
-  }, [userId]);
+  }, [ownUserId]);
 
   const addCaseToMTB = useCallback(async (mtbId: string, caseId: string) => {
+    // Defense-in-depth alongside the RESTRICTIVE RLS policy on mtb_cases.
+    if (role === 'mtb_expert') throw new Error('MTB Experts cannot add cases to an MTB');
     const { error } = await supabase.from('mtb_cases').insert({ mtb_id: mtbId, case_id: caseId });
     if (error) throw error;
     setMTBs(prev => prev.map(m => (
       m.id === mtbId && !m.cases.includes(caseId) ? { ...m, cases: [...m.cases, caseId] } : m
     )));
-  }, []);
+  }, [role]);
 
   // One batch insert; the mtb_cases insert trigger notifies each MTB's members.
   const addCaseToMTBs = useCallback(async (caseId: string, mtbIds: string[]) => {
     if (mtbIds.length === 0) return;
+    if (role === 'mtb_expert') throw new Error('MTB Experts cannot add cases to an MTB');
     const { error } = await supabase
       .from('mtb_cases')
       .insert(mtbIds.map(mtbId => ({ mtb_id: mtbId, case_id: caseId })));
@@ -650,7 +861,7 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     setMTBs(prev => prev.map(m => (
       mtbIds.includes(m.id) && !m.cases.includes(caseId) ? { ...m, cases: [...m.cases, caseId] } : m
     )));
-  }, []);
+  }, [role]);
 
   const removeCaseFromMTB = useCallback(async (mtbId: string, caseId: string) => {
     const { error } = await supabase
@@ -694,6 +905,9 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     mtbId: string | null = null
   ): Promise<Opinion> => {
     if (!userId) throw new Error('User not authenticated');
+    // Defense-in-depth alongside the RESTRICTIVE RLS policy on
+    // case_opinions -- a Site Data Coordinator never posts opinions.
+    if (role === 'site_data_coordinator') throw new Error('Site Data Coordinators cannot post opinions');
 
     let opinionMtbId = mtbId ?? null;
     if (parentId) {
@@ -730,7 +944,7 @@ export function CasesProvider({ children }: { children: ReactNode }) {
       .single();
     if (error) throw error;
     return mapOpinionRow(data);
-  }, [userId]);
+  }, [userId, role]);
 
   const updateOpinion = useCallback(async (opinionId: string, content: string) => {
     const { error } = await supabase
@@ -859,11 +1073,12 @@ export function CasesProvider({ children }: { children: ReactNode }) {
     getCaseById,
     getCaseOpinions,
     refreshProcessingCases,
+    syncMtbCaseIds,
   }), [
     cases, mtbs, casesLoading, mtbsLoading, refetchCases, refetchMTBs, createCase, updateCase,
     deleteCase, verifySummary, saveSummaryEdit, regenerateSummary, refreshCase, archiveCase, unarchiveCase, createMTB, joinMTB, leaveMTB,
     addCaseToMTB, addCaseToMTBs, removeCaseFromMTB, updateMTBName, updateMTBNotification, addOpinion,
-    updateOpinion, addFollowUp, getCaseById, getCaseOpinions, refreshProcessingCases,
+    updateOpinion, addFollowUp, getCaseById, getCaseOpinions, refreshProcessingCases, syncMtbCaseIds,
   ]);
 
   return (

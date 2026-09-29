@@ -3,8 +3,9 @@ import { useAuth } from './AuthContext';
 import { supabase } from '../Supabase/client';
 import { showToast } from '../utils/toast';
 import {
-  ALL_SAVED_KEYS,
+  applicableSavedKeys,
   CASE_SECTION_GROUPS,
+  isKeySatisfied,
   OnboardingKey,
   TOUR_GROUPS,
   TOUR_GROUP_ORDER,
@@ -99,7 +100,7 @@ const openChannel = (): BroadcastChannel | null => {
 };
 
 export function OnboardingProvider({ children }: { children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, role } = useAuth();
   const userId = user?.id;
   const [status, setStatus] = useState<Status>('idle');
   const [seen, setSeen] = useState<Record<string, string>>({});
@@ -286,12 +287,12 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     setSeen(next);
     void writeSeen(userId, id);
     broadcast({ userId, type: 'seen', key: id });
-    // Everything seen: the walkthrough is over.
-    if (ALL_SAVED_KEYS.every(k => next[k])) {
+    // Everything this role's walkthrough can ever show has been seen: over.
+    if (role && applicableSavedKeys(role).every(k => next[k])) {
       setEnded(true);
       void writeEnded(userId);
     }
-  }, [userId, writeSeen, writeEnded, broadcast]);
+  }, [userId, role, writeSeen, writeEnded, broadcast]);
 
   const complete = useCallback((keys: OnboardingKey[]) => keys.forEach(markSeen), [markSeen]);
 
@@ -370,10 +371,14 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   // A running group keeps going until it ends or its screen goes away.
   useEffect(() => {
     const startFor = (id: TourGroupId): number | null => {
-      if (status !== 'ready' || ended || !requested.includes(id) || deferred.includes(id)) return null;
+      if (!role || status !== 'ready' || ended || !requested.includes(id) || deferred.includes(id)) return null;
       const group = TOUR_GROUPS[id];
-      if (id !== 'welcome' && !seen.welcome) return null;
-      if (group.requires?.some(k => !seen[k])) return null;
+      if (group.allowedRoles && !group.allowedRoles.includes(role)) return null;
+      // Every group but welcome waits for it -- unless welcome itself
+      // doesn't apply to this role, in which case it can never be seen and
+      // must not block everything else forever (isKeySatisfied).
+      if (id !== 'welcome' && !isKeySatisfied('welcome', role, seen)) return null;
+      if (group.requires?.some(k => !isKeySatisfied(k, role, seen))) return null;
       if (group.blockedBy?.some(k => seen[k])) return null;
       if (group.kind === 'tip') return seen[id] ? null : 0;
       if (id === 'welcome') return seen.welcome ? null : 0;
@@ -388,7 +393,7 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       }
       return null;
     });
-  }, [status, ended, seen, sessionSeen, resumable, requested, deferred]);
+  }, [status, ended, seen, sessionSeen, resumable, requested, deferred, role]);
 
   const value = useMemo(
     () => ({

@@ -9,6 +9,7 @@ import { InlineOpinionInput } from '../components/InlineOpinionInput';
 import { EditorToolbar } from '../components/EditorToolbar';
 import { SamplePdf } from '../components/onboarding/SamplePdf';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix } from '../components/RoleRoute';
 import { useCaseCreation } from '../context/CaseCreationContext';
 import { useOnboarding } from '../context/OnboardingContext';
 import { useIsMobile } from '../hooks/useMobile';
@@ -49,8 +50,13 @@ const toHtml = (markdown: string) => DOMPurify.sanitize(marked.parse(markdown, {
 
 export function SampleCase() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
-  const { user } = useAuth();
+  const { user, role } = useAuth();
+  // Mirrors ViewCase.tsx's real Opinions-tab filter: a Site Data
+  // Coordinator never sees it there, so the guided tour's sample case
+  // shouldn't teach a tab this role will never actually have.
+  const visibleTabs = TABS.filter(tab => tab.id !== 'opinions' || role !== 'site_data_coordinator');
   const { sampleDemo, setSampleDemo, clearAll: clearCaseDraft } = useCaseCreation();
   const { activeGroup, caseSectionRunning, complete } = useOnboarding();
 
@@ -66,8 +72,8 @@ export function SampleCase() {
   // Held in memory only: a refresh (or arriving here directly) has nothing
   // to show.
   useEffect(() => {
-    if (!sampleDemo) navigate('/my-cases', { replace: true });
-  }, [sampleDemo, navigate]);
+    if (!sampleDemo) navigate(`${rolePrefix}/my-cases`, { replace: true });
+  }, [sampleDemo, navigate, rolePrefix]);
 
   // The wizard draft that made the sample is done with; leaving the page
   // discards the sample itself.
@@ -132,7 +138,7 @@ export function SampleCase() {
             other tabs locked until the summary is verified. */}
         <div className="case-tabs-sticky border-b border-border mb-4">
           <nav className={`-mb-px flex items-center ${isMobile ? 'overflow-x-auto no-scrollbar gap-1' : 'gap-6'}`}>
-            {TABS.map(({ id, label, mobileLabel }) => {
+            {visibleTabs.map(({ id, label, mobileLabel }) => {
               const locked = id !== 'summary' && !verified;
               return (
                 <button
@@ -168,7 +174,7 @@ export function SampleCase() {
           <div className={`flex gap-2 flex-shrink-0 ${isMobile ? 'flex-col-reverse' : ''}`}>
             <button
               type="button"
-              onClick={() => leave('/my-cases')}
+              onClick={() => leave(`${rolePrefix}/my-cases`)}
               className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-surface text-text hover:bg-bg transition-colors"
             >
               Exit sample
@@ -176,7 +182,7 @@ export function SampleCase() {
             {caseSectionRunning && (
               <button
                 type="button"
-                onClick={() => leave('/mtbs')}
+                onClick={() => leave(`${rolePrefix}/mtbs`)}
                 data-tour="sample-continue"
                 className="px-3 py-1.5 text-sm font-medium rounded-lg text-on-solid bg-primary-solid hover:bg-primary-solid-hover transition-colors"
               >

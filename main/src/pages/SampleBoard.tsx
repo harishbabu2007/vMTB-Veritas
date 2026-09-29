@@ -2,11 +2,13 @@ import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FileText, FlaskConical, Plus, Users, Video } from 'lucide-react';
 import { Layout } from '../components/Layout';
+import { useAuth } from '../context/AuthContext';
 import { useOnboarding } from '../context/OnboardingContext';
 import { useIsMobile } from '../hooks/useMobile';
 import { useTourGroup } from '../hooks/useTourGroup';
 import { showToast } from '../utils/toast';
 import { SAMPLE_BOARD } from '../onboarding/sampleCase';
+import { useRolePrefix } from '../components/RoleRoute';
 
 // The walkthrough's sample board: a look-alike of a board page so a new user,
 // who has no board yet, can see where Add Case and Meeting are.
@@ -18,7 +20,9 @@ import { SAMPLE_BOARD } from '../onboarding/sampleCase';
 
 export function SampleBoard() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
+  const { role } = useAuth();
   const { mtbSectionRunning } = useOnboarding();
   const runningOnArrival = useRef(mtbSectionRunning);
 
@@ -27,8 +31,8 @@ export function SampleBoard() {
   // section here doesn't bounce the user while the tour's last button is
   // taking them somewhere else.
   useEffect(() => {
-    if (!runningOnArrival.current) navigate('/mtbs', { replace: true });
-  }, [navigate]);
+    if (!runningOnArrival.current) navigate(`${rolePrefix}/mtbs`, { replace: true });
+  }, [navigate, rolePrefix]);
 
   useTourGroup('sample_board', mtbSectionRunning);
 
@@ -70,15 +74,20 @@ export function SampleBoard() {
               </div>
             </div>
             <div className={`flex items-center ${isMobile ? 'w-full justify-end gap-2' : 'gap-3'}`}>
-              <button
-                type="button"
-                onClick={sampleOnly}
-                data-tour="mtb-meeting"
-                className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors ${buttonSize}`}
-              >
-                <Video className="w-4 h-4" />
-                <span>Meeting</span>
-              </button>
+              {/* Mirrors the real board (MTBDetail.tsx): Site Data
+                  Coordinator never gets this button there, so the sample
+                  shouldn't teach it either. */}
+              {role !== 'site_data_coordinator' && (
+                <button
+                  type="button"
+                  onClick={sampleOnly}
+                  data-tour="mtb-meeting"
+                  className={`flex items-center justify-center gap-2 bg-success-solid text-on-solid rounded-lg hover:bg-success-solid-hover transition-colors ${buttonSize}`}
+                >
+                  <Video className="w-4 h-4" />
+                  <span>Meeting</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={sampleOnly}

@@ -19,8 +19,11 @@ currently **git-untracked** despite being live infrastructure (per the root
 ## The chain, in order
 
 0. **Trigger wrapper (`200-OK-V2`).** The frontend never calls the real
-   converter directly. `ReviewCase.tsx` POSTs to
-   `/trigger-converter-files-to-png`, which routes to `200-OK-V2`
+   converter directly. Case creation (`useCreateCase.ts`) only POSTs to
+   `/trigger-converter-files-to-png` as a fallback, when it couldn't create a
+   tracked `case_pipeline_runs` row first (see "Edits and pipeline runs"
+   below for the normal, tracked path via `start_initial_run`). Either way
+   this route eventually goes through `200-OK-V2`
    (`main/Cloud Functions/AWS/200-OK-V2/lambda_function.py`). This fires the
    actual request at `VMTB-CONVERT-DOC2PNG-V2` with a 5s socket timeout,
    **deliberately ignores the response or any error from it**, and always
@@ -37,7 +40,7 @@ currently **git-untracked** despite being live infrastructure (per the root
 1. **Presign.** `VMTB-S3-Presigned-URLS-V2` /
    `VMTB-S3-PRESIGNED-URLS_4_UPLOAD_NEW_DOCUMENTS_V2` issue short-lived S3
    `PUT`/POST-form credentials plus a `request_id`. The browser
-   (`ReviewCase.tsx`) uploads each pending file straight to S3 using those
+   (`useCreateCase.ts`) uploads each pending file straight to S3 using those
    credentials — no Lambda sees the file bytes at upload time.
 
 2. **PDF → PNG.** `ConvertPdf2Png` (deployed as `VMTB-CONVERT-DOC2PNG-V2`;
@@ -422,7 +425,7 @@ uploads of the run it replaces (minus any removed in the same save).
 | RPC | Refuses with |
 |---|---|
 | `commit_case_edits` | `NOTHING_TO_SAVE` (incl. identical notes), `DOCUMENT_NOT_READY:<name>` (not anonymized yet), `DUPLICATE_DOCUMENT:<name>`, `INVALID_CHANGE`, `CASE_WOULD_BE_EMPTY` (unless `empty_action='archive'`), `NOT_OWNER` |
-| `start_initial_run` | used by case creation (`ReviewCase.tsx`) |
+| `start_initial_run` | used by case creation (`useCreateCase.ts`) |
 | `start_regeneration` | `RUN_IN_PROGRESS`, `REGENERATION_LIMIT` (5). An edit that supersedes a regeneration refunds it |
 | `retry_case_run` | `NOTHING_TO_RETRY` |
 | `verify_case_summary(case, generation)` | `SUMMARY_NOT_READY` (a run is active), `STALE_GENERATION`, `PATIENT_DETAILS_MISSING` |

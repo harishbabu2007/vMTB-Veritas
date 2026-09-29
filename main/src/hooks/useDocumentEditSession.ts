@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '../Supabase/client';
 import type { RedactionBBox, RedactionChange, RedactionStyle } from '../services/redactionService';
+import { generateUUID } from '../utils/uuid';
 
 /**
  * Everything a case owner has changed on the Reports tab that isn't saved
@@ -40,7 +41,7 @@ export interface SessionSnapshot extends StoredDraft {
 const storageKey = (caseId: string) => `vmtb:document-edit-session:${caseId}`;
 
 function newSessionId() {
-  return crypto.randomUUID();
+  return generateUUID();
 }
 
 function emptyDraft(): StoredDraft {

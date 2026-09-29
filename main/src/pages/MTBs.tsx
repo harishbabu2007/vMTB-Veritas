@@ -5,13 +5,15 @@ import { Layout } from '../components/Layout';
 import { Modal } from '../components/Modal';
 import { useCases } from '../context/CasesContext';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix } from '../components/RoleRoute';
 import { useIsMobile } from '../hooks/useMobile';
 import { useTourGroup } from '../hooks/useTourGroup';
 
 export function MTBs() {
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const { mtbs, createMTB, joinMTB, mtbsLoading: loading } = useCases();
-  const { user } = useAuth();
+  const { role, effectiveOwnerId } = useAuth();
   const isMobile = useIsMobile();
   useTourGroup('mtbs', !loading);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -38,13 +40,13 @@ export function MTBs() {
         return b.experts - a.experts;
       }
 
-      const aIsOwner = a.ownerId === user?.id;
-      const bIsOwner = b.ownerId === user?.id;
+      const aIsOwner = a.ownerId === effectiveOwnerId;
+      const bIsOwner = b.ownerId === effectiveOwnerId;
       if (aIsOwner && !bIsOwner) return -1;
       if (!aIsOwner && bIsOwner) return 1;
       return a.name.localeCompare(b.name);
     });
-  }, [mtbs, searchQuery, sortBy, user?.id]);
+  }, [mtbs, searchQuery, sortBy, effectiveOwnerId]);
 
   const handleCreateMTB = async () => {
     if (!mtbName.trim()) return;
@@ -93,14 +95,16 @@ export function MTBs() {
               <Plus className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
               <span>Join MTB</span>
             </button>
-            <button
-              onClick={() => setShowCreateModal(true)}
-              data-tour="create-mtb"
-              className={`flex items-center justify-center space-x-2 rounded-lg text-on-solid transition-opacity hover:opacity-90 bg-primary-solid ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
-            >
-              <Plus className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
-              <span>Create MTB</span>
-            </button>
+            {role !== 'mtb_expert' && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                data-tour="create-mtb"
+                className={`flex items-center justify-center space-x-2 rounded-lg text-on-solid transition-opacity hover:opacity-90 bg-primary-solid ${isMobile ? 'flex-1 px-3 py-2 text-sm' : 'px-4 py-2'}`}
+              >
+                <Plus className={isMobile ? 'w-4 h-4' : 'w-5 h-5'} />
+                <span>Create MTB</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -133,11 +137,11 @@ export function MTBs() {
         ) : (
           <div className={`grid gap-3 ${isMobile ? 'grid-cols-1' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4'}`}>
             {sortedMtbs.map((mtb) => {
-              const isOwner = mtb.ownerId === user?.id;
+              const isOwner = mtb.ownerId === effectiveOwnerId;
               return (
                 <div
                   key={mtb.id}
-                  onClick={() => navigate(`/mtb/${mtb.id}`)}
+                  onClick={() => navigate(`${rolePrefix}/mtb/${mtb.id}`)}
                   className="bg-surface rounded-xl shadow-sm border border-border hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
                 >
                   <div className="flex">

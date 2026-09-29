@@ -16,6 +16,7 @@
  */
 import { supabase } from '../Supabase/client';
 import type { RedactionChange } from './redactionService';
+import { generateUUID } from '../utils/uuid';
 
 const API_BASE = 'https://gzgrswe52e.execute-api.ap-south-1.amazonaws.com/dev';
 
@@ -232,7 +233,7 @@ export async function startRun(runId: string): Promise<void> {
 }
 
 /** A fresh id for one save / regenerate / retry request. */
-export const newRequestId = () => crypto.randomUUID();
+export const newRequestId = () => generateUUID();
 
 // ---------------------------------------------------------------------------
 // Cross-tab notice: a save in one tab tells other tabs showing the same case

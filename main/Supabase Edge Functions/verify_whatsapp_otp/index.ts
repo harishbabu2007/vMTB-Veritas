@@ -1,292 +1,3 @@
-// import { serve } from "https://deno.land/std/http/server.ts";
-// import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
-// /* =========================
-//    INLINE CORS
-// ========================= */
-// const corsHeaders = {
-//   "Access-Control-Allow-Origin": "*",
-//   "Access-Control-Allow-Headers":
-//     "authorization, x-client-info, apikey, content-type",
-// };
-
-// /* =========================
-//    SUPABASE CLIENT (ADMIN)
-// ========================= */
-// const supabase = createClient(
-//   Deno.env.get("SUPABASE_URL")!,
-//   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-// );
-
-// /* =========================
-//    HELPERS
-// ========================= */
-// async function sha256(input: string): Promise<string> {
-//   const data = new TextEncoder().encode(input);
-//   const hash = await crypto.subtle.digest("SHA-256", data);
-//   return Array.from(new Uint8Array(hash))
-//     .map((b) => b.toString(16).padStart(2, "0"))
-//     .join("");
-// }
-
-// /* =========================
-//    EDGE FUNCTION
-// ========================= */
-// serve(async (req) => {
-//   console.log("========== verify_whatsapp_otp START ==========");
-
-//   // ✅ CORS preflight
-//   if (req.method === "OPTIONS") {
-//     console.log("OPTIONS request received");
-//     return new Response("ok", { headers: corsHeaders });
-//   }
-
-//   try {
-//     const body = await req.json();
-
-//     console.log("Received Request Body:", body);
-
-//     const { phone, otp, email, password, full_name } = body;
-
-//     console.log("Parsed Fields:", {
-//       phone,
-//       otp,
-//       email,
-//       passwordPresent: !!password,
-//       full_name,
-//     });
-
-//     if (!phone || !otp || !email || !password) {
-//       console.error("Validation Failed: Missing required fields", {
-//         phone,
-//         otp,
-//         email,
-//         passwordPresent: !!password,
-//         full_name,
-//       });
-
-//       return new Response(
-//         JSON.stringify({ error: "missing required fields" }),
-//         { status: 400, headers: corsHeaders }
-//       );
-//     }
-
-//     const otpHash = await sha256(otp);
-
-//     console.log("Generated OTP Hash:", otpHash);
-
-//     // Fetch latest valid OTP
-//     const { data: records, error: fetchError } = await supabase
-//       .from("whatsapp_otps")
-//       .select("*")
-//       .eq("phone", phone)
-//       .eq("verified", false)
-//       .gt("expires_at", new Date().toISOString())
-//       .order("created_at", { ascending: false })
-//       .limit(1);
-
-//     console.log("Database Query Error:", fetchError);
-//     console.log("OTP Records Found:", records);
-
-//     if (!records || records.length === 0) {
-//       console.error("No valid OTP record found.", {
-//         phone,
-//         currentTime: new Date().toISOString(),
-//       });
-
-//       return new Response(
-//         JSON.stringify({ error: "OTP expired or invalid" }),
-//         { status: 400, headers: corsHeaders }
-//       );
-//     }
-
-//     const record = records[0];
-
-//     console.log("Latest OTP Record:", {
-//       id: record.id,
-//       phone: record.phone,
-//       verified: record.verified,
-//       attempts: record.attempts,
-//       max_attempts: record.max_attempts,
-//       expires_at: record.expires_at,
-//       stored_hash: record.otp_hash,
-//     });
-
-//     if (record.attempts >= record.max_attempts) {
-//       console.error("Maximum OTP attempts exceeded.", {
-//         attempts: record.attempts,
-//         max_attempts: record.max_attempts,
-//       });
-
-//       return new Response(
-//         JSON.stringify({ error: "too many attempts" }),
-//         { status: 403, headers: corsHeaders }
-//       );
-//     }
-
-//     console.log("Comparing OTP Hashes...");
-//     console.log("Stored Hash :", record.otp_hash);
-//     console.log("Entered Hash:", otpHash);
-
-//     if (record.otp_hash !== otpHash) {
-//       console.error("OTP Hash Mismatch");
-
-//       const { error: updateError } = await supabase
-//         .from("whatsapp_otps")
-//         .update({ attempts: record.attempts + 1 })
-//         .eq("id", record.id);
-
-//       console.log("Attempt Increment Error:", updateError);
-
-//       return new Response(
-//         JSON.stringify({ error: "invalid OTP" }),
-//         { status: 400, headers: corsHeaders }
-//       );
-//     }
-
-//     console.log("OTP Verified Successfully");
-
-//     // Mark OTP as used
-//     const { error: verifyUpdateError } = await supabase
-//       .from("whatsapp_otps")
-//       .update({ verified: true })
-//       .eq("id", record.id);
-
-//     console.log("Mark Verified Update Error:", verifyUpdateError);
-
-//     console.log("Fetching authenticated user from JWT...");
-
-//     const authHeader = req.headers.get("Authorization");
-
-//     if (!authHeader) {
-//       console.error("Authorization header missing");
-
-//       return new Response(
-//         JSON.stringify({ error: "Authorization header missing" }),
-//         { status: 401, headers: corsHeaders }
-//       );
-//     }
-
-//     const jwt = authHeader.replace("Bearer ", "");
-
-//     const {
-//       data: { user },
-//       error: authError,
-//     } = await supabase.auth.getUser(jwt);
-
-//     console.log("Authenticated User:", user);
-//     console.log("Auth Error:", authError);
-
-//     if (authError || !user) {
-//       console.error("Failed to fetch authenticated user");
-
-//       return new Response(
-//         JSON.stringify({ error: "Unable to fetch authenticated user" }),
-//         { status: 401, headers: corsHeaders }
-//       );
-//     }
-
-//     console.log("Checking if profile already exists...");
-
-//     const { data: existingProfile, error: profileFetchError } = await supabase
-//       .from("profiles")
-//       .select("id")
-//       .eq("id", user.id)
-//       .maybeSingle();
-
-//     console.log("Existing Profile:", existingProfile);
-//     console.log("Profile Fetch Error:", profileFetchError);
-
-//     if (existingProfile) {
-//       console.log("Updating existing profile...");
-
-//       const { error: updateError } = await supabase
-//         .from("profiles")
-//         .update({
-//           full_name,
-//           whatsapp_number: phone,
-//           whatsapp_verified: true,
-//           whatsapp_opt_in: true,
-//           updated_at: new Date().toISOString(),
-//         })
-//         .eq("id", user.id);
-
-//       console.log("Profile Update Error:", updateError);
-
-//       if (updateError) {
-//         return new Response(
-//           JSON.stringify({ error: updateError.message }),
-//           { status: 400, headers: corsHeaders }
-//         );
-//       }
-//     } else {
-//       console.log("Creating new profile...");
-
-//       const { error: insertError } = await supabase
-//         .from("profiles")
-//         .insert({
-//           id: user.id,
-//           full_name,
-//           whatsapp_number: phone,
-//           whatsapp_verified: true,
-//           whatsapp_opt_in: true,
-//         });
-
-//       console.log("Profile Insert Error:", insertError);
-
-//       if (insertError) {
-//         return new Response(
-//           JSON.stringify({ error: insertError.message }),
-//           { status: 400, headers: corsHeaders }
-//         );
-//       }
-//     }
-
-//     return new Response(
-//       JSON.stringify({ success: true }),
-//       {
-//         headers: {
-//           ...corsHeaders,
-//           "Content-Type": "application/json",
-//         },
-//       }
-//     );
-//   } catch (err) {
-//     console.error("========== verify_whatsapp_otp EXCEPTION ==========");
-//     console.error(err);
-
-//     return new Response(
-//       JSON.stringify({ error: "internal server error" }),
-//       { status: 500, headers: corsHeaders }
-//     );
-//   }
-// });
-
-
-
-
-// supabase/functions/verify_whatsapp_otp/index.ts
-//
-// This Edge Function handles WhatsApp OTP verification for TWO flows:
-//
-// Flow 1 (New User - legacy):
-//   Body: { phone, otp, email, password, full_name, profession?, hospital? }
-//   → Verifies OTP → Creates auth user → Creates profile → Returns success
-//
-// Flow 2 (Existing User - Google OAuth signup):
-//   Body: { phone, otp, user_id? }
-//   → Verifies OTP → Marks phone as verified → Returns success
-//   → The frontend handles profile creation and password update separately
-//
-// The function determines which flow to use based on whether email/password
-// are present in the request body.
-
-// supabase/functions/verify_whatsapp_otp/index.ts
-
-// supabase/functions/verify_whatsapp_otp/index.ts
-
-// supabase/functions/verify_whatsapp_otp/index.ts
-
 // supabase/functions/verify_whatsapp_otp/index.ts
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -302,6 +13,39 @@ async function hashOTP(otp: string): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function hmacHex(secret: string, message: string): Promise<string> {
+  const enc = new TextEncoder();
+  const cryptoKey = await crypto.subtle.importKey(
+    "raw",
+    enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", cryptoKey, enc.encode(message));
+  return Array.from(new Uint8Array(sig)).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// reset_verify hands out one of these after a real OTP check; reset_password
+// requires it. This is what actually ties the two calls together — without
+// it, reset_password had nothing stopping it being called on its own with an
+// arbitrary user_id and no OTP at all.
+async function makeResetToken(userId: string, secret: string): Promise<string> {
+  const expiresAt = Date.now() + 10 * 60 * 1000; // 10 minutes to complete step 3
+  const mac = await hmacHex(secret, `reset:${userId}:${expiresAt}`);
+  return `${expiresAt}.${mac}`;
+}
+
+async function verifyResetToken(userId: string, token: unknown, secret: string): Promise<boolean> {
+  if (typeof token !== "string" || !token.includes(".")) return false;
+  const [expiresAtStr, mac] = token.split(".");
+  const expiresAt = Number(expiresAtStr);
+  if (!Number.isFinite(expiresAt) || !mac) return false;
+  if (Date.now() > expiresAt) return false;
+  const expectedMac = await hmacHex(secret, `reset:${userId}:${expiresAt}`);
+  return expectedMac === mac;
 }
 
 Deno.serve(async (req) => {
@@ -321,16 +65,24 @@ Deno.serve(async (req) => {
       profession,
       hospital,
       user_id,
-      action
+      action,
+      reset_token,
+      role,
+      linked_clinician_id
     } = body;
 
+    // role/linked_clinician_id are logged because they are the one part of
+    // this payload whose absence is invisible in the result: a dropped role
+    // still upserts a perfectly valid profile, just a clinician one.
     console.log("[verify_whatsapp_otp] Request:", JSON.stringify({
       phone,
       otp: otp ? "***" : undefined,
       email,
       passwordPresent: !!password,
       user_id,
-      action
+      action,
+      role,
+      linked_clinician_id
     }));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -366,6 +118,20 @@ Deno.serve(async (req) => {
         return new Response(
           JSON.stringify({ error: "User ID and new password are required." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // This action has no OTP of its own — it only trusts that reset_verify
+      // ran a real OTP check moments earlier. That trust must be provable,
+      // not just asserted by the caller, or anyone with a user_id (or a
+      // registered phone number) could reset any account's password with no
+      // OTP at all. reset_token is the proof: a short-lived, server-signed
+      // ticket minted by reset_verify for this exact user_id.
+      const validToken = await verifyResetToken(targetUserId, reset_token, supabaseServiceRoleKey);
+      if (!validToken) {
+        return new Response(
+          JSON.stringify({ error: "Your password reset session has expired. Please verify your OTP again." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -446,11 +212,25 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Mark OTP as verified
-    await supabaseAdmin
+    // Atomically claim the OTP: the WHERE verified = false makes this a
+    // compare-and-swap, so if two requests raced to this point (double-click,
+    // replay) only one can flip verified false→true and proceed below — the
+    // other gets 0 rows back and is rejected, instead of both going on to run
+    // Action B / reset_password a second time.
+    const { data: claimedOtp, error: claimErr } = await supabaseAdmin
       .from("whatsapp_otps")
       .update({ verified: true })
-      .eq("id", otpRecord.id);
+      .eq("id", otpRecord.id)
+      .eq("verified", false)
+      .select("id")
+      .maybeSingle();
+
+    if (claimErr || !claimedOtp) {
+      return new Response(
+        JSON.stringify({ error: "This OTP has already been used. Please request a new one." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     console.log("[verify_whatsapp_otp] OTP verified successfully!");
 
@@ -471,8 +251,10 @@ Deno.serve(async (req) => {
         );
       }
 
+      const resetToken = await makeResetToken(profiles[0].id, supabaseServiceRoleKey);
+
       return new Response(
-        JSON.stringify({ success: true, user_id: profiles[0].id }),
+        JSON.stringify({ success: true, user_id: profiles[0].id, reset_token: resetToken }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -532,9 +314,57 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Action B: Signup / Existing User Update (Google OAuth completion)
+    // Action B: Signup / Existing User Update (Google OAuth completion, or an
+    // authenticated user changing their own WhatsApp number from their profile)
     if (user_id) {
       console.log("[verify_whatsapp_otp] Updating existing user ID:", user_id);
+
+      // --- Identity check: this branch writes to a specific profile, so the
+      // caller must be authenticated as that exact user. Never trust the
+      // body-supplied user_id on its own — resolve the real caller from their
+      // JWT and require it to match. ---
+      const authHeader = req.headers.get("Authorization");
+      if (!authHeader) {
+        return new Response(
+          JSON.stringify({ error: "Authentication required." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+      const supabaseAsCaller = createClient(supabaseUrl, supabaseAnonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+      const { data: callerData, error: callerErr } = await supabaseAsCaller.auth.getUser();
+      if (callerErr || !callerData?.user) {
+        return new Response(
+          JSON.stringify({ error: "Invalid or expired session. Please log in again." }),
+          { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      if (callerData.user.id !== user_id) {
+        console.error("[verify_whatsapp_otp] user_id mismatch: JWT subject differs from requested user_id");
+        return new Response(
+          JSON.stringify({ error: "You can only update your own profile." }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      // --- Reject if this WhatsApp number is already registered to a
+      // different account, before making any writes. ---
+      const { data: existingOwners, error: dupErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`)
+        .neq("id", user_id);
+
+      if (dupErr) {
+        console.error("[verify_whatsapp_otp] duplicate-check error:", JSON.stringify(dupErr, Object.getOwnPropertyNames(dupErr)));
+      } else if (existingOwners && existingOwners.length > 0) {
+        return new Response(
+          JSON.stringify({ error: "This WhatsApp number is already registered to another account." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
 
       // Step B1: Update Password on auth.users (CRITICAL)
       if (password) {
@@ -582,16 +412,30 @@ Deno.serve(async (req) => {
       if (full_name) profileData.full_name = full_name;
       if (profession) profileData.profession = profession;
       if (hospital) profileData.hospital = hospital;
+      // Only ever written here at signup completion, while whatsapp_verified
+      // is still false on the existing row -- profiles_role_immutable locks
+      // both columns the instant this same upsert flips whatsapp_verified
+      // to true, so this is the one and only place role/linked_clinician_id
+      // are ever set intentionally.
+      if (role) profileData.role = role;
+      if (linked_clinician_id) profileData.linked_clinician_id = linked_clinician_id;
 
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
         .upsert(profileData, { onConflict: "id" });
 
       if (profileError) {
-        console.error("[verify_whatsapp_otp] Step B3 WARNING: Profile upsert error:", JSON.stringify(profileError, Object.getOwnPropertyNames(profileError)));
-      } else {
-        console.log("[verify_whatsapp_otp] Step B3 SUCCESS: Profile upserted successfully");
+        // This upsert is the one and only place role/linked_clinician_id are
+        // ever written -- silently returning success here would leave the
+        // caller believing their role choice was saved when it wasn't.
+        console.error("[verify_whatsapp_otp] Step B3 CRITICAL ERROR: Profile upsert failed:", JSON.stringify(profileError, Object.getOwnPropertyNames(profileError)));
+        return new Response(
+          JSON.stringify({ error: `Failed to save profile: ${profileError.message || JSON.stringify(profileError)}` }),
+          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
       }
+
+      console.log("[verify_whatsapp_otp] Step B3 SUCCESS: Profile upserted successfully");
 
       return new Response(
         JSON.stringify({ success: true }),

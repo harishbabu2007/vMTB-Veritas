@@ -49,12 +49,14 @@ async function insertTranscriptionRow(
   recordingId: string,
   userId: string,
   source: TranscriptionSource,
+  mimeType: string,
 ): Promise<void> {
   console.log(`[VoiceService] Stage 1: Inserting initial row into '${SUPABASE_TABLE}'...`, {
     recording_id: recordingId,
     user_id: userId,
     source,
     status: 'pending',
+    mime_type: mimeType,
   });
 
   const { error } = await supabase
@@ -65,7 +67,7 @@ async function insertTranscriptionRow(
       source: source,
       status: 'pending',
       transcript: null,
-      mime_type: 'audio/webm',
+      mime_type: mimeType,
       language: 'en',
     });
 
@@ -105,15 +107,15 @@ async function getPresignedUrl(recordingId: string, userId: string): Promise<Pre
   return data as PresignedUrlResponse;
 }
 
-// ─── API: Upload Audio Binary (WebM) ────────────────────────────────────────
-async function uploadAudio(presignedUrl: string, audioBlob: Blob): Promise<void> {
-  console.log(`[VoiceService] Stage 3: Uploading original.webm (${audioBlob.size} bytes) to S3...`);
+// ─── API: Upload Audio Binary ───────────────────────────────────────────────
+async function uploadAudio(presignedUrl: string, audioBlob: Blob, mimeType: string): Promise<void> {
+  console.log(`[VoiceService] Stage 3: Uploading recording (${mimeType}, ${audioBlob.size} bytes) to S3...`);
 
   const response = await fetch(presignedUrl, {
     method: 'PUT',
     body: audioBlob,
     headers: {
-      'Content-Type': 'audio/webm',
+      'Content-Type': mimeType,
     },
   });
 
@@ -270,21 +272,24 @@ export async function runTranscriptionPipeline(
   callbacks?: VoiceTranscriptionCallbacks,
 ): Promise<TranscriptionResult> {
   const recordingId = generateUUID();
-  console.log(`[VoiceService] Starting Voice Pipeline. Recording ID: ${recordingId}, User ID: ${userId}, Source: ${source}`);
+  // The blob is labeled with whatever container the recording browser
+  // actually produced (see VoiceRecorder.tsx) — not necessarily WebM.
+  const mimeType = audioBlob.type || 'audio/webm';
+  console.log(`[VoiceService] Starting Voice Pipeline. Recording ID: ${recordingId}, User ID: ${userId}, Source: ${source}, MIME type: ${mimeType}`);
 
   try {
     // Step 1: Insert record into speech_transcriptions BEFORE requesting presigned URL
     callbacks?.onUploadStart?.();
     if (abortSignal.aborted) throw new Error('Cancelled');
-    await insertTranscriptionRow(recordingId, userId, source);
+    await insertTranscriptionRow(recordingId, userId, source, mimeType);
 
     // Step 2: Get presigned URL
     if (abortSignal.aborted) throw new Error('Cancelled');
     const presigned = await getPresignedUrl(recordingId, userId);
 
-    // Step 3: Upload original WebM audio
+    // Step 3: Upload the recorded audio
     if (abortSignal.aborted) throw new Error('Cancelled');
-    await uploadAudio(presigned.presigned_url, audioBlob);
+    await uploadAudio(presigned.presigned_url, audioBlob, mimeType);
     callbacks?.onUploadComplete?.();
 
     // Step 4: Start transcription

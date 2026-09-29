@@ -124,9 +124,12 @@ export function OpinionComment({
         <div className="flex items-center gap-4 mt-2 ml-8">
           <button
             onClick={() => setLiked(!liked)}
-            className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-info' : 'text-text-subtle hover:text-info'}`}
+            aria-pressed={liked}
+            className={`flex items-center gap-1 text-xs transition-colors ${liked ? 'text-info font-medium' : 'text-text-subtle hover:text-info'}`}
           >
-            <ThumbsUp className="w-3 h-3" />
+            {/* Filled, not just recolored, when liked -- a color-only change
+                on a 12px outline icon reads as too subtle at a glance. */}
+            <ThumbsUp className="w-3 h-3" fill={liked ? 'currentColor' : 'none'} />
             <span>Like</span>
           </button>
           {canReply && (

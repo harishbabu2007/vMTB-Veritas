@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, LogOut, Settings, MessageSquare, Home, Users, Archive, Compass } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useRolePrefix, roleHomePath } from './RoleRoute';
 import { useOnboarding } from '../context/OnboardingContext';
 import { Avatar } from './Avatar';
 
@@ -13,7 +14,8 @@ interface MobileNavProps {
 export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const { logout, user } = useAuth();
+  const { logout, user, role } = useAuth();
+  const rolePrefix = useRolePrefix();
   const { restartTour } = useOnboarding();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -40,7 +42,7 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
     navigate('/login', { replace: true });
   };
 
-  const isActive = (path: string) => location.pathname === path;
+  const isActive = (path: string) => location.pathname === `${rolePrefix}${path}`;
 
   const greetingText = (() => {
     const emailPrefix = user?.email ? user.email.split('@')[0] : '';
@@ -56,9 +58,9 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
       <nav className="mobile-nav-header bg-surface border-b border-border sticky top-0 z-50 w-full">
         <div className="flex justify-between items-center h-14 px-4">
           {/* Logo */}
-          <div 
-            className="flex items-center space-x-2 cursor-pointer" 
-            onClick={() => navigate('/my-cases')}
+          <div
+            className="flex items-center space-x-2 cursor-pointer"
+            onClick={() => navigate(roleHomePath(role))}
           >
             <img 
               src="https://i.ibb.co/vxP6Cs3c/logo.png" 
@@ -116,39 +118,44 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
         </div>
 
         {/* Navigation Links */}
-        <div className="py-4">
-          <p className="px-4 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
-            Navigation
-          </p>
-          <button
-            onClick={() => {
-              navigate('/my-cases');
-              setIsMenuOpen(false);
-            }}
-            className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
-              isActive('/my-cases')
-                ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
-                : 'text-text hover:bg-surface-hover'
-            }`}
-          >
-            <Home className="w-5 h-5" />
-            <span className="font-medium">My Cases</span>
-          </button>
-          <button
-            onClick={() => {
-              navigate('/mtbs');
-              setIsMenuOpen(false);
-            }}
-            className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
-              isActive('/mtbs')
-                ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
-                : 'text-text hover:bg-surface-hover'
-            }`}
-          >
-            <Users className="w-5 h-5" />
-            <span className="font-medium">MTBs</span>
-          </button>
-        </div>
+        {/* MTB Expert is a single-page role -- see Layout.tsx's matching
+            comment; the nav section itself is omitted rather than showing
+            one disabled destination next to a working one. */}
+        {role !== 'mtb_expert' && (
+          <div className="py-4">
+            <p className="px-4 text-xs font-semibold text-text-muted uppercase tracking-wider mb-2">
+              Navigation
+            </p>
+            <button
+              onClick={() => {
+                navigate(`${rolePrefix}/my-cases`);
+                setIsMenuOpen(false);
+              }}
+              className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
+                isActive('/my-cases')
+                  ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
+                  : 'text-text hover:bg-surface-hover'
+              }`}
+            >
+              <Home className="w-5 h-5" />
+              <span className="font-medium">My Cases</span>
+            </button>
+            <button
+              onClick={() => {
+                navigate(`${rolePrefix}/mtbs`);
+                setIsMenuOpen(false);
+              }}
+              className={`flex items-center space-x-3 w-full px-4 py-3 text-left transition-colors ${
+                isActive('/mtbs')
+                  ? 'bg-status-processing-bg text-status-processing-text border-r-4 border-primary'
+                  : 'text-text hover:bg-surface-hover'
+              }`}
+            >
+              <Users className="w-5 h-5" />
+              <span className="font-medium">MTBs</span>
+            </button>
+          </div>
+        )}
 
         {/* Settings Section */}
         <div className="py-4 border-t border-border">
@@ -175,27 +182,31 @@ export function MobileNav({ onProfileClick, onFeedbackClick }: MobileNavProps) {
             <MessageSquare className="w-5 h-5" />
             <span className="font-medium">Feedback</span>
           </button>
-          <button
-            onClick={() => {
-              setIsMenuOpen(false);
-              navigate('/my-cases?view=archived');
-            }}
-            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
-          >
-            <Archive className="w-5 h-5" />
-            <span className="font-medium">Archived cases</span>
-          </button>
-          <button
-            onClick={() => {
-              setIsMenuOpen(false);
-              void restartTour();
-              navigate('/my-cases');
-            }}
-            className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
-          >
-            <Compass className="w-5 h-5" />
-            <span className="font-medium">Restart Tour</span>
-          </button>
+          {role !== 'mtb_expert' && (
+            <>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  navigate(`${rolePrefix}/my-cases?view=archived`);
+                }}
+                className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
+              >
+                <Archive className="w-5 h-5" />
+                <span className="font-medium">Archived cases</span>
+              </button>
+              <button
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  void restartTour();
+                  navigate(`${rolePrefix}/my-cases`);
+                }}
+                className="flex items-center space-x-3 w-full px-4 py-3 text-left text-text hover:bg-surface-hover transition-colors"
+              >
+                <Compass className="w-5 h-5" />
+                <span className="font-medium">Restart Tour</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Logout Section */}

@@ -4,6 +4,7 @@ import { ArrowLeft, CalendarDays, Clock, Users, FileText, AlertCircle, CheckCirc
 import { Layout } from '../components/Layout';
 import { supabase } from '../Supabase/client';
 import { useIsMobile } from '../hooks/useMobile';
+import { useRolePrefix } from '../components/RoleRoute';
 
 const MOM_REFRESH_INTERVAL_MS = 60_000;
 
@@ -67,6 +68,7 @@ function formatTime(dateStr: string): string {
 export function MeetingDetail() {
   const { mtbId, meetingId } = useParams<{ mtbId: string; meetingId: string }>();
   const navigate = useNavigate();
+  const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
 
   const [session, setSession] = useState<MeetingSession | null>(null);
@@ -161,7 +163,7 @@ export function MeetingDetail() {
         <div className="text-center py-12">
           <p className="text-sm text-danger">{error || 'Meeting not found'}</p>
           <button
-            onClick={() => navigate(`/mtb/${mtbId}`)}
+            onClick={() => navigate(`${rolePrefix}/mtb/${mtbId}`)}
             className="mt-3 text-sm text-info hover:text-info-text"
           >
             Back to MTB
@@ -178,7 +180,7 @@ export function MeetingDetail() {
       <div className={isMobile ? 'space-y-4' : 'space-y-6'}>
         {/* Back button */}
         <button
-          onClick={() => navigate(`/mtb/${mtbId}`)}
+          onClick={() => navigate(`${rolePrefix}/mtb/${mtbId}`)}
           className="flex items-center gap-1.5 text-sm text-text-subtle hover:text-text transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
