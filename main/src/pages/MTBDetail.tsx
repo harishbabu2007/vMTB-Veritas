@@ -15,7 +15,7 @@ import { getMtbCaseStatusMeta } from '../utils/summaryStatus';
 import { useActiveMeeting } from '../hooks/useActiveMeeting';
 import { useRealtimeResync } from '../hooks/useRealtimeResync';
 import { useRealtimeAuthToken } from '../hooks/useRealtimeAuth';
-import { buildMeetingUrl } from '../utils/roomName';
+import { openMeetingTab } from '../utils/roomName';
 
 type MTBDetailTab = 'cases' | 'meetings';
 
@@ -379,10 +379,13 @@ export function MTBDetail() {
                   tab removal below. */}
               {role !== 'site_data_coordinator' && (
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!mtb) return;
-                    const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
-                    window.open(url, '_blank');
+                    // Mints a server-side join ticket, so this can fail
+                    // (not a member, network) -- surface it rather than
+                    // opening a meeting the transcript can't attribute.
+                    const error = await openMeetingTab(mtb);
+                    if (error) showToast.error(error);
                   }}
                   data-tour="mtb-meeting"
                   // An MTB Expert can only ever join a meeting someone else

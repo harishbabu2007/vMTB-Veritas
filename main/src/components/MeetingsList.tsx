@@ -2,8 +2,8 @@ import { useNavigate } from 'react-router-dom';
 import { CalendarDays, Clock, Users, Video, AlertCircle, FileText, ChevronRight } from 'lucide-react';
 import { useActiveMeeting } from '../hooks/useActiveMeeting';
 import { useMeetingHistory, MeetingHistoryItem } from '../hooks/useMeetingHistory';
-import { buildMeetingUrl } from '../utils/roomName';
-import { useAuth } from '../context/AuthContext';
+import { openMeetingTab } from '../utils/roomName';
+import { showToast } from '../utils/toast';
 import { useIsMobile } from '../hooks/useMobile';
 import { useRolePrefix } from './RoleRoute';
 
@@ -130,22 +130,23 @@ function MeetingCard({ meeting, mtbId }: { meeting: MeetingHistoryItem; mtbId: s
 }
 
 export function MeetingsList({ mtbId, mtb, onToggleNotification, togglingNotification }: MeetingsListProps) {
-  const { user } = useAuth();
   const { activeMeeting, loading: activeLoading } = useActiveMeeting(mtbId);
   const { meetings, loading: historyLoading, error: historyError } = useMeetingHistory(mtbId);
   const isMobile = useIsMobile();
 
-  const joinMeeting = () => {
+  // joinMeeting and startMeeting were byte-identical -- both just open the
+  // meeting tab. One implementation now; the two names are kept because the
+  // JSX reads better with them. Minting the join ticket can fail (not a
+  // member, network), so the result is surfaced instead of silently opening
+  // a meeting whose transcript could not be attributed.
+  const openMeeting = async () => {
     if (!mtb) return;
-    const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
-    window.open(url, '_blank');
+    const error = await openMeetingTab(mtb);
+    if (error) showToast.error(error);
   };
 
-  const startMeeting = () => {
-    if (!mtb) return;
-    const url = buildMeetingUrl(mtb, { name: user?.name, profession: user?.profession });
-    window.open(url, '_blank');
-  };
+  const joinMeeting = openMeeting;
+  const startMeeting = openMeeting;
 
   if (activeLoading || historyLoading) {
     return (
