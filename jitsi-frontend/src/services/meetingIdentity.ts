@@ -59,6 +59,61 @@ function readString(value: unknown): string | null {
   return typeof value === 'string' && value.trim() ? value.trim() : null
 }
 
+// -----------------------------------------------------------------------------
+// Keeping the ticket out of the visible URL
+// -----------------------------------------------------------------------------
+// The ticket stays redeemable for two hours, and while it sits in the address
+// bar it is readable by anyone watching a screen share, in a screenshot, or over
+// a shoulder in a clinic. So it is scrubbed out of the URL as soon as it has
+// been redeemed. It lives on in a ref and in sessionStorage, keyed by room, so
+// that a mid-meeting refresh (which reloads the URL from scratch) can still bind
+// and the speaker stays attributed. sessionStorage is per-tab and dies with the
+// tab, so this does not extend the window during which the ticket is useful.
+
+const TICKET_STORAGE_PREFIX = 'vmtb:join-ticket:'
+
+function ticketStorageKey(roomName: string): string {
+  return `${TICKET_STORAGE_PREFIX}${roomName}`
+}
+
+/** Stash the ticket for this tab before it leaves the URL. */
+export function rememberTicket(roomName: string, ticket: string): void {
+  try {
+    window.sessionStorage.setItem(ticketStorageKey(roomName), ticket)
+  } catch {
+    // Private-mode / storage disabled: the URL scrub still proceeds, a refresh
+    // just falls back to unverified.
+  }
+}
+
+/** Recover a ticket this tab already redeemed, e.g. after a mid-meeting refresh. */
+export function recallTicket(roomName: string): string | null {
+  try {
+    return window.sessionStorage.getItem(ticketStorageKey(roomName))
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Drop ?ticket= from the address bar without reloading or touching the rest of
+ * the query string. The page keeps running on the same URL.
+ */
+export function scrubTicketFromUrl(): void {
+  try {
+    const url = new URL(window.location.href)
+    if (!url.searchParams.has('ticket')) return
+    url.searchParams.delete('ticket')
+    window.history.replaceState(
+      window.history.state,
+      '',
+      `${url.pathname}${url.search}${url.hash}`,
+    )
+  } catch {
+    // Nothing here is worth breaking a meeting over.
+  }
+}
+
 /**
  * Exchange a ticket for the display name and profession to prefill prejoin with.
  * Returns null when there is no ticket, Supabase is unconfigured, or the call

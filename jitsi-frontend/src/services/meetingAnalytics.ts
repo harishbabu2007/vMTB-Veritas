@@ -68,7 +68,6 @@ export class MeetingAnalyticsService {
   private supabase = getSupabaseClient();
   private meetingSessionId: string | null = null;
   private currentParticipantId: string | null = null;
-  private localParticipantDbId: string | null = null;
   private params: MeetingParams | null = null;
   private participantCount: number = 0;
   private maxParticipants: number = 0;
@@ -327,9 +326,15 @@ export class MeetingAnalyticsService {
     // Stop heartbeat
     this.stopHeartbeat();
 
-    // Mark local participant as left
-    if (this.localParticipantDbId) {
-      await this.markParticipantLeftById(this.localParticipantDbId, reason);
+    // Mark local participant as left. Looked up by Jitsi participant id rather
+    // than by row id: the row was created server-side by the bind call, so this
+    // browser never learns its id. The lookup is the same (session, participant,
+    // still-open row) that the remote path uses, and this browser is the only
+    // one that knows the accurate left_reason -- 'normal' for a clean Jitsi
+    // leave, tab_closed when the tab went away. Remote browsers do eventually
+    // mark this row too, but only with their own guess at why.
+    if (this.currentParticipantId) {
+      await this.markParticipantLeft(this.currentParticipantId, reason);
     }
 
     // Mark meeting session as ended
@@ -340,7 +345,13 @@ export class MeetingAnalyticsService {
   }
 
   /**
-   * Mark a participant as left by Jitsi participant ID
+   * Mark a participant as left by Jitsi participant ID.
+   *
+   * Used for both the local participant (on a clean Jitsi leave, where only
+   * this browser knows the real reason) and remote ones. Writes only the
+   * leave-time columns -- this browser has no UPDATE grant on verified_name,
+   * verified_profession or user_id, so it cannot rewrite a speaker's identity
+   * after the fact even in principle.
    */
   private async markParticipantLeft(participantId: string, reason: string): Promise<void> {
     if (!this.supabase || !this.meetingSessionId) return;
@@ -373,41 +384,6 @@ export class MeetingAnalyticsService {
         })
         .eq('id', participant.id);
 
-    } catch (error) {
-      console.error('[ANALYTICS] Error marking participant left:', error);
-    }
-  }
-
-  /**
-   * Mark a participant as left by database ID
-   */
-  private async markParticipantLeftById(dbId: string, reason: string): Promise<void> {
-    if (!this.supabase) return;
-
-    try {
-      const now = new Date();
-
-      const { data: participant } = await this.supabase
-        .from('meeting_participants')
-        .select('*')
-        .eq('id', dbId)
-        .maybeSingle();
-
-      if (!participant || participant.left_at) return;
-
-      const joinedAt = new Date(participant.joined_at);
-      const durationSeconds = Math.floor((now.getTime() - joinedAt.getTime()) / 1000);
-
-      await this.supabase
-        .from('meeting_participants')
-        .update({
-          left_at: now.toISOString(),
-          duration_seconds: durationSeconds,
-          left_reason: reason,
-        })
-        .eq('id', dbId);
-
-      console.log('[ANALYTICS] ✓ Marked local participant left');
     } catch (error) {
       console.error('[ANALYTICS] Error marking participant left:', error);
     }
@@ -500,10 +476,9 @@ export class MeetingAnalyticsService {
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
     window.removeEventListener('pagehide', this.handlePageHide);
 
-    this.isTracking = false;
+this.isTracking = false;
     this.meetingSessionId = null;
     this.currentParticipantId = null;
-    this.localParticipantDbId = null;
     this.params = null;
     this.participantCount = 0;
     this.maxParticipants = 0;

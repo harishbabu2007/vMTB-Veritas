@@ -4,7 +4,7 @@ import ErrorPage from '../components/ErrorPage'
 import ThankYouPage from '../components/ThankYouPage'
 import { MeetingService, type ComponentState } from '../services/meetingService'
 import { meetingAnalytics } from '../services/meetingAnalytics'
-import { bindTicketIdentity, formatPrejoinDisplayName, redeemTicket } from '../services/meetingIdentity'
+import { bindTicketIdentity, formatPrejoinDisplayName, recallTicket, redeemTicket, rememberTicket, scrubTicketFromUrl } from '../services/meetingIdentity'
 import { getMeetingParamsFromUrl, debugLog } from '../utils/sanitization'
 
 type PageState = 'LOADING' | 'READY' | 'ERROR' | 'THANK_YOU'
@@ -272,11 +272,21 @@ export default function MeetingPage() {
     
     roomNameRef.current = meetingParams.roomName
     mtbIdRef.current = meetingParams.mtbId || ''
-    ticketRef.current = meetingParams.ticket
     debugLog('[INIT] Room:', meetingParams.roomName)
     debugLog('[INIT] MTB ID:', meetingParams.mtbId)
     debugLog('[INIT] MTB Name:', meetingParams.mtbName)
-    debugLog('[INIT] Ticket present:', Boolean(meetingParams.ticket))
+
+    // Take the ticket off the address bar. It is redeemable for two hours and
+    // the address bar is what a screen share shows, so it is stashed per-room
+    // in sessionStorage and read back from there on a mid-meeting refresh.
+    let ticket = meetingParams.ticket
+    if (ticket) {
+      rememberTicket(meetingParams.roomName, ticket)
+    } else {
+      ticket = recallTicket(meetingParams.roomName)
+    }
+    ticketRef.current = ticket
+    debugLog('[INIT] Ticket:', ticket ? 'present' : 'none')
 
     // Resolve who this participant actually is, before Jitsi is constructed.
     // Redeeming the ticket yields the profile name and profession, which only
@@ -290,16 +300,23 @@ export default function MeetingPage() {
     // fail-soft and time-capped, so the worst case is a few seconds and an
     // empty prejoin box rather than a meeting that will not open.
     const identityPromise = (async () => {
-      if (meetingParams.ticket) {
-        const identity = await redeemTicket(meetingParams.ticket)
-        if (identity) {
-          return formatPrejoinDisplayName(identity.displayName, identity.profession)
+      try {
+        if (ticket) {
+          const identity = await redeemTicket(ticket)
+          if (identity) {
+            return formatPrejoinDisplayName(identity.displayName, identity.profession)
+          }
+          debugLog('[INIT] Ticket present but could not be redeemed; prejoin starts empty')
+          return undefined
         }
-        debugLog('[INIT] Ticket present but could not be redeemed; prejoin starts empty')
-        return undefined
+        debugLog('[INIT] No ticket available; falling back to legacy name/role params')
+        return formatPrejoinDisplayName(meetingParams.legacyName, meetingParams.legacyRole)
+      } finally {
+        // Whether or not the redeem worked, the URL should stop carrying it:
+        // a token we could not use is still a token that is valid for someone
+        // else to pick up off a shared screen.
+        scrubTicketFromUrl()
       }
-      debugLog('[INIT] No ticket on URL; falling back to legacy name/role params')
-      return formatPrejoinDisplayName(meetingParams.legacyName, meetingParams.legacyRole)
     })()
 
     // Initialize analytics if mtb_id is available
