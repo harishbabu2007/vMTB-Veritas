@@ -169,8 +169,13 @@ export function parseMomJson(content: string): Omit<MomResult, 'generated_at' | 
 
 function buildPrompt(transcriptText: string): string {
   return (
-    'Here is the transcript of a meeting (timestamped, speaker-labeled - speaker ' +
-    'names are auto-assigned channel labels, not real names):\n\n' +
+    'Here is the transcript of a meeting. Each turn is prefixed with its speaker ' +
+    'in square brackets, labelled "Name, Profession" from that speaker\'s verified ' +
+    'account on the platform - for example "[Priya Sharma, Medical oncologist]". A ' +
+    'label reading "Speaker N - unverified" means the speaker could not be ' +
+    'identified; do not guess who they are. Use these labels to attribute points ' +
+    'to speakers by profession, and keep the profession in the attribution so the ' +
+    'clinical specialty behind each point is clear. No timestamps are included.\n\n' +
     transcriptText +
     '\n\nSummarize this meeting as the structured JSON described by your system message.'
   );

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { isLlmConfigured, generateMom, parseMomJson } from '../src/llm.js';
 import { buildArtifact, processMeeting } from '../src/worker.js';
 import type { WorkerDeps } from '../src/worker.js';
-import type { SegmentRow } from '../src/supabase.js';
+import type { SegmentRow, SpeakerIdentity } from '../src/supabase.js';
 import type { GcsClient } from '../src/gcs.js';
 
 const segments: SegmentRow[] = [
@@ -26,11 +26,23 @@ const segments: SegmentRow[] = [
   },
 ];
 
+const ONCOLOGIST: SpeakerIdentity = {
+  name: 'Priya Sharma',
+  profession: 'Medical oncologist',
+  userId: 'u-onc',
+};
+
+/** p1 verified (with profession), p2 verified but no profession on file. */
+const bothVerified = new Map<string, SpeakerIdentity | null>([
+  ['p1', ONCOLOGIST],
+  ['p2', { name: 'Ana Duarte', profession: null, userId: 'u-path' }],
+]);
+
 function makeDeps(overrides: Partial<WorkerDeps> = {}): { deps: WorkerDeps; fakes: Record<string, ReturnType<typeof vi.fn>> } {
   const fakes = {
     claim: vi.fn().mockResolvedValue({ meeting_id: 'm1', status: 'PENDING', transcript_object_key: null, error_message: null }),
     fetchSegments: vi.fn().mockResolvedValue(segments),
-    resolveParticipantNames: vi.fn().mockResolvedValue(new Map<string, string | null>()),
+    resolveParticipantNames: vi.fn().mockResolvedValue(new Map<string, SpeakerIdentity | null>()),
     hasActiveSession: vi.fn().mockResolvedValue(false),
     complete: vi.fn().mockResolvedValue(undefined),
     fail: vi.fn().mockResolvedValue(undefined),
@@ -75,7 +87,7 @@ describe('processMeeting', () => {
     );
     expect(fakes.upload).toHaveBeenCalledWith(
       'meetings/m1/transcript/transcript-v1.txt',
-      '[Speaker 1] hello world\n\n[Speaker 2] second speaker',
+      '[Speaker 1 - unverified] hello world\n\n[Speaker 2 - unverified] second speaker',
       'text/plain',
     );
     expect(fakes.complete).toHaveBeenCalledWith('m1', 'meetings/m1/transcript/transcript-v1.json', 1, null);
@@ -249,22 +261,75 @@ describe('buildArtifact', () => {
     expect(artifact.version).toBe(1);
     expect(artifact.meeting_id).toBe('m1');
     expect(artifact.segment_count).toBe(2);
-    // p1 appears first -> Speaker 1; p2 second -> Speaker 2
-    expect(artifact.segments[0]!.speaker).toBe('Speaker 1');
-    expect(artifact.segments[1]!.speaker).toBe('Speaker 2');
-    expect(artifact.text).toBe('[Speaker 1] hello world\n\n[Speaker 2] second speaker');
+    // No identity resolution at all -> every speaker is explicitly unverified.
+    expect(artifact.segments[0]!.speaker).toBe('Speaker 1 - unverified');
+    expect(artifact.segments[1]!.speaker).toBe('Speaker 2 - unverified');
+    expect(artifact.text).toBe(
+      '[Speaker 1 - unverified] hello world\n\n[Speaker 2 - unverified] second speaker',
+    );
     expect(artifact.generated_at).toBe(new Date(1751979219000).toISOString());
   });
 
-  it('prefers resolved display names over numbered speakers', () => {
-    const labels = new Map([
-      ['p1', 'Dr. Patel'],
-      ['p2', 'Dr. Lee'],
-    ]);
-    const artifact = buildArtifact('m1', segments, () => 1, labels);
-    expect(artifact.segments[0]!.speaker).toBe('Dr. Patel');
-    expect(artifact.segments[1]!.speaker).toBe('Dr. Lee');
-    expect(artifact.text).toBe('[Dr. Patel] hello world\n\n[Dr. Lee] second speaker');
+  it('exposes speaker_name, speaker_profession and user_id as structured fields', () => {
+    const artifact = buildArtifact('m1', segments, () => 1, bothVerified);
+    expect(artifact.segments[0]).toMatchObject({
+      speaker: 'Priya Sharma, Medical oncologist',
+      speaker_name: 'Priya Sharma',
+      speaker_profession: 'Medical oncologist',
+      user_id: 'u-onc',
+    });
+    // Verified, but the profile carries no profession: name only, no dangling comma.
+    expect(artifact.segments[1]).toMatchObject({
+      speaker: 'Ana Duarte',
+      speaker_name: 'Ana Duarte',
+      speaker_profession: null,
+      user_id: 'u-path',
+    });
+  });
+
+  it('nulls the structured fields for an unverified speaker', () => {
+    const artifact = buildArtifact(
+      'm1',
+      segments,
+      () => 1,
+      new Map<string, SpeakerIdentity | null>([['p1', ONCOLOGIST], ['p2', null]]),
+    );
+    expect(artifact.segments[1]).toMatchObject({
+      speaker: 'Speaker 2 - unverified',
+      speaker_name: null,
+      speaker_profession: null,
+      user_id: null,
+    });
+  });
+
+  it('labels a verified speaker "Name, Profession" in the flattened text', () => {
+    const artifact = buildArtifact('m1', segments, () => 1, bothVerified);
+    expect(artifact.text).toBe(
+      '[Priya Sharma, Medical oncologist] hello world\n\n[Ana Duarte] second speaker',
+    );
+  });
+
+  it('keeps square brackets so a colon inside medical speech stays parseable', () => {
+    const spoken: SegmentRow[] = [
+      {
+        meeting_id: 'm1',
+        participant_id: 'p1',
+        start_time: 1,
+        end_time: 2,
+        text: 'Assessment: stable disease, no progression.',
+        provider: 'self-hosted',
+        created_at: '2026-08-20T00:00:00Z',
+      },
+    ];
+    const artifact = buildArtifact(
+      'm1',
+      spoken,
+      () => 1,
+      new Map<string, SpeakerIdentity | null>([['p1', ONCOLOGIST]]),
+    );
+    expect(artifact.text).toBe(
+      '[Priya Sharma, Medical oncologist] Assessment: stable disease, no progression.',
+    );
   });
 
   it('handles empty segment lists', () => {
@@ -273,18 +338,24 @@ describe('buildArtifact', () => {
     expect(artifact.text).toBe('');
   });
 
-  it('resolves display names during processing and uses them in artifacts', async () => {
+  it('resolves identities during processing and uses them in artifacts', async () => {
     const { deps, fakes } = makeDeps();
     fakes.resolveParticipantNames.mockResolvedValue(
-      new Map([
-        ['p1', 'Dr. Patel'],
-        ['p2', null], // unresolved -> falls back to Speaker N
+      new Map<string, SpeakerIdentity | null>([
+        ['p1', ONCOLOGIST],
+        ['p2', null], // never bound to a ticket -> must stay unverified
       ]),
     );
     const outcome = await processMeeting('m1', deps, () => 1751979219000);
     expect(outcome).toEqual({ kind: 'completed' });
     const txtUpload = fakes.upload.mock.calls.find((c) => c[0] === 'meetings/m1/transcript/transcript-v1.txt');
-    expect(txtUpload?.[1]).toBe('[Dr. Patel] hello world\n\n[Speaker 2] second speaker');
+    expect(txtUpload?.[1]).toBe(
+      '[Priya Sharma, Medical oncologist] hello world\n\n[Speaker 2 - unverified] second speaker',
+    );
+    const jsonUpload = fakes.upload.mock.calls.find((c) => c[0] === 'meetings/m1/transcript/transcript-v1.json');
+    const parsed = JSON.parse(jsonUpload?.[1] as string) as ReturnType<typeof buildArtifact>;
+    expect(parsed.segments[0]!.speaker_name).toBe('Priya Sharma');
+    expect(parsed.segments[1]!.user_id).toBeNull();
   });
 });
 describe('automatic VM stop', () => {

@@ -1,5 +1,5 @@
 import logger from './logger.js';
-import type { SupabaseStore, SegmentRow } from './supabase.js';
+import type { SupabaseStore, SegmentRow, SpeakerIdentity } from './supabase.js';
 import type { GcsClient } from './gcs.js';
 import type { LlmConfig } from './llm.js';
 import { generateMom } from './llm.js';
@@ -68,7 +68,16 @@ export interface TranscriptArtifact {
   segment_count: number;
   segments: Array<{
     participant_id: string;
+    /** Rendered label, e.g. "Priya Sharma, Medical oncologist" or "Speaker 1 - unverified". */
     speaker: string;
+    /**
+     * The verified identity behind that label, as structured fields so consumers
+     * can filter or group by specialty without re-parsing `speaker`. All three
+     * are null together for an unverified speaker.
+     */
+    speaker_name: string | null;
+    speaker_profession: string | null;
+    user_id: string | null;
     start_time: number | null;
     end_time: number | null;
     text: string;
@@ -108,19 +117,21 @@ export async function processMeeting(meetingId: string, deps: WorkerDeps, now = 
     await (deps.settle ?? defaultSettle)();
     const segments = await deps.supabase.fetchSegments(meetingId);
 
-    // Resolve opaque participant tags to display names (best effort).
-    let nameMap = new Map<string, string | null>();
+    // Resolve opaque participant tags to verified speaker identities (best
+    // effort). Unresolvable tags stay unverified -- they are never guessed at
+    // from the participant's self-declared display name.
+    let identityMap = new Map<string, SpeakerIdentity | null>();
     try {
-      nameMap = await deps.supabase.resolveParticipantNames(segments);
+      identityMap = await deps.supabase.resolveParticipantNames(segments);
     } catch (err) {
       logger.warn(
         { meetingId, err: err instanceof Error ? err.message : String(err) },
-        'worker: name resolution failed; using Speaker N labels',
+        'worker: speaker identity resolution failed; using unverified Speaker N labels',
       );
     }
-    const labels = assignSpeakers(segments, nameMap);
+    const labels = assignSpeakers(segments, identityMap);
 
-    const artifact = buildArtifact(meetingId, segments, now, labels);
+    const artifact = buildArtifact(meetingId, segments, now, identityMap);
 
     const objectKey = `meetings/${meetingId}/transcript/transcript-v${TRANSCRIPT_VERSION}.json`;
     await deps.gcs.upload(objectKey, JSON.stringify(artifact, null, 2), 'application/json');
@@ -235,17 +246,23 @@ export function buildArtifact(
   meetingId: string,
   segments: SegmentRow[],
   now: () => number = Date.now,
-  labels?: Map<string, string>,
+  identities?: Map<string, SpeakerIdentity | null>,
 ): TranscriptArtifact {
-  const resolved = labels ?? assignSpeakers(segments);
-  const normalized = segments.map((s) => ({
-    participant_id: s.participant_id,
-    speaker: speakerLabel(resolved, s.participant_id),
-    start_time: s.start_time,
-    end_time: s.end_time,
-    text: s.text,
-    provider: s.provider,
-  }));
+  const resolved = assignSpeakers(segments, identities);
+  const normalized = segments.map((s) => {
+    const identity = identities?.get(s.participant_id) ?? null;
+    return {
+      participant_id: s.participant_id,
+      speaker: speakerLabel(resolved, s.participant_id),
+      speaker_name: identity?.name ?? null,
+      speaker_profession: identity?.profession ?? null,
+      user_id: identity?.userId ?? null,
+      start_time: s.start_time,
+      end_time: s.end_time,
+      text: s.text,
+      provider: s.provider,
+    };
+  });
   // Readable form: consecutive same-speaker fragments stitched into paragraphs.
   const lines = groupBySpeaker(segments, resolved);
   return {
@@ -255,6 +272,8 @@ export function buildArtifact(
     generated_at: new Date(now()).toISOString(),
     segment_count: normalized.length,
     segments: normalized,
+    // Square brackets, not a colon: medical speech is full of colons
+    // ("Assessment: stable disease") and this line has to stay re-parseable.
     text: lines.map((l) => `[${l.speaker}] ${l.text}`).join('\n\n'),
   };
 }

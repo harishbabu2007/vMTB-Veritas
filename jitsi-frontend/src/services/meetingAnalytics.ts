@@ -8,6 +8,7 @@ import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
  * 2. Frontend NEVER closes/modifies other meetings
  * 3. Stale meetings are IGNORED (filtered out), not closed
  * 4. Meeting is marked 'ended' ONLY when user explicitly leaves via Jitsi event
+ * 5. Frontend writes NO meeting_participants rows at all
  * 
  * FLOW:
  * 1. User joins → Check for recent active session (heartbeat < 2 min old)
@@ -17,6 +18,15 @@ import { getSupabaseClient, isSupabaseConfigured } from '../lib/supabase';
  * 3. User leaves (Jitsi event) → Mark session as 'ended'
  * 4. User closes tab → Heartbeat stops, session stays 'active' but becomes stale
  *    → Next join will ignore it and create new session
+ *
+ * SCOPE: meeting_sessions only. Participant rows are written server-side by the
+ * meeting_participant_identity Edge Function once it verifies this participant's
+ * join ticket against profiles -- see services/meetingIdentity.ts. Writing them
+ * from here was both a trust problem (the prejoin display name is whatever the
+ * user typed, and it was being labelled a speaker on a clinical transcript) and
+ * a duplication problem (every browser in the room inserted a row for everyone
+ * else it saw). Remote participants are now counted for max_participants and
+ * nothing more.
  */
 
 export interface MeetingSession {
@@ -111,10 +121,19 @@ export class MeetingAnalyticsService {
   }
 
   /**
-   * Called when the local participant joins the Jitsi room
-   * This creates or joins a meeting session
+   * Called when the local participant joins the Jitsi room.
+   *
+   * Creates or joins the meeting session. It deliberately does NOT write the
+   * participant row: the join ticket is bound to this Jitsi participant id by
+   * the meeting_participant_identity Edge Function, which reads name and
+   * profession from profiles with the service-role key. A browser cannot
+   * meaningfully assert who it is, so it does not try.
+   *
+   * Resolves only once the session exists, so the caller can read
+   * getMeetingSessionId() straight afterwards -- the bind call needs it, and the
+   * endpoint rejects a bind without one.
    */
-  async onLocalParticipantJoined(participantId: string, displayName?: string): Promise<void> {
+  async onLocalParticipantJoined(participantId: string): Promise<void> {
     console.log('[ANALYTICS] ----------------------------------------');
     console.log('[ANALYTICS] onLocalParticipantJoined:', participantId);
     
@@ -132,9 +151,6 @@ export class MeetingAnalyticsService {
       console.error('[ANALYTICS] ❌ Failed to get/create meeting session');
       return;
     }
-
-    // Create participant record
-    await this.createParticipantRecord(participantId, displayName);
 
     // Update participant count
     this.participantCount = 1;
@@ -264,15 +280,18 @@ export class MeetingAnalyticsService {
   }
 
   /**
-   * Called when a remote participant joins
+   * Called when a remote participant joins.
+   *
+   * Count only. This browser writes nothing about anyone it can see: every
+   * browser in the room used to insert a row for every other participant, which
+   * is how duplicates accumulated, and a remote participant's identity is not
+   * this browser's to record anyway -- their own tab binds their own ticket.
    */
-  async onParticipantJoined(participantId: string, displayName?: string): Promise<void> {
+  async onParticipantJoined(participantId: string): Promise<void> {
     if (!this.isTracking || !this.meetingSessionId) return;
     if (participantId === this.currentParticipantId) return; // Skip self
 
     console.log('[ANALYTICS] Remote participant joined:', participantId);
-
-    await this.createParticipantRecord(participantId, displayName);
 
     this.participantCount++;
     await this.updateMaxParticipants();
@@ -318,40 +337,6 @@ export class MeetingAnalyticsService {
 
     // Cleanup
     this.cleanup();
-  }
-
-  /**
-   * Create a participant record
-   */
-  private async createParticipantRecord(participantId: string, displayName?: string): Promise<void> {
-    if (!this.supabase || !this.meetingSessionId) return;
-
-    try {
-      const { data, error } = await this.supabase
-        .from('meeting_participants')
-        .insert({
-          meeting_session_id: this.meetingSessionId,
-          participant_id: participantId,
-          display_name: displayName || null,
-          joined_at: new Date().toISOString(),
-        })
-        .select()
-        .single();
-
-      if (error) {
-        console.error('[ANALYTICS] Error creating participant:', error);
-        return;
-      }
-
-      // Store DB ID if this is local participant
-      if (participantId === this.currentParticipantId) {
-        this.localParticipantDbId = data.id;
-      }
-
-      console.log('[ANALYTICS] ✓ Created participant record');
-    } catch (error) {
-      console.error('[ANALYTICS] Exception creating participant:', error);
-    }
   }
 
   /**

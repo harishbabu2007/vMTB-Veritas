@@ -1,21 +1,22 @@
-import type { SegmentRow } from './supabase.js';
+import type { SegmentRow, SpeakerIdentity } from './supabase.js';
 
 /**
- * Assign stable display labels ("Speaker 1", "Speaker 2", ...) to the opaque
- * JVB participant tags, in order of first appearance.
+ * Assign display labels to the opaque JVB participant tags, in order of first
+ * appearance.
  *
- * The bridge-based transcription protocol carries only per-audio-channel tags,
- * not display names, so numbered speakers are the honest MVP labeling. A real
- * name mapping needs correlation with meeting participant records later.
- */
-/**
- * Assign display labels to participant tags, in order of first appearance.
- * When a resolved display name exists for a tag it wins; otherwise the tag
- * falls back to "Speaker N" (numbered across the whole meeting).
+ * A verified speaker is labelled "Name, Profession" from their vMTB account,
+ * which is what makes a clinical transcript readable: you can tell an
+ * oncologist's opinion from a pathologist's without guessing. A speaker with
+ * no verified row is labelled "Speaker N - unverified" rather than being given
+ * whatever they typed into the Jitsi prejoin box, so attributed and unattributed
+ * speech stay visibly distinct on the face of the record.
+ *
+ * Numbering is global across the meeting, so the same unverified speaker keeps
+ * the same number everywhere it appears.
  */
 export function assignSpeakers(
   segments: SegmentRow[],
-  displayNames?: Map<string, string | null>,
+  identities?: Map<string, SpeakerIdentity | null>,
 ): Map<string, string> {
   const order: string[] = [];
   for (const s of [...segments].sort((a, b) => (a.start_time ?? 0) - (b.start_time ?? 0))) {
@@ -24,10 +25,17 @@ export function assignSpeakers(
   }
   return new Map(
     order.map((id, i) => {
-      const name = displayNames?.get(id);
-      return [id, name && name.trim() ? name : `Speaker ${i + 1}`];
+      const identity = identities?.get(id);
+      return [id, identity ? formatIdentity(identity) : `Speaker ${i + 1} - unverified`];
     }),
   );
+}
+
+/** "Priya Sharma, Medical oncologist" -- profession alone if the profile has none. */
+function formatIdentity(identity: SpeakerIdentity): string {
+  const name = identity.name.trim();
+  const profession = identity.profession?.trim();
+  return profession ? `${name}, ${profession}` : name;
 }
 
 export function speakerLabel(labels: Map<string, string>, participantId: string | null): string {

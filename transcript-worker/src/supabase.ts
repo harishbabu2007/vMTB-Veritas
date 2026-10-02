@@ -18,6 +18,20 @@ export interface SegmentRow {
   created_at: string;
 }
 
+/**
+ * A speaker whose identity was verified server-side against the vMTB account
+ * that joined the meeting, snapshotted onto the participant row at join time.
+ *
+ * This is the only thing a transcript is allowed to attribute speech to. The
+ * participant's own display_name is deliberately NOT part of this type: it is
+ * free text from an editable prejoin box and carries no authority.
+ */
+export interface SpeakerIdentity {
+  name: string;
+  profession: string | null;
+  userId: string | null;
+}
+
 export class SupabaseStore {
   private client: SupabaseClient;
 
@@ -82,8 +96,16 @@ export class SupabaseStore {
   }
 
   /**
-   * Resolve opaque JVB transcription tags ("9f4a4375-a0") to human display
-   * names using the participant records written by jitsi-frontend analytics.
+   * Resolve opaque JVB transcription tags ("9f4a4375-a0") to server-verified
+   * speaker identities.
+   *
+   * Only the meeting_participant_identity Edge Function writes the
+   * verified_* columns, and it does so after checking a short-lived join ticket
+   * against profiles. So a row carrying a verified_name is an account this
+   * transcript can attribute; a row without one is a participant whose join was
+   * never bound, and callers must label those as unverified rather than fall
+   * back to display_name -- which is whatever the person typed into the Jitsi
+   * prejoin box and is not evidence of anything.
    *
    * Correlation logic:
    *   - a transcription tag is the Jitsi endpoint id plus an audio-channel
@@ -92,10 +114,10 @@ export class SupabaseStore {
    *     time window are considered (newest record wins per endpoint id)
    *
    * Returns a map keyed by the ORIGINAL tag. Missing entries / failures mean
-   * "unknown" and callers fall back to "Speaker N" labels.
+   * "unverified" and callers fall back to "Speaker N - unverified" labels.
    */
-  async resolveParticipantNames(segments: SegmentRow[]): Promise<Map<string, string | null>> {
-    const result = new Map<string, string | null>();
+  async resolveParticipantNames(segments: SegmentRow[]): Promise<Map<string, SpeakerIdentity | null>> {
+    const result = new Map<string, SpeakerIdentity | null>();
     if (!segments.length) return result;
 
     const times = segments
@@ -114,14 +136,17 @@ export class SupabaseStore {
     try {
       const { data: parts, error } = await this.client
         .from('meeting_participants')
-        .select('participant_id, display_name, meeting_session_id, joined_at')
+        .select('participant_id, verified_name, verified_profession, user_id, meeting_session_id, joined_at')
         .in('participant_id', bases)
-        .not('display_name', 'is', null);
+        // Fail closed: no verified name means no attribution, ever.
+        .not('verified_name', 'is', null);
       if (error) throw new Error(error.message);
 
       const rows = (parts ?? []) as Array<{
         participant_id: string;
-        display_name: string;
+        verified_name: string;
+        verified_profession: string | null;
+        user_id: string | null;
         meeting_session_id: string;
         joined_at: string;
       }>;
@@ -142,23 +167,33 @@ export class SupabaseStore {
       );
 
       // Newest record wins per endpoint id.
-      const best = new Map<string, { name: string; joinedAt: string }>();
+      const best = new Map<string, { identity: SpeakerIdentity; joinedAt: string }>();
       for (const r of rows) {
         if (!overlapping.has(r.meeting_session_id)) continue;
+        // `.not('verified_name','is',null)` also admits an empty string, which
+        // would render as ", Medical oncologist" with nobody in front of it.
+        if (!r.verified_name?.trim()) continue;
         const prev = best.get(r.participant_id);
         if (!prev || r.joined_at > prev.joinedAt) {
-          best.set(r.participant_id, { name: r.display_name, joinedAt: r.joined_at });
+          best.set(r.participant_id, {
+            identity: {
+              name: r.verified_name,
+              profession: r.verified_profession,
+              userId: r.user_id,
+            },
+            joinedAt: r.joined_at,
+          });
         }
       }
 
       for (const tag of tags) {
         const hit = best.get(baseOf(tag));
-        result.set(tag, hit ? hit.name : null);
+        result.set(tag, hit ? hit.identity : null);
       }
     } catch (err) {
       logger.warn(
         { err: err instanceof Error ? err.message : String(err) },
-        'store: participant name resolution failed; falling back to Speaker N labels',
+        'store: participant identity resolution failed; falling back to unverified Speaker N labels',
       );
     }
     return result;

@@ -4,7 +4,8 @@ import ErrorPage from '../components/ErrorPage'
 import ThankYouPage from '../components/ThankYouPage'
 import { MeetingService, type ComponentState } from '../services/meetingService'
 import { meetingAnalytics } from '../services/meetingAnalytics'
-import { getMeetingParamsFromUrl, buildDisplayName, debugLog } from '../utils/sanitization'
+import { bindTicketIdentity, formatPrejoinDisplayName, redeemTicket } from '../services/meetingIdentity'
+import { getMeetingParamsFromUrl, debugLog } from '../utils/sanitization'
 
 type PageState = 'LOADING' | 'READY' | 'ERROR' | 'THANK_YOU'
 
@@ -28,6 +29,8 @@ export default function MeetingPage() {
   const roomNameRef = useRef<string>('')
   const mtbIdRef = useRef<string>('')
   const displayNameRef = useRef<string | undefined>(undefined)
+  // The opaque join ticket. Kept for the bind call on videoConferenceJoined.
+  const ticketRef = useRef<string | null>(null)
   const jitsiContainerRef = useRef<HTMLDivElement | null>(null)
   const analyticsInitializedRef = useRef(false)
 
@@ -99,7 +102,10 @@ export default function MeetingPage() {
             disableSimulcast: false,
             enableWelcomePage: false,
             // Show Jitsi's prejoin screen, but with the name below already
-            // filled in (and editable) via userInfo.displayName.
+            // filled in (and editable) via userInfo.displayName. The
+            // prefill comes from the verified profile; the editable
+            // result only ever drives the video tile, never the
+            // transcript, which is labelled from verified_* instead.
             prejoinPageEnabled: true,
             prejoinConfig: {
               enabled: true,
@@ -127,17 +133,32 @@ export default function MeetingPage() {
       // Analytics Event Handlers
       // ========================================
 
-      // Track when local user joins the conference
-      api.addEventListener('videoConferenceJoined', (event: { roomName: string; id: string; displayName?: string }) => {
+      // Track when local user joins the conference.
+      // This is also where the ticket gets bound: the session must exist first
+      // (the endpoint rejects a bind whose session is missing or belongs to
+      // another MTB), so analytics runs to completion before we bind.
+      api.addEventListener('videoConferenceJoined', async (event: { roomName: string; id: string; displayName?: string }) => {
         debugLog('[JITSI] Event: videoConferenceJoined', event)
         // Local user has joined - this triggers meeting session creation
-        meetingAnalytics.onLocalParticipantJoined(event.id, event.displayName)
+        await meetingAnalytics.onLocalParticipantJoined(event.id)
+
+        // event.displayName is whatever ended up in the prejoin box, i.e. fully
+        // under this participant's control. It is recorded as the name they
+        // chose to show on their tile and is never used for attribution --
+        // verified_name/verified_profession are read from profiles server-side.
+        await bindTicketIdentity({
+          ticket: ticketRef.current,
+          participantId: event.id,
+          meetingSessionId: meetingAnalytics.getMeetingSessionId(),
+          displayName: event.displayName ?? null,
+        })
       })
 
-      // Track when a remote participant joins
+      // Track when a remote participant joins. Counted for max_participants
+      // only: their identity is bound by their own tab, not by this one.
       api.addEventListener('participantJoined', (event: { id: string; displayName?: string }) => {
         debugLog('[JITSI] Event: participantJoined', event)
-        meetingAnalytics.onParticipantJoined(event.id, event.displayName)
+        meetingAnalytics.onParticipantJoined(event.id)
       })
 
       // Track when a remote participant leaves
@@ -239,7 +260,7 @@ export default function MeetingPage() {
     debugLog('[INIT] Starting initialization')
     debugLog('[INIT] URL:', window.location.href)
 
-    // Get meeting parameters from URL (room, mtb_id, mtb_name)
+    // Get meeting parameters from URL (room, mtb_id, mtb_name, ticket)
     const meetingParams = getMeetingParamsFromUrl()
     
     if (!meetingParams.roomName) {
@@ -251,11 +272,35 @@ export default function MeetingPage() {
     
     roomNameRef.current = meetingParams.roomName
     mtbIdRef.current = meetingParams.mtbId || ''
-    displayNameRef.current = buildDisplayName(meetingParams.displayName, meetingParams.displayRole)
+    ticketRef.current = meetingParams.ticket
     debugLog('[INIT] Room:', meetingParams.roomName)
     debugLog('[INIT] MTB ID:', meetingParams.mtbId)
     debugLog('[INIT] MTB Name:', meetingParams.mtbName)
-    debugLog('[INIT] Display name:', displayNameRef.current)
+    debugLog('[INIT] Ticket present:', Boolean(meetingParams.ticket))
+
+    // Resolve who this participant actually is, before Jitsi is constructed.
+    // Redeeming the ticket yields the profile name and profession, which only
+    // prefill the (still editable) prejoin box. Links minted before the ticket
+    // flow still carry ?name=/?role=, so keep honouring those until every
+    // outstanding link has been reissued -- unverified either way, and never
+    // trusted for attribution.
+    //
+    // This has to complete before setState('READY'), because the Jitsi API
+    // object reads displayNameRef once, at construction. redeemTicket is
+    // fail-soft and time-capped, so the worst case is a few seconds and an
+    // empty prejoin box rather than a meeting that will not open.
+    const identityPromise = (async () => {
+      if (meetingParams.ticket) {
+        const identity = await redeemTicket(meetingParams.ticket)
+        if (identity) {
+          return formatPrejoinDisplayName(identity.displayName, identity.profession)
+        }
+        debugLog('[INIT] Ticket present but could not be redeemed; prejoin starts empty')
+        return undefined
+      }
+      debugLog('[INIT] No ticket on URL; falling back to legacy name/role params')
+      return formatPrejoinDisplayName(meetingParams.legacyName, meetingParams.legacyRole)
+    })()
 
     // Initialize analytics if mtb_id is available
     if (meetingParams.mtbId && !analyticsInitializedRef.current) {
@@ -298,6 +343,11 @@ export default function MeetingPage() {
 
         // Stop timer only after script loads successfully
         stopTimer()
+
+        // Wait for the ticket exchange before building the Jitsi API object,
+        // which snapshots displayNameRef once at construction.
+        displayNameRef.current = await identityPromise
+        debugLog('[INIT] Prefill display name:', displayNameRef.current)
 
         // Now set state to READY which will render the container
         debugLog('[INIT] Setting state to READY')
