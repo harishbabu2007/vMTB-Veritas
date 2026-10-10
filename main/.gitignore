@@ -21,3 +21,6 @@ dist-ssr
 *.sln
 *.sw?
 .env*
+
+# Supabase CLI local state (holds local-stack secrets - never commit)
+supabase/.temp/

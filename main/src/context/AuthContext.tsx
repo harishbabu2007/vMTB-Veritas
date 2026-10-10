@@ -138,16 +138,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const fullName = meta.name as string | undefined;
       const profession = meta.profession as string | undefined;
       const hospital = meta.hospital as string | undefined;
-      const whatsappNumber = meta.whatsappNumber as string | undefined;
-
-      if (!fullName && !profession && !hospital && !whatsappNumber) return;
+      // whatsapp_number is deliberately not carried across from signup
+      // metadata: it is server-owned, written by verify_whatsapp_otp only
+      // once an OTP has actually been checked
+      // (20261003_profiles_identity_server_owned.sql). Sending it here would
+      // now be rejected by the column grants.
+      if (!fullName && !profession && !hospital) return;
 
       await supabase.from('profiles').upsert({
         id,
         full_name: fullName,
         profession,
         hospital,
-        whatsapp_number: whatsappNumber,
       }, { onConflict: 'id' });
 
       if (fullName || profession) {
@@ -254,7 +256,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes - this handles initial session load AND subsequent changes
     const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AUTH] State change:', event, session?.user?.email);
+      console.log('[AUTH] State change:', event);
       
       // Track PASSWORD_RECOVERY event specifically
       if (event === 'PASSWORD_RECOVERY') {
@@ -334,29 +336,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
     const fullPhone = `${cleanCountryCode}${cleanPhoneNumber}`;
     
-    console.log('[AUTH] Logging in with phone:', fullPhone);
     
-    // Step 1: Look up account profile by whatsapp_number (selecting ONLY existing 'id' column)
-    const { data: profiles, error: profileErr } = await supabase
-      .from('profiles')
-      .select('id')
-      .or(`whatsapp_number.eq.${fullPhone},whatsapp_number.eq.${cleanPhoneNumber}`);
-
-    if (profileErr || !profiles || profiles.length === 0) {
-      console.error('[AUTH] Profile lookup failed:', profileErr);
-      throw new Error('Invalid credentials');
-    }
-
-    const userId = profiles[0].id;
-
-    // Step 2: Retrieve user's primary email from Supabase Auth via Edge Function
+    // Step 1: resolve the phone number to its sign-in email, server-side.
+    //
+    // The browser used to look the profile up itself and then ask the Edge
+    // Function for that id's email. Both halves are gone: reading `profiles`
+    // by someone else's phone number needs cross-user read access that the
+    // browser should not have, and the id-keyed lookup was an
+    // id-to-email oracle. `get_email` now takes the phone number and
+    // resolves it server-side, returning nothing for an unknown or ambiguous
+    // one (20261003_profiles_identity_server_owned.sql and the
+    // verify_whatsapp_otp notes).
     const { data: edgeData, error: edgeErr } = await supabase.functions.invoke('verify_whatsapp_otp', {
-      body: { action: 'get_email', user_id: userId, phone: fullPhone, otp: '000000' }
+      body: { action: 'get_email', phone: fullPhone }
     });
 
-    if (edgeErr || !edgeData?.email) {
-      console.error('[AUTH] Failed to fetch email from Auth:', edgeErr);
-      throw new Error('Invalid credentials');
+    if (edgeErr) {
+      console.error('[AUTH] Sign-in email lookup failed');
+      throw new Error('Could not sign in right now. Please try again.');
+    }
+    // An unknown or ambiguous number resolves to no email. Login turns this
+    // message into its "create your account" redirect.
+    if (!edgeData?.email) {
+      throw new Error('No account was found with this phone number.');
     }
 
     const userEmail = edgeData.email;
@@ -389,7 +391,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
     const phoneE164 = `+${cleanCountryCode}${cleanPhoneNumber}`;
     
-    console.log('[DEBUG] Sending OTP to:', phoneE164);
     
     const { error } = await supabase.auth.signInWithOtp({ 
       phone: phoneE164 
@@ -403,7 +404,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const cleanPhoneNumber = phoneNumber.replace(/\D/g, '');
     const phoneE164 = `+${cleanCountryCode}${cleanPhoneNumber}`;
     
-    console.log('[DEBUG] Verifying OTP for:', phoneE164);
     
     const { error, data } = await supabase.auth.verifyOtp({ 
       phone: phoneE164,
@@ -448,13 +448,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userData = { id: u.id, email: u.email ?? null, name, profession: profession ?? null };
       setUser(userData);
       storeUser(userData);
-      // Create profile record
+      // Create profile record. whatsapp_number stays out of this: it is
+      // server-owned and only verify_whatsapp_otp writes it, after an OTP
+      // check (20261003_profiles_identity_server_owned.sql). It still rides
+      // in user_metadata above, which is where the OTP step reads it from.
       await supabase.from('profiles').upsert({
         id: u.id,
         full_name: name,
         profession,
         hospital,
-        whatsapp_number: whatsappNumber,
       }, { onConflict: 'id' });
     }
   };

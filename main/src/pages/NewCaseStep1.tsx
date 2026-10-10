@@ -94,20 +94,26 @@ export default function NewCaseStep1() {
 
   // The case name is the type's abbreviation plus 5 random digits, e.g.
   // "ILC80981". It is generated here and never shown or edited on this
-  // screen. Generates a few at once and keeps the first one not already
-  // taken.
+  // screen.
+  //
+  // Picking an unused name means checking names that belong to other users,
+  // which the browser must not do -- it used to read `cases` across every
+  // user, and under row level security that read would still succeed but see
+  // only our own rows, silently stopping collision detection rather than
+  // failing. `generate_case_name` does the check server-side instead, and
+  // `cases_case_name_key` enforces uniqueness for real
+  // (20261003_case_name_server_side.sql).
   const generateCaseName = async (abbreviation: string): Promise<string> => {
-    const candidates = Array.from({ length: 5 }, () => buildCaseName(abbreviation));
-    const { data, error: lookupError } = await supabase
-      .from('cases')
-      .select('case_name')
-      .in('case_name', candidates);
-    if (lookupError) {
-      console.error('Error checking case names:', lookupError);
-      return candidates[0];
+    const { data, error: rpcError } = await supabase
+      .rpc('generate_case_name', { p_abbreviation: abbreviation });
+    if (rpcError || !data) {
+      // Fall back to a locally built name rather than blocking case creation
+      // on a transient failure. The unique index means a genuine collision
+      // now surfaces as a failed insert instead of a duplicate name.
+      console.error('Error generating case name:', rpcError);
+      return buildCaseName(abbreviation);
     }
-    const taken = new Set((data ?? []).map(c => c.case_name));
-    return candidates.find(name => !taken.has(name)) ?? buildCaseName(abbreviation);
+    return data as string;
   };
 
   const handleCancerTypeChange = async (type: CancerType | null) => {
@@ -120,21 +126,6 @@ export default function NewCaseStep1() {
     setFormData(prev => ({ ...prev, cancerType: type.name }));
     const caseName = await generateCaseName(type.abbreviation);
     setFormData(prev => ({ ...prev, caseName }));
-  };
-
-  const isCaseNameUnique = async (caseName: string): Promise<boolean> => {
-    const { data, error } = await supabase
-      .from('cases')
-      .select('id')
-      .eq('case_name', caseName)
-      .maybeSingle();
-    
-    if (error) {
-      console.error('Error checking case name:', error);
-      throw error;
-    }
-    
-    return !data;
   };
 
   // File upload handlers
@@ -323,11 +314,10 @@ export default function NewCaseStep1() {
         return;
       }
 
-      // The name is generated, so a collision just means generating another.
-      let caseName = formData.caseName || (await generateCaseName(cancerType.abbreviation));
-      if (!(await isCaseNameUnique(caseName))) {
-        caseName = await generateCaseName(cancerType.abbreviation);
-      }
+      // Already generated when the type was picked; generate now only if that
+      // step was skipped. The server hands back a name it has just checked, so
+      // there is no second round-trip to re-confirm it.
+      const caseName = formData.caseName || (await generateCaseName(cancerType.abbreviation));
 
       // "Other" keeps what the user typed; everything else keeps the list's
       // own wording.

@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { showToast } from '../utils/toast';
-import { sendWhatsAppOTP, verifyWhatsAppOTPForLogin, isPhoneNumberRegistered } from '../services/whatsappOtp';
+import { sendWhatsAppOTP, verifyWhatsAppOTPForLogin } from '../services/whatsappOtp';
 import { supabase } from '../Supabase/client';
 import { PasswordInput } from '../components/PasswordInput';
 
@@ -61,16 +61,10 @@ export function Login() {
         return;
       }
 
-      const fullPhone = getFullPhone();
-      // Check if phone number exists in database
-      const checkRes = await isPhoneNumberRegistered(fullPhone);
-      if (!checkRes.registered) {
-        showToast.error("No account was found with this phone number. Let's create your account.");
-        navigate('/signup');
-        setLoading(false);
-        return;
-      }
-
+      // No separate "is this number registered?" lookup first: the server
+      // answers that while resolving the sign-in, and an unknown number comes
+      // back as a "No account" error, which the catch below turns into the
+      // same redirect to signup.
       await loginWithPhone(countryCode, cleanPhone, password);
       showToast.success('Logged in successfully!');
       // Not a hardcoded '/my-cases' -- AuthRedirect waits for the just-
@@ -114,17 +108,16 @@ export function Login() {
       }
       
       const fullPhone = getFullPhone();
-      // Check if phone number exists in database before sending OTP
-      const checkRes = await isPhoneNumberRegistered(fullPhone);
-      if (!checkRes.registered) {
+      // The server sends a login code only to a registered number, and says
+      // so when there is no account -- no code is sent (or paid for) then.
+      const result = await sendWhatsAppOTP(fullPhone, 'login');
+
+      if (!result.success && result.code === 'not_registered') {
         showToast.error("No account was found with this phone number. Let's create your account.");
         navigate('/signup');
-        setLoading(false);
         return;
       }
 
-      const result = await sendWhatsAppOTP(fullPhone);
-      
       if (!result.success) {
         setError(result.error || 'Failed to send OTP');
         return;
@@ -147,7 +140,7 @@ export function Login() {
     setLoading(true);
     try {
       const fullPhone = getFullPhone();
-      const result = await sendWhatsAppOTP(fullPhone);
+      const result = await sendWhatsAppOTP(fullPhone, 'login');
       
       if (!result.success) {
         showToast.error(result.error || 'Failed to resend OTP');

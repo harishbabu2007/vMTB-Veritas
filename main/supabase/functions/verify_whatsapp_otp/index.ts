@@ -7,6 +7,24 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Phone numbers arrive in whichever shape the caller typed ("+91 99...",
+// "9199...") and are stored in more than one of those shapes historically,
+// so a lookup has to try the variants. What it must NOT do is build the
+// filter by string concatenation: PostgREST's `.or()` takes a filter
+// expression, so an unescaped value there is parsed as syntax rather than
+// data. `.in()` sends the values as values.
+function normalisePhone(raw: unknown): string {
+  return typeof raw === "string" ? raw.replace(/\D/g, "") : "";
+}
+
+function phoneVariants(raw: unknown): string[] {
+  const digits = normalisePhone(raw);
+  if (!digits) return [];
+  const variants = new Set([digits, `+${digits}`]);
+  if (typeof raw === "string" && raw.trim()) variants.add(raw.trim());
+  return [...variants];
+}
+
 async function hashOTP(otp: string): Promise<string> {
   const encoder = new TextEncoder();
   const data = encoder.encode(otp);
@@ -73,25 +91,70 @@ Deno.serve(async (req) => {
 
     // role/linked_clinician_id are logged because they are the one part of
     // this payload whose absence is invisible in the result: a dropped role
-    // still upserts a perfectly valid profile, just a clinician one.
+    // still upserts a perfectly valid profile, just a clinician one. Phone
+    // numbers, emails and user ids are personal data and stay out of the log:
+    // presence flags are enough to debug a request's shape.
     console.log("[verify_whatsapp_otp] Request:", JSON.stringify({
-      phone,
-      otp: otp ? "***" : undefined,
-      email,
+      action: action ?? null,
+      phonePresent: !!phone,
+      otpPresent: !!otp,
+      emailPresent: !!email,
       passwordPresent: !!password,
-      user_id,
-      action,
-      role,
-      linked_clinician_id
+      userIdPresent: !!user_id,
+      role: role ?? null,
+      linkedClinicianPresent: !!linked_clinician_id
     }));
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
+    // The reset token is an HMAC; its key should be a secret that exists for
+    // this purpose alone, not the service-role key (which would make a leak
+    // of either one a leak of both). Falls back to the old key until
+    // OTP_RESET_TOKEN_SECRET is set -- tokens live 10 minutes, so switching
+    // over invalidates at most the resets in flight at that moment.
+    const resetTokenSecret = Deno.env.get("OTP_RESET_TOKEN_SECRET") || supabaseServiceRoleKey;
 
-    // Fast helper 1: get_email for user_id (Phone+Password login lookup)
-    if (action === "get_email" && user_id) {
-      const { data: userData } = await supabaseAdmin.auth.admin.getUserById(user_id);
+    // Fast helper 1: resolve the sign-in email for a registered phone number.
+    //
+    // Phone+password login needs an email because that is what
+    // signInWithPassword takes, and the browser only has the phone number.
+    // This used to accept a caller-supplied `user_id` and hand back that
+    // account's email with no further condition, which made it an
+    // id-to-email lookup for any account. It now keys off the phone number
+    // instead: you have to already know a registered number to learn the
+    // address behind it, and an ambiguous number resolves to nothing.
+    //
+    // Deliberately left client-side: the actual password check stays on
+    // supabase.auth.signInWithPassword in the browser, so Supabase Auth's
+    // per-IP sign-in rate limit still applies per end user. Proxying the
+    // sign-in through this function would put every login behind one egress
+    // IP and let that limit throttle everybody at once.
+    if (action === "get_email") {
+      const variants = phoneVariants(phone);
+      if (variants.length === 0) {
+        return new Response(
+          JSON.stringify({ email: null }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: matches, error: matchErr } = await supabaseAdmin
+        .from("profiles")
+        .select("id")
+        .in("whatsapp_number", variants)
+        .limit(2);
+
+      // Exactly one account, or nothing: the same number stored in two
+      // formats would otherwise make "which account" a guess.
+      if (matchErr || !matches || matches.length !== 1) {
+        return new Response(
+          JSON.stringify({ email: null }),
+          { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const { data: userData } = await supabaseAdmin.auth.admin.getUserById(matches[0].id);
       return new Response(
         JSON.stringify({ email: userData?.user?.email || null }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -100,15 +163,14 @@ Deno.serve(async (req) => {
 
     // Fast helper 2: reset_password for user_id (OTP already verified in previous reset_verify step)
     if (action === "reset_password") {
-      console.log("[verify_whatsapp_otp] Action: reset_password for user_id:", user_id);
+      console.log("[verify_whatsapp_otp] Action: reset_password");
       let targetUserId = user_id;
 
       if (!targetUserId && phone) {
-        const cleanP = phone.replace(/\D/g, "");
         const { data: profiles } = await supabaseAdmin
           .from("profiles")
           .select("id")
-          .or(`whatsapp_number.eq.${cleanP},whatsapp_number.eq.${phone}`);
+          .in("whatsapp_number", phoneVariants(phone));
         if (profiles && profiles.length > 0) {
           targetUserId = profiles[0].id;
         }
@@ -127,7 +189,7 @@ Deno.serve(async (req) => {
       // registered phone number) could reset any account's password with no
       // OTP at all. reset_token is the proof: a short-lived, server-signed
       // ticket minted by reset_verify for this exact user_id.
-      const validToken = await verifyResetToken(targetUserId, reset_token, supabaseServiceRoleKey);
+      const validToken = await verifyResetToken(targetUserId, reset_token, resetTokenSecret);
       if (!validToken) {
         return new Response(
           JSON.stringify({ error: "Your password reset session has expired. Please verify your OTP again." }),
@@ -148,7 +210,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      console.log("[verify_whatsapp_otp] reset_password succeeded for user_id:", passData?.user?.id);
+      console.log("[verify_whatsapp_otp] reset_password succeeded:", !!passData?.user?.id);
       return new Response(
         JSON.stringify({ success: true }),
         { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -172,14 +234,14 @@ Deno.serve(async (req) => {
     const { data: otpRecord, error: otpError } = await supabaseAdmin
       .from("whatsapp_otps")
       .select("*")
-      .or(`phone.eq.${phone},phone.eq.${cleanPhone}`)
+      .in("phone", phoneVariants(phone))
       .eq("verified", false)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (otpError || !otpRecord) {
-      console.log("[verify_whatsapp_otp] No OTP record found for phone:", phone);
+      console.log("[verify_whatsapp_otp] No pending OTP record for this phone");
       return new Response(
         JSON.stringify({ error: "OTP expired or invalid. Please request a new one." }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -200,10 +262,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    await supabaseAdmin
+    // The attempt counter is the only brake on guessing a 6-digit code. If it
+    // cannot be advanced, refuse rather than check the guess uncounted.
+    const { error: attemptErr } = await supabaseAdmin
       .from("whatsapp_otps")
       .update({ attempts: otpRecord.attempts + 1 })
       .eq("id", otpRecord.id);
+    if (attemptErr) {
+      console.error("[verify_whatsapp_otp] could not record the attempt:", attemptErr.code);
+      return new Response(
+        JSON.stringify({ error: "Verification is temporarily unavailable. Please try again." }),
+        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (otpHash !== otpRecord.otp_hash) {
       return new Response(
@@ -238,11 +309,11 @@ Deno.serve(async (req) => {
 
     // Action: Reset Password - Verify OTP and retrieve user_id
     if (action === "reset_verify") {
-      console.log("[verify_whatsapp_otp] Action: reset_verify for phone:", cleanPhone);
+      console.log("[verify_whatsapp_otp] Action: reset_verify");
       const { data: profiles, error: profileErr } = await supabaseAdmin
         .from("profiles")
         .select("id")
-        .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`);
+        .in("whatsapp_number", phoneVariants(phone));
 
       if (profileErr || !profiles || profiles.length === 0) {
         return new Response(
@@ -251,7 +322,7 @@ Deno.serve(async (req) => {
         );
       }
 
-      const resetToken = await makeResetToken(profiles[0].id, supabaseServiceRoleKey);
+      const resetToken = await makeResetToken(profiles[0].id, resetTokenSecret);
 
       return new Response(
         JSON.stringify({ success: true, user_id: profiles[0].id, reset_token: resetToken }),
@@ -263,13 +334,13 @@ Deno.serve(async (req) => {
 
     // Action A: Login via OTP
     if (action === "login" || (!action && !user_id && !email && !password)) {
-      console.log("[verify_whatsapp_otp] Handling OTP Login for phone:", cleanPhone);
+      console.log("[verify_whatsapp_otp] Handling OTP login");
 
       // Find profile by whatsapp_number
       const { data: profiles, error: profileErr } = await supabaseAdmin
         .from("profiles")
         .select("id")
-        .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`);
+        .in("whatsapp_number", phoneVariants(phone));
 
       if (profileErr || !profiles || profiles.length === 0) {
         return new Response(
@@ -317,7 +388,7 @@ Deno.serve(async (req) => {
     // Action B: Signup / Existing User Update (Google OAuth completion, or an
     // authenticated user changing their own WhatsApp number from their profile)
     if (user_id) {
-      console.log("[verify_whatsapp_otp] Updating existing user ID:", user_id);
+      console.log("[verify_whatsapp_otp] Updating an existing user");
 
       // --- Identity check: this branch writes to a specific profile, so the
       // caller must be authenticated as that exact user. Never trust the
@@ -349,12 +420,48 @@ Deno.serve(async (req) => {
         );
       }
 
+      // --- Role and clinician link: validated here, never trusted as sent.
+      // role must be one of the three account types. A link is accepted only
+      // for a Site Data Coordinator, and only to a verified clinician's
+      // account -- not to an arbitrary id, an MTB Expert, another coordinator
+      // or a half-registered account. (Whether the clinician has agreed is a
+      // separate question, answered by the in-app approval flow.) ---
+      const ALLOWED_ROLES = ["clinician", "site_data_coordinator", "mtb_expert"];
+      if (role !== undefined && role !== null && !ALLOWED_ROLES.includes(role)) {
+        return new Response(
+          JSON.stringify({ error: "Unknown account type." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+      let validatedClinicianId: string | null = null;
+      if (role === "site_data_coordinator") {
+        if (typeof linked_clinician_id !== "string" || !linked_clinician_id) {
+          return new Response(
+            JSON.stringify({ error: "A Site Data Coordinator account needs a linked clinician." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        const { data: clinician, error: clinicianErr } = await supabaseAdmin
+          .from("profiles")
+          .select("id, role, whatsapp_verified")
+          .eq("id", linked_clinician_id)
+          .maybeSingle();
+        if (clinicianErr || !clinician || clinician.role !== "clinician" ||
+            clinician.whatsapp_verified !== true || clinician.id === user_id) {
+          return new Response(
+            JSON.stringify({ error: "The linked clinician's account could not be confirmed." }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+          );
+        }
+        validatedClinicianId = clinician.id;
+      }
+
       // --- Reject if this WhatsApp number is already registered to a
       // different account, before making any writes. ---
       const { data: existingOwners, error: dupErr } = await supabaseAdmin
         .from("profiles")
         .select("id")
-        .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`)
+        .in("whatsapp_number", phoneVariants(phone))
         .neq("id", user_id);
 
       if (dupErr) {
@@ -368,25 +475,27 @@ Deno.serve(async (req) => {
 
       // Step B1: Update Password on auth.users (CRITICAL)
       if (password) {
-        console.log("[verify_whatsapp_otp] Step B1: Updating password for user_id:", user_id);
+        console.log("[verify_whatsapp_otp] Step B1: Updating password");
         const { data: passData, error: passErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
           password: password,
         });
 
         if (passErr) {
           console.error("[verify_whatsapp_otp] CRITICAL ERROR in password update:", JSON.stringify(passErr, Object.getOwnPropertyNames(passErr)));
+          // Supabase Auth's own message (e.g. a password-policy rule) is
+          // written for end users; anything else stays in the server log.
           return new Response(
-            JSON.stringify({ error: `Failed to attach password to user: ${passErr.message || JSON.stringify(passErr)}` }),
+            JSON.stringify({ error: `Failed to set your password: ${passErr.message || "please try again."}` }),
             { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
           );
         }
-        console.log("[verify_whatsapp_otp] Step B1 SUCCESS: Password updated for user_id:", passData?.user?.id);
+        console.log("[verify_whatsapp_otp] Step B1 SUCCESS:", !!passData?.user?.id);
       }
 
       // Step B2: Optional auth.users.phone update (Non-blocking if SMS provider is unconfigured)
       const targetPhoneE164 = phone_e164 || `+${cleanPhone}`;
       try {
-        console.log("[verify_whatsapp_otp] Step B2: Attempting optional auth.users.phone update:", targetPhoneE164);
+        console.log("[verify_whatsapp_otp] Step B2: Attempting optional auth.users.phone update");
         const { error: phoneErr } = await supabaseAdmin.auth.admin.updateUserById(user_id, {
           phone: targetPhoneE164,
           phone_confirm: true,
@@ -418,7 +527,9 @@ Deno.serve(async (req) => {
       // to true, so this is the one and only place role/linked_clinician_id
       // are ever set intentionally.
       if (role) profileData.role = role;
-      if (linked_clinician_id) profileData.linked_clinician_id = linked_clinician_id;
+      // Only the link validated above; a link sent with any other role is
+      // ignored rather than written.
+      if (validatedClinicianId) profileData.linked_clinician_id = validatedClinicianId;
 
       const { error: profileError } = await supabaseAdmin
         .from("profiles")
@@ -427,10 +538,12 @@ Deno.serve(async (req) => {
       if (profileError) {
         // This upsert is the one and only place role/linked_clinician_id are
         // ever written -- silently returning success here would leave the
-        // caller believing their role choice was saved when it wasn't.
+        // caller believing their role choice was saved when it wasn't. The
+        // database's own message (constraint and trigger names) stays in the
+        // server log.
         console.error("[verify_whatsapp_otp] Step B3 CRITICAL ERROR: Profile upsert failed:", JSON.stringify(profileError, Object.getOwnPropertyNames(profileError)));
         return new Response(
-          JSON.stringify({ error: `Failed to save profile: ${profileError.message || JSON.stringify(profileError)}` }),
+          JSON.stringify({ error: "We couldn't save your profile. Please try again." }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
@@ -444,8 +557,22 @@ Deno.serve(async (req) => {
     }
 
     // Action C: Legacy New User creation (if email and password provided without user_id)
+    //
+    // Switched off. It created an account for any email address, marked as
+    // confirmed, for anyone able to verify an OTP on their own phone -- so a
+    // caller could pre-register someone else's address before they ever
+    // signed up. No page calls it (its only client,
+    // verifyWhatsAppOTPAndCreateUser, has no callers); signup goes through
+    // Google OAuth and Action B. Left in place rather than deleted;
+    // ALLOW_LEGACY_EMAIL_SIGNUP=true re-enables it.
+    if (email && password && Deno.env.get("ALLOW_LEGACY_EMAIL_SIGNUP") !== "true") {
+      return new Response(
+        JSON.stringify({ error: "This sign-up method is no longer available." }),
+        { status: 410, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
     if (email && password) {
-      console.log("[verify_whatsapp_otp] Creating new user with email:", email);
+      console.log("[verify_whatsapp_otp] Creating new user (legacy flow)");
 
       const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
         email,

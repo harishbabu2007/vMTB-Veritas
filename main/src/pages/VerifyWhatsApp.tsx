@@ -199,15 +199,12 @@ export function VerifyWhatsApp() {
         return;
       }
       
-      // Update the profile with WhatsApp number and verification status
-      await supabase
-        .from('profiles')
-        .update({ 
-          whatsapp_number: currentPhone,
-          whatsapp_verified: true 
-        })
-        .eq('id', state.userId);
-      
+      // No profile write here. verify_whatsapp_otp has already set
+      // whatsapp_number and whatsapp_verified with the service-role key, as
+      // part of the same call that checked the OTP -- and both columns are
+      // now server-owned, so this update would be rejected
+      // (20261003_profiles_identity_server_owned.sql). It was also silently
+      // ignoring its own error, so a failure here looked like success.
       showToast.success('WhatsApp verified successfully!');
       navigate('/my-cases');
     } catch (err) {
