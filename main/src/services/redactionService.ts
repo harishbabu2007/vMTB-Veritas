@@ -94,7 +94,7 @@ export interface OriginalPage {
  * must treat that as "editing unavailable for this document", not an error.
  */
 export async function fetchOriginalPages(requestId: string, documentFilename: string): Promise<OriginalPage[]> {
-  log('Stage: fetch original pages', { requestId, documentFilename });
+  log('Stage: fetch original pages');
   const response = await fetch(
     `${API_BASE}/get-originals?request_id=${encodeURIComponent(requestId)}&document_name=${encodeURIComponent(documentFilename)}`
   );

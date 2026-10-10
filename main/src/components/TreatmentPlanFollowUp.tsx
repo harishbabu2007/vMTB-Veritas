@@ -148,14 +148,12 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         setFormData(planToFormData(planData));
 
         // Fetch follow-ups
-        console.log('Fetching follow-ups for treatment_plan_id:', planData.id);
         const { data: followUpsData, error: followUpsError } = await supabase
           .from('case_treatment_followups')
           .select('*')
           .eq('treatment_plan_id', planData.id)
           .order('followup_date', { ascending: true });
 
-        console.log('Fetched follow-ups:', { followUpsData, followUpsError });
         if (followUpsError) throw followUpsError;
         setFollowUps(followUpsData || []);
       } else {
@@ -330,7 +328,6 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
         additional_clinical_notes: followUpForm.additional_clinical_notes || null,
       };
 
-      console.log('Saving follow-up with payload:', payload);
 
       if (editingFollowUpId) {
         const { data, error } = await supabase
@@ -339,7 +336,6 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           .eq('id', editingFollowUpId)
           .select();
 
-        console.log('Update result:', { data, error });
         if (error) throw error;
         const updated = data?.[0];
         if (updated) {
@@ -352,7 +348,6 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           .insert(payload)
           .select();
 
-        console.log('Insert result:', { data, error });
         if (error) throw error;
         const inserted = data?.[0];
         if (inserted) {

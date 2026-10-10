@@ -5,7 +5,18 @@ import reactRefresh from 'eslint-plugin-react-refresh';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
-  { ignores: ['dist'] },
+  {
+    ignores: [
+      'dist',
+      // Supabase CLI local state. Holds a bundled edge runtime whose
+      // index.ts is one 31,000-character line, which produced the bulk of
+      // this project's lint errors. Untracked since
+      // 20261003 (see main/.gitignore) but still present on disk.
+      'supabase/.temp/**',
+      // Tooling checked out into the repo, not our source.
+      '.agents/**',
+    ],
+  },
   {
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
     files: ['**/*.{ts,tsx}'],

@@ -21,8 +21,26 @@ const supabase = createClient(
 /* =========================
    HELPERS
 ========================= */
+// Math.random() is not a cryptographic source, and this value is the only
+// thing standing between a phone number and a session. Rejection sampling
+// keeps the six digits uniform: 4294967296 is not a multiple of 900000, so
+// taking a modulus of every draw would bias the low end.
 function generateOtp(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+  const limit = 900000;
+  const ceiling = Math.floor(0xffffffff / limit) * limit;
+  const buf = new Uint32Array(1);
+  let draw: number;
+  do {
+    crypto.getRandomValues(buf);
+    draw = buf[0];
+  } while (draw >= ceiling);
+  return (100000 + (draw % limit)).toString();
+}
+
+// The OTP table is matched on this exact string, so send and verify have to
+// agree on the format or a valid code looks unknown. Digits only, no "+".
+function normalisePhone(raw: unknown): string {
+  return typeof raw === "string" ? raw.replace(/\D/g, "") : "";
 }
 
 async function sha256(input: string): Promise<string> {
@@ -32,6 +50,19 @@ async function sha256(input: string): Promise<string> {
     .map((b) => b.toString(16).padStart(2, "0"))
     .join("");
 }
+
+function json(payload: Record<string, unknown>, status = 200): Response {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+// Every limit below protects a billable send, so a limit we cannot evaluate
+// is treated as exceeded. Failing open here is what lets a database hiccup
+// turn into an unthrottled message flood.
+const limitUnavailable = (): Response =>
+  json({ error: "OTP sending is temporarily unavailable. Please try again later." }, 503);
 
 /* =========================
    EDGE FUNCTION
@@ -43,13 +74,13 @@ serve(async (req) => {
   }
 
   try {
-    const { phone } = await req.json();
+    const body = await req.json();
+    // Normalised before anything else, so the rate limit below cannot be
+    // sidestepped by alternating "+9199..." and "9199..." for the same phone.
+    const phone = normalisePhone(body?.phone);
 
     if (!phone) {
-      return new Response(
-        JSON.stringify({ error: "phone is required" }),
-        { status: 400, headers: corsHeaders }
-      );
+      return json({ error: "phone is required" }, 400);
     }
 
     // Rate limit: a short cooldown between sends, plus a cap on how many can
@@ -66,19 +97,59 @@ serve(async (req) => {
       .gte("created_at", windowSince)
       .order("created_at", { ascending: false });
 
-    if (!recentErr && recentOtps) {
-      if (recentOtps.length > 0 && recentOtps[0].created_at > cooldownSince) {
-        return new Response(
-          JSON.stringify({ error: "Please wait a minute before requesting another OTP." }),
-          { status: 429, headers: corsHeaders }
-        );
+    if (recentErr || !recentOtps) {
+      console.error("[send_whatsapp_otp] per-phone limit check failed:", recentErr?.code);
+      return limitUnavailable();
+    }
+    if (recentOtps.length > 0 && recentOtps[0].created_at > cooldownSince) {
+      return json({ error: "Please wait a minute before requesting another OTP." }, 429);
+    }
+    if (recentOtps.length >= 5) {
+      return json({ error: "Too many OTP requests. Please try again in a few minutes." }, 429);
+    }
+
+    // Login asks for a code only for an account that exists. This used to be
+    // a browser read of `profiles` that anyone could make for free. Asking
+    // here keeps the question inside this function, where the planned
+    // per-IP limit will cover it (a refused number writes no OTP row, so the
+    // per-phone limit above does not count it), and no code is sent -- or
+    // paid for -- for a number with no account.
+    if (body?.purpose === "login") {
+      const { data: owners, error: ownerErr } = await supabase
+        .from("profiles")
+        .select("id")
+        .in("whatsapp_number", [phone, `+${phone}`])
+        .limit(1);
+      if (ownerErr) {
+        console.error("[send_whatsapp_otp] account lookup failed:", ownerErr.code);
+        return limitUnavailable();
       }
-      if (recentOtps.length >= 5) {
-        return new Response(
-          JSON.stringify({ error: "Too many OTP requests. Please try again in a few minutes." }),
-          { status: 429, headers: corsHeaders }
-        );
+      if (!owners || owners.length === 0) {
+        return json({ error: "No account was found with this phone number.", code: "not_registered" }, 404);
       }
+    }
+
+    // The per-phone limits above bound one number; they do nothing about many
+    // numbers. Every send is a billable WhatsApp message, so cap the total
+    // too -- otherwise a caller cycling through numbers can run up the
+    // Gupshup bill unbounded. Deliberately a blunt global ceiling: this
+    // function has no authenticated caller to attribute spend to.
+    const hourSince = new Date(now - 60 * 60 * 1000).toISOString();
+    const globalCap = Number(Deno.env.get("OTP_GLOBAL_HOURLY_CAP") ?? 200);
+    const { count: hourlyCount, error: countErr } = await supabase
+      .from("whatsapp_otps")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", hourSince);
+
+    if (countErr || typeof hourlyCount !== "number") {
+      console.error("[send_whatsapp_otp] global limit check failed:", countErr?.code);
+      return limitUnavailable();
+    }
+    if (hourlyCount >= globalCap) {
+      console.error(
+        `[send_whatsapp_otp] global hourly cap reached: ${hourlyCount} >= ${globalCap}`,
+      );
+      return json({ error: "OTP sending is temporarily unavailable. Please try again later." }, 429);
     }
 
     const otp = generateOtp();
@@ -89,16 +160,21 @@ serve(async (req) => {
         Number(Deno.env.get("OTP_EXPIRY_MINUTES") ?? 5) * 60 * 1000
     );
 
-    // Store OTP
-    await supabase.from("whatsapp_otps").insert({
+    // Store OTP. If the row cannot be written, the code would be unverifiable
+    // and invisible to the limits above, so nothing is sent.
+    const { error: insertErr } = await supabase.from("whatsapp_otps").insert({
       phone,
       otp_hash: otpHash,
       expires_at: expiresAt.toISOString(),
     });
+    if (insertErr) {
+      console.error("[send_whatsapp_otp] could not store OTP:", insertErr.code);
+      return limitUnavailable();
+    }
 
     // ✅ FIX: For COPY_CODE button templates, we need to send button parameters
     // The template structure expects the OTP as body param AND as button param
-    const body = new URLSearchParams({
+    const gupshupBody = new URLSearchParams({
       channel: "whatsapp",
       source: Deno.env.get("GUPSHUP_SOURCE_NUMBER")!,
       destination: phone,
@@ -120,36 +196,24 @@ serve(async (req) => {
           "Content-Type": "application/x-www-form-urlencoded",
           apikey: Deno.env.get("GUPSHUP_API_KEY")!,
         },
-        body,
+        body: gupshupBody,
       }
     );
 
+    // Provider responses stay in the server log only: they echo the
+    // destination number and carry provider internals the browser has no use
+    // for.
     if (!resp.ok) {
-      const text = await resp.text();
-      console.error("Gupshup API error:", text);
-      return new Response(
-        JSON.stringify({ error: "Failed to send OTP", details: text }),
-        { status: 500, headers: corsHeaders }
-      );
+      console.error("[send_whatsapp_otp] Gupshup API error: HTTP", resp.status, await resp.text());
+      return json({ error: "Failed to send OTP. Please try again." }, 502);
     }
 
     const result = await resp.json();
-    console.log("Gupshup response:", result);
+    console.log("[send_whatsapp_otp] Gupshup accepted the message:", result?.status ?? "unknown status");
 
-    return new Response(
-      JSON.stringify({ success: true }),
-      {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
-    );
+    return json({ success: true });
   } catch (err) {
-    console.error("Error in send_whatsapp_otp:", err);
-    return new Response(
-      JSON.stringify({ error: "internal server error", details: String(err) }),
-      { status: 500, headers: corsHeaders }
-    );
+    console.error("[send_whatsapp_otp] unexpected error:", err);
+    return json({ error: "Failed to send OTP. Please try again." }, 500);
   }
 });

@@ -59,20 +59,39 @@ export async function extractEdgeFunctionError(
 }
 
 /**
- * Sends WhatsApp OTP to the provided phone number
+ * Sends WhatsApp OTP to the provided phone number.
+ *
+ * `purpose: 'login'` asks the server to send only to a registered number. A
+ * number with no account comes back as `code: 'not_registered'` (no code is
+ * sent), which is how the login form knows to offer signup -- without the
+ * browser ever looking up whose number it is.
  */
-export async function sendWhatsAppOTP(phone: string): Promise<{ success: boolean; error?: string }> {
+export async function sendWhatsAppOTP(
+  phone: string,
+  purpose?: 'login'
+): Promise<{ success: boolean; error?: string; code?: string }> {
   try {
     const formattedPhone = formatPhoneNumber(phone);
-    
+
     const { data, error } = await supabase.functions.invoke('send_whatsapp_otp', {
-      body: { phone: formattedPhone },
+      body: purpose ? { phone: formattedPhone, purpose } : { phone: formattedPhone },
     });
 
     if (error) {
       console.error('Error sending WhatsApp OTP:', error);
+      // The body can be read once; take the machine-readable code from a
+      // clone so extractEdgeFunctionError still gets the message.
+      let code: string | undefined;
+      try {
+        if (error.context && typeof error.context.clone === 'function') {
+          const parsed = await error.context.clone().json();
+          if (typeof parsed?.code === 'string') code = parsed.code;
+        }
+      } catch {
+        // Not a JSON body; the message below is still shown.
+      }
       const cleanErr = await extractEdgeFunctionError(error, 'Failed to send OTP. Please try again.');
-      return { success: false, error: cleanErr };
+      return { success: false, error: cleanErr, code };
     }
 
     if (data?.error) {
@@ -168,8 +187,6 @@ export async function verifyWhatsAppOTPForExistingUser(params: {
       linked_clinician_id: params.linkedClinicianId,
     };
 
-    console.log("verify_whatsapp_otp (existing user) payload:", payload);
-
     const { data, error } = await supabase.functions.invoke('verify_whatsapp_otp', {
       body: payload,
     });
@@ -208,8 +225,6 @@ export async function verifyWhatsAppOTPForLogin(params: {
       otp: params.otp,
       action: 'login',
     };
-
-    console.log("verify_whatsapp_otp (login) payload:", payload);
 
     const { data, error } = await supabase.functions.invoke('verify_whatsapp_otp', {
       body: payload,
@@ -334,23 +349,20 @@ export async function isPhoneNumberRegistered(
     const cleanPhone = formatPhoneNumber(phone);
     if (!cleanPhone) return { registered: false };
 
-    let query = supabase
-      .from('profiles')
-      .select('id')
-      .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`);
-
-    if (currentUserId) {
-      query = query.not('id', 'eq', currentUserId);
-    }
-
-    const { data, error } = await query;
+    // Answered server-side: this is a question about accounts that are not
+    // the caller's, so the browser has no business reading `profiles` to
+    // answer it (20261003_profile_phone_lookup_rpcs.sql).
+    const { data, error } = await supabase.rpc('phone_number_registered', {
+      p_phone: cleanPhone,
+      p_exclude_user_id: currentUserId ?? null,
+    });
 
     if (error) {
       console.error('Error checking duplicate phone number:', error);
       return { registered: false, error: error.message };
     }
 
-    return { registered: !!(data && data.length > 0) };
+    return { registered: data === true };
   } catch (err) {
     console.error('Error checking duplicate phone number:', err);
     return { registered: false };
@@ -374,28 +386,39 @@ export async function findClinicianByPhone(phone: string): Promise<ClinicianLook
     const cleanPhone = formatPhoneNumber(phone);
     if (!cleanPhone) return { ok: false, reason: 'not_found' };
 
-    // Not maybeSingle(): the same number can legitimately exist in two stored
-    // formats (`+91…` and `91…` — the case isPhoneNumberRegistered above
-    // already anticipates), and maybeSingle() collapses that into a PostgREST
-    // error indistinguishable from "no such number".
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('id, full_name, role, whatsapp_verified')
-      .or(`whatsapp_number.eq.${cleanPhone},whatsapp_number.eq.${phone}`)
-      .limit(2);
+    // Resolved server-side. The browser used to read `profiles` filtered by
+    // the clinician's number, which needs cross-user read access to a table
+    // holding every user's name, hospital and phone number. The RPC answers
+    // the one question and returns only the id and display name, and only for
+    // a unique verified clinician — including the same ambiguity case the old
+    // two-row fetch was careful about, where one number is stored in two
+    // formats (20261003_profile_phone_lookup_rpcs.sql).
+    const { data, error } = await supabase.rpc('find_clinician_by_phone', {
+      p_phone: cleanPhone,
+    });
 
     if (error) {
       console.error('Error resolving clinician by phone:', error);
       return { ok: false, reason: 'error' };
     }
-    if (!data || data.length === 0) return { ok: false, reason: 'not_found' };
-    if (data.length > 1) return { ok: false, reason: 'ambiguous' };
 
-    const match = data[0];
-    if (match.role !== 'clinician') return { ok: false, reason: 'not_clinician' };
-    if (!match.whatsapp_verified) return { ok: false, reason: 'unverified' };
+    const result = data as
+      | { ok: true; id: string; full_name: string | null }
+      | { ok: false; reason: string }
+      | null;
 
-    return { ok: true, id: match.id, fullName: match.full_name ?? null };
+    if (!result) return { ok: false, reason: 'error' };
+    if (result.ok) return { ok: true, id: result.id, fullName: result.full_name ?? null };
+
+    const reason = result.reason;
+    return {
+      ok: false,
+      reason:
+        reason === 'not_found' || reason === 'ambiguous' ||
+        reason === 'not_clinician' || reason === 'unverified'
+          ? reason
+          : 'error',
+    };
   } catch (err) {
     console.error('Error resolving clinician by phone:', err);
     return { ok: false, reason: 'error' };
