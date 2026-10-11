@@ -34,7 +34,7 @@ VISUAL_PII_PROMPT_FILE = "visual_pii_prompt.txt"
 
 # Supabase config
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SERVICE_ROLE_KEY = os.environ.get("SERVICE_ROLE_KEY")
 
 # =========================
 # CLIENTS
@@ -65,9 +65,9 @@ except Exception as e:
 
 # Initialize Supabase client
 supabase: Client = None
-if SUPABASE_URL and SUPABASE_ANON_KEY:
+if SUPABASE_URL and SERVICE_ROLE_KEY:
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        supabase = create_client(SUPABASE_URL, SERVICE_ROLE_KEY)
         print(f"[{datetime.utcnow().isoformat()}] Supabase client initialized successfully")
     except Exception as e:
         print(f"[{datetime.utcnow().isoformat()}] WARNING: Failed to initialize Supabase client: {str(e)}")

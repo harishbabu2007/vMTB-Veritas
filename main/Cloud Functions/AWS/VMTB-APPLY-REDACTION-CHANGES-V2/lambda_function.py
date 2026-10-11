@@ -53,14 +53,14 @@ CONVERTER_TRIGGER_URL = os.environ.get(
 )
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+SERVICE_ROLE_KEY = os.environ.get("SERVICE_ROLE_KEY")
 
 s3 = boto3.client("s3")
 
 supabase: Client = None
-if SUPABASE_URL and SUPABASE_ANON_KEY:
+if SUPABASE_URL and SERVICE_ROLE_KEY:
     try:
-        supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+        supabase = create_client(SUPABASE_URL, SERVICE_ROLE_KEY)
     except Exception as e:
         print(f"[{datetime.utcnow().isoformat()}] WARNING: Failed to initialize Supabase client: {str(e)}")
 
@@ -155,7 +155,7 @@ def lambda_handler(event, context):
     if not run_id:
         return {"statusCode": 400, "body": json.dumps({"error": "run_id is required"})}
     if not supabase:
-        log("ERROR: Supabase client not initialized (SUPABASE_URL/SUPABASE_ANON_KEY missing?)")
+        log("ERROR: Supabase client not initialized (SUPABASE_URL/SERVICE_ROLE_KEY missing?)")
         return {"statusCode": 500, "body": json.dumps({"error": "Supabase client not initialized"})}
 
     run = redaction_core.pipeline_begin(supabase, run_id)

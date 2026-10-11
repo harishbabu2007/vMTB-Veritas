@@ -76,7 +76,7 @@ OUTPUT_PRICE_PER_1K_TOKENS = 0.00266
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY")
+SERVICE_ROLE_KEY = os.getenv("SERVICE_ROLE_KEY")
 
 # ============================================================================
 # Clients
@@ -89,7 +89,7 @@ boto_config = Config(
 
 s3 = boto3.client("s3")
 bedrock = boto3.client("bedrock-runtime", region_name="ap-south-1", config=boto_config)
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+supabase: Client = create_client(SUPABASE_URL, SERVICE_ROLE_KEY)
 
 # ============================================================================
 # State Definition
