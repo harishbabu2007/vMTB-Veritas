@@ -582,15 +582,15 @@ CREATE INDEX "idx_whatsapp_otps_phone" ON "public"."whatsapp_otps" USING "btree"
 
 
 
--- CREATE OR REPLACE TRIGGER "Case Created Notification" AFTER INSERT ON "public"."mtb_cases" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://togobilqdevoyijxrexc.supabase.co/functions/v1/notify_case_created', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZ29iaWxxZGV2b3lpanhyZXhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk1NzY4MCwiZXhwIjoyMDgzNTMzNjgwfQ.o-Ui1sNyRKRlE_zy-nmCnm9xj9hd8uxn1FgXcikSOU0"}', '{}', '10000');
+-- CREATE OR REPLACE TRIGGER "Case Created Notification" AFTER INSERT ON "public"."mtb_cases" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://<REMOVED>.supabase.co/functions/v1/notify_case_created', 'POST', '{"Content-type":"application/json","Authorization":"Bearer <REMOVED>"}', '{}', '10000');
 
 
 
--- CREATE OR REPLACE TRIGGER "notify_meeting" AFTER INSERT ON "public"."meeting_sessions" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://togobilqdevoyijxrexc.supabase.co/functions/v1/notify_meeting', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZ29iaWxxZGV2b3lpanhyZXhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk1NzY4MCwiZXhwIjoyMDgzNTMzNjgwfQ.o-Ui1sNyRKRlE_zy-nmCnm9xj9hd8uxn1FgXcikSOU0"}', '{}', '10000');
+-- CREATE OR REPLACE TRIGGER "notify_meeting" AFTER INSERT ON "public"."meeting_sessions" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://<REMOVED>.supabase.co/functions/v1/notify_meeting', 'POST', '{"Content-type":"application/json","Authorization":"Bearer <REMOVED>"}', '{}', '10000');
 
 
 
--- CREATE OR REPLACE TRIGGER "notify_opinion_added" AFTER INSERT ON "public"."case_opinions" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://togobilqdevoyijxrexc.supabase.co/functions/v1/notify_opinion_added', 'POST', '{"Content-type":"application/json","Authorization":"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRvZ29iaWxxZGV2b3lpanhyZXhjIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2Nzk1NzY4MCwiZXhwIjoyMDgzNTMzNjgwfQ.o-Ui1sNyRKRlE_zy-nmCnm9xj9hd8uxn1FgXcikSOU0"}', '{}', '9998');
+-- CREATE OR REPLACE TRIGGER "notify_opinion_added" AFTER INSERT ON "public"."case_opinions" FOR EACH ROW EXECUTE FUNCTION "supabase_functions"."http_request"('https://<REMOVED>.supabase.co/functions/v1/notify_opinion_added', 'POST', '{"Content-type":"application/json","Authorization":"Bearer <REMOVED>"}', '{}', '9998');
 
 
 
