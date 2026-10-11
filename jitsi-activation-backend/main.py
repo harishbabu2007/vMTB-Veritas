@@ -178,8 +178,23 @@ def health_check() -> Response:
     return Response(content="OK", status_code=200)
 
 
+def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
+    """Verify Google ID token from Authorization header; return claims or None."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization[len("Bearer "):]
+    try:
+        claims = google_id_token.verify_oauth2_token(token, request=None, audience=None)
+        return claims
+    except Exception:
+        return None
+
+
+
 @app.post("/start-jitsi")
-def start_jitsi() -> dict[str, Any]:
+def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="authentication required")
     """Bring every meeting component up. Safe to call repeatedly.
 
     Returns ``already_running`` only when the VM is RUNNING **and** both Cloud
@@ -228,7 +243,9 @@ def start_jitsi() -> dict[str, Any]:
 
 
 @app.post("/stop-jitsi")
-def stop_jitsi() -> dict[str, Any]:
+def stop_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="authentication required")
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
