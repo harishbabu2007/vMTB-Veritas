@@ -1,9 +1,15 @@
 import json
+import os
 import re
 
 import boto3
+from supabase import create_client, Client
 
 s3 = boto3.client("s3")
+
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 BUCKET_NAME = "vmtb-bedrock-qwen-bucket-v2"
 URL_EXPIRATION = 900  # 15 minutes — same convention as VMTB-GET-REPORTS
@@ -38,6 +44,20 @@ def lambda_handler(event, context):
         params = event.get("queryStringParameters") or {}
         request_id = params.get("request_id")
         document_name = params.get("document_name")
+        auth_header = event.get("headers", {}).get("authorization", "")
+
+        if not auth_header or not auth_header.startswith("Bearer "):
+            return response(403, {"error": "authorization header required"})
+
+        token = auth_header[len("Bearer "):]
+        try:
+            user = supabase.auth.get_user(token)
+        except Exception:
+            return response(403, {"error": "invalid authorization token"})
+
+        case = supabase.from_("cases").select("id, user_id").eq("id", request_id).single().execute()
+        if not case.data or case.data.get("user_id") != user.user.id:
+            return response(403, {"error": "access denied to case"})
 
         if not request_id or not document_name:
             return response(400, {"error": "request_id and document_name are required"})
