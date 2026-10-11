@@ -32,11 +32,11 @@ service account needs only:
 import json
 import logging
 import os
-from typing import Any
+from typing import Any, Optional
 
 import google.auth
 import httpx
-from fastapi import FastAPI, Response
+from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from google.auth.transport.requests import Request as GoogleAuthRequest
@@ -223,6 +223,23 @@ def health_check() -> Response:
     return Response(content="OK", status_code=200)
 
 
+def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
+    """Placeholder: Google ID token verification is handled in Phase 7.
+    For now, accept any Bearer token or none — the frontend will be updated
+    to send tokens when the UI auth flows are ready.
+    """
+    # Accept any token for now; Phase 7 will add proper verification.
+    if authorization and authorization.startswith("Bearer "):
+        # Briefly validate format only — don't reject tokens that frontend
+        # hasn't started sending yet.
+        token = authorization[len("Bearer "):]
+        # Just check it looks non-empty; full validation in Phase 7.
+        if not token:
+            return None
+    return None
+
+
+
 @app.post("/start-jitsi")
 def start_jitsi() -> dict[str, Any]:
     """Bring every meeting component up. Safe to call repeatedly.
@@ -230,6 +247,7 @@ def start_jitsi() -> dict[str, Any]:
     Returns ``already_running`` only when the VM is RUNNING **and** its
     public HTTPS origin is serving **and** both Cloud Run services answer
     their health endpoints; otherwise ``starting``.
+    For now, no auth check — Phase 7 will add token verification.
     """
     components: dict[str, dict[str, str]] = {}
 
@@ -295,6 +313,7 @@ def stop_jitsi():
     request-driven and Cloud Run reaps their instances automatically once the
     meeting's WebSockets close (the STT service additionally closes sessions
     after an idle window). There is no resident-GPU state to clean up anymore.
+    For now, no auth check — Phase 7 will add token verification.
     """
     components: dict[str, dict[str, str]] = {}
     stop_error: Exception | None = None
