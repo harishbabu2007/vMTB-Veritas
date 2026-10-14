@@ -1,6 +1,5 @@
 import http from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import logger from './logger.js';
 import { TranscriberProxy, type TranscriberProxyOptions } from './transcriberProxy.js';
 import { createSTTProvider } from './stt/factory.js';
@@ -33,37 +32,27 @@ export interface ServerStats {
  *   WS   /transcribe?sessionId=...  -> JVB transcription endpoint
  */
 /**
- * Verify Supabase JWT token.
- * Returns user info if valid, null otherwise.
+ * Verify shared secret token for JVB authentication.
+ * The JVB is configured with a shared secret in its URL template.
+ * Returns true if the token matches the expected secret.
  */
-async function verifyToken(
-  supabase: SupabaseClient | null,
-  token: string,
-): Promise<{ uid: string; role: string } | null> {
-  if (!supabase || !token) return null;
-  try {
-    const { data, error } = await supabase.auth.getUser(token);
-    if (error || !data?.user) return null;
-    return { uid: data.user.id, role: data.user.role ?? 'authenticated' };
-  } catch {
-    return null;
+function verifySharedSecret(token: string, expectedSecret: string): boolean {
+  if (!expectedSecret) return true; // No secret configured = no auth (dev mode)
+  // Use timing-safe comparison to prevent timing attacks
+  if (token.length !== expectedSecret.length) return false;
+  let result = 0;
+  for (let i = 0; i < token.length; i++) {
+    result |= token.charCodeAt(i) ^ expectedSecret.charCodeAt(i);
   }
+  return result === 0;
 }
 
 export function createServer(config: Config, deps: ServerDeps): { server: http.Server; stats: ServerStats; close: () => Promise<void> } {
   const sessions = new Map<string, TranscriberProxy>();
   const stats: ServerStats = { activeSessions: 0 };
 
-  // Initialize Supabase client for token verification
-  let supabaseClient: SupabaseClient | null = null;
-  if (config.supabaseUrl && config.supabaseServiceRoleKey) {
-    try {
-      supabaseClient = createClient(config.supabaseUrl, config.supabaseServiceRoleKey);
-      logger.info('Supabase client initialized for token verification');
-    } catch (err) {
-      logger.error({ err }, 'Failed to initialize Supabase client');
-    }
-  }
+  // Shared secret for JVB authentication
+  const expectedSecret = config.jvbAuthSecret || '';
 
   // Shared warmer: one authenticated /ready ping loop while any session is open.
   const sttReadyUrl =
@@ -127,35 +116,36 @@ export function createServer(config: Config, deps: ServerDeps): { server: http.S
       return;
     }
 
-    // Verify Supabase JWT token (from Authorization header or query param)
+    // Verify shared secret token (from Authorization header or query param)
     const authHeader = request.headers.authorization;
     const tokenFromQuery = parsed.searchParams.get('token');
     const token = authHeader?.startsWith('Bearer ') 
       ? authHeader.slice(7) 
       : tokenFromQuery;
 
-    if (!token) {
-      logger.warn({ sessionId }, 'ws: rejecting connection, missing token');
-      socket.write('HTTP/1.1 401 Unauthorized\r\n\r\nMissing authentication token');
-      socket.destroy();
-      return;
-    }
+    // Check if token matches expected shared secret
+    if (expectedSecret) {
+      if (!token) {
+        logger.warn({ sessionId }, 'ws: rejecting connection, missing token');
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\nMissing authentication token');
+        socket.destroy();
+        return;
+      }
 
-    // Verify token asynchronously
-    const sessionIdStr = sessionId;
-    void verifyToken(supabaseClient, token).then((user) => {
-      if (!user) {
-        logger.warn({ sessionId: sessionIdStr }, 'ws: rejecting connection, invalid token');
+      if (!verifySharedSecret(token, expectedSecret)) {
+        logger.warn({ sessionId }, 'ws: rejecting connection, invalid token');
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\nInvalid authentication token');
         socket.destroy();
         return;
       }
 
-      logger.info({ sessionId: sessionIdStr, userId: user.uid }, 'ws: token verified');
-      proceedWithConnection(sessionIdStr);
-    });
+      logger.info({ sessionId }, 'ws: token verified');
+    } else {
+      logger.warn({ sessionId }, 'ws: no auth secret configured, allowing connection');
+    }
 
-    return; // Async verification will call proceedWithConnection
+    const sessionIdStr = sessionId;
+    proceedWithConnection(sessionIdStr);
 
     function proceedWithConnection(sessionId: string): void {
     const providerName = (parsed.searchParams.get('provider') ?? config.provider) as ProviderName;

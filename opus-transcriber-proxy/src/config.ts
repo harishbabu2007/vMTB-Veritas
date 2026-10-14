@@ -34,6 +34,9 @@ export interface Config {
 
   // Session identity
   maxSessionIdLength: number;
+
+  // JVB authentication
+  jvbAuthSecret: string; // Shared secret for JVB authentication (empty = no auth)
 }
 
 function env(key: string): string | undefined {
@@ -88,6 +91,7 @@ export function loadConfig(): Config {
     pubsubTopic: env('PUBSUB_TOPIC') ?? null,
     pubsubEmulatorHost: env('PUBSUB_EMULATOR_HOST') ?? null,
     maxSessionIdLength: optionalInt('MAX_SESSION_ID_LENGTH', 128),
+    jvbAuthSecret: env('JVB_AUTH_SECRET') ?? '',
   };
 
   if (provider === 'self-hosted' && !config.sttWsUrl) {
