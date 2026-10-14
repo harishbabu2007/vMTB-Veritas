@@ -241,13 +241,15 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> Opt
 
 
 @app.post("/start-jitsi")
-def start_jitsi() -> dict[str, Any]:
+def start_jitsi(current_user: Optional[dict] = Depends(get_current_user)) -> dict[str, Any]:
     """Bring every meeting component up. Safe to call repeatedly.
 
     Returns ``already_running`` only when the VM is RUNNING **and** its
     public HTTPS origin is serving **and** both Cloud Run services answer
     their health endpoints; otherwise ``starting``.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication placeholder: accepts any Bearer token or none.
+    Full token verification will be added when auth flows are ready.
     """
     components: dict[str, dict[str, str]] = {}
 
@@ -306,14 +308,16 @@ def start_jitsi() -> dict[str, Any]:
 
 
 @app.post("/stop-jitsi")
-def stop_jitsi():
+def stop_jitsi(current_user: Optional[dict] = Depends(get_current_user)):
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
     request-driven and Cloud Run reaps their instances automatically once the
     meeting's WebSockets close (the STT service additionally closes sessions
     after an idle window). There is no resident-GPU state to clean up anymore.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication placeholder: accepts any Bearer token or none.
+    Full token verification will be added when auth flows are ready.
     """
     components: dict[str, dict[str, str]] = {}
     stop_error: Exception | None = None
