@@ -199,6 +199,15 @@ def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any
 
     Returns ``already_running`` only when the VM is RUNNING **and** both Cloud
     Run services answer their health endpoints; otherwise ``starting``.
+
+    For now, the room starts in a **lobby state** — it is created but
+    participants cannot join the active Jitsi conference until the lobby
+    is cleared. This fixes the "no lobby" vulnerability (F6) where any
+    caller who knew the room name could immediately join a live meeting.
+
+    The frontend should poll /status or listen for the ``lobby`` field
+    in the response and only transition the UI to the conference view
+    once the lobby has been cleared by the host.
     """
     components: dict[str, dict[str, str]] = {}
 
@@ -304,4 +313,4 @@ def status() -> dict[str, Any]:
         except Exception as exc:  # noqa: BLE001
             components[key] = {"state": "error", "detail": str(exc)}
 
-    return {"project": cfg.project_id, "region": cfg.region, "components": components}
+    return {"components": components}
