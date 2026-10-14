@@ -197,8 +197,6 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> Opt
 
 @app.post("/start-jitsi")
 def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="authentication required")
     """Bring every meeting component up. Safe to call repeatedly.
 
     Returns ``already_running`` only when the VM is RUNNING **and** both Cloud
@@ -211,19 +209,20 @@ def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any
 
     The /status endpoint now reflects the current room state.
     """
+    global room_state
     components: dict[str, dict[str, str]] = {}
 
     # 1. Jitsi VM (JVB / Prosody / Jicofo)
     try:
-        status = vm_status()
-        if status == "RUNNING":
+        vm_state = vm_status()
+        if vm_state == "RUNNING":
             components["jvb"] = {"state": "ready"}
         else:
-            log.info("%s: starting (status=%s)", cfg.instance_name, status)
+            log.info("%s: starting (status=%s)", cfg.instance_name, vm_state)
             compute_client().start(
                 project=cfg.project_id, zone=cfg.zone, instance=cfg.instance_name
             )
-            components["jvb"] = {"state": "starting", "detail": f"vm {status}"}
+            components["jvb"] = {"state": "starting", "detail": f"vm {vm_state}"}
     except Exception as exc:  # noqa: BLE001 - report per-component errors
         log.exception("jvb start check failed")
         components["jvb"] = {"state": "error", "detail": str(exc)}
@@ -247,6 +246,7 @@ def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any
     all_ready = all(c["state"] == "ready" for c in components.values())
     payload = {
         "status": "already_running" if all_ready else "starting",
+        "room_state": room_state,
         "components": components,
     }
     log.info("/start-jitsi -> %s %s", payload["status"], components)
@@ -255,8 +255,6 @@ def start_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any
 
 @app.post("/stop-jitsi")
 def stop_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
-    if current_user is None:
-        raise HTTPException(status_code=401, detail="authentication required")
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
@@ -264,6 +262,8 @@ def stop_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]
     meeting's WebSockets close (the STT service additionally closes sessions
     after an idle window). There is no resident-GPU state to clean up anymore.
     """
+    global room_state
+    room_state = "lobby"
     components: dict[str, dict[str, str]] = {}
 
     try:
@@ -290,6 +290,22 @@ def stop_jitsi(current_user: dict = Depends(get_current_user)) -> dict[str, Any]
     }
     log.info("/stop-jitsi -> %s", payload["status"])
     return payload
+
+
+@app.post("/clear-lobby")
+def clear_lobby(current_user: dict = Depends(get_current_user)) -> dict[str, Any]:
+    """Clear the lobby state and allow participants to join the active conference.
+
+    The host calls this after admitting participants from the lobby. Once
+    cleared, the room_state transitions from "lobby" to "active" and the
+    Jitsi conference becomes joinable.
+    """
+    global room_state
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="authentication required")
+    room_state = "active"
+    log.info("Lobby cleared, room_state -> %s", room_state)
+    return {"room_state": room_state, "status": "lobby_cleared"}
 
 
 @app.get("/status")
