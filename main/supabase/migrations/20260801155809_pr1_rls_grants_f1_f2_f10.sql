@@ -15,14 +15,23 @@ ALTER TABLE public.case_document_versions ENABLE ROW LEVEL SECURITY;
 -- Enable RLS on case_document_retention
 ALTER TABLE public.case_document_retention ENABLE ROW LEVEL SECURITY;
 
+-- Revoke the overly broad grants from the previous migration
+REVOKE ALL ON public.case_document_redactions FROM anon;
+REVOKE ALL ON public.case_document_versions FROM anon;
+REVOKE ALL ON public.case_document_retention FROM anon;
+REVOKE ALL ON public.case_document_redactions FROM authenticated;
+REVOKE ALL ON public.case_document_versions FROM authenticated;
+REVOKE ALL ON public.case_document_retention FROM authenticated;
+
 -- Tighten grants: service_role retains full access (system Lambdas)
 GRANT ALL ON public.case_document_redactions TO service_role;
 GRANT ALL ON public.case_document_versions TO service_role;
 GRANT ALL ON public.case_document_retention TO service_role;
 
--- Authenticated users get SELECT access via RLS policies
+-- Authenticated users get SELECT access (governed by RLS policies)
 GRANT SELECT ON public.case_document_redactions TO authenticated;
 GRANT SELECT ON public.case_document_versions TO authenticated;
 GRANT SELECT ON public.case_document_retention TO authenticated;
 
--- anon access revoked: RLS policies reference auth.uid(), denying anon
+-- anon access fully revoked; RLS policies reference auth.uid() which
+-- returns NULL for anon, so even if grants existed they would be denied
