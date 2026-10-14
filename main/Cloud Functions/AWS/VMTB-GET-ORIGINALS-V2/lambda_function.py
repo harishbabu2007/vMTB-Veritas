@@ -4,7 +4,6 @@ import re
 from typing import Any, Optional
 
 import boto3
-from fastapi import Depends, FastAPI, Header, HTTPException
 
 s3 = boto3.client("s3")
 
@@ -37,34 +36,18 @@ def extract_page_number(name: str) -> int:
 
 
 
-def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """Placeholder: authentication is checked in a future PR.
-    For now, accept any Bearer token or none — the frontend will be updated
-    when auth flows are ready.
-    """
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-    token = authorization[len("Bearer "):]
-    # Brief format check only — full validation in future PR.
-    if not token:
-        return None
-    return None
-
-
 def lambda_handler(event, context):
     try:
         params = event.get("queryStringParameters") or {}
         request_id = params.get("request_id")
         document_name = params.get("document_name")
+        # Optional auth placeholder — reads Authorization header but never rejects.
+        # Full JWT validation will be added in a future PR.
         auth_header = event.get("headers", {}).get("authorization", "")
-
-        # Optional auth check — placeholder for future PR
-        # If a Bearer token is provided, validate format; otherwise continue
-        current_user: Optional[dict] = None
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header[len("Bearer "):]
-            # Just check the token looks non-empty; full validation in future PR
-            current_user = {"token_format_ok": bool(token)}
+            # Token format check only; no rejection for missing/invalid tokens yet.
+            _ = bool(token)
 
         if not request_id or not document_name:
             return response(400, {"error": "request_id and document_name are required"})
