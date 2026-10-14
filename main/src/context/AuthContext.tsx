@@ -256,11 +256,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes - this handles initial session load AND subsequent changes
     const { data: authSub } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log('[AUTH] State change:', event);
+      // Debug logging removed for security (F9)
       
       // Track PASSWORD_RECOVERY event specifically
       if (event === 'PASSWORD_RECOVERY') {
-        console.log('[AUTH] Password recovery mode detected');
+        // Debug logging removed for security (F9)
         setIsInPasswordRecovery(true);
       } else if (event === 'SIGNED_OUT') {
         // Reset recovery flag when user signs out
@@ -295,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Fallback: If INITIAL_SESSION doesn't fire within 2 seconds, set loading false
     const fallbackTimeout = setTimeout(() => {
       if (!initialSessionHandled) {
-        console.log('[AUTH] Fallback: Setting loading false');
+        // Debug logging removed for security (F9)
         initialSessionHandled = true;
         setLoading(false);
       }

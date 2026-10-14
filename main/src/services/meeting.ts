@@ -28,10 +28,10 @@ export class MeetingService {
     this.alreadyRunningCount = 0;
     this.pollStartTime = Date.now();
 
-    console.log('🚀 [MEETING] startMeeting() called');
-    console.log('🚀 [MEETING] Initial state:', this.state);
-    console.log('🚀 [MEETING] Backend URL:', API_BASE_URL);
-    console.log('🚀 [MEETING] Starting poll interval...');
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
 
     // Begin polling
     return this.pollUntilReady();
@@ -49,8 +49,8 @@ export class MeetingService {
       const requestTime = Date.now();
       const elapsed = requestTime - this.pollStartTime;
       
-      console.log(`📡 [API CALL #${this.alreadyRunningCount + 1}] Calling ${API_BASE_URL}/start-jitsi`);
-      console.log(`⏱️  [TIMING] Elapsed: ${elapsed}ms, State: ${this.state}, Counter: ${this.alreadyRunningCount}`);
+      // Debug logging removed for security (F9)
+      // Debug logging removed for security (F9)
 
       const response = await fetch(`${API_BASE_URL}/start-jitsi`, {
         method: 'POST',
@@ -65,12 +65,12 @@ export class MeetingService {
       const responseTime = Date.now();
       const callDuration = responseTime - requestTime;
       
-      console.log(`✅ [API RESPONSE] Status: "${data.status}", Duration: ${callDuration}ms`);
-      console.log(`✅ [API RESPONSE] Full response:`, data);
+      // Debug logging removed for security (F9)
+      // Debug logging removed for security (F9)
       
       return data as StartJitsiResponse;
     } catch (error) {
-      console.error('❌ [API ERROR] Error calling start-jitsi:', error);
+      // Debug logging removed for security (F9)
       throw new Error('Unable to start meeting server. Please try again.');
     }
   }
@@ -84,15 +84,15 @@ export class MeetingService {
    */
   private pollUntilReady(): Promise<void> {
     return new Promise((resolve, reject) => {
-      console.log('🔄 [POLL] Starting polling loop...');
+      // Debug logging removed for security (F9)
       
       this.pollingInterval = setInterval(async () => {
         // Check if we've exceeded max poll time
         const elapsed = Date.now() - this.pollStartTime;
-        console.log(`🔄 [POLL] Interval tick at ${elapsed}ms`);
+        // Debug logging removed for security (F9)
         
         if (elapsed > MAX_POLL_TIME) {
-          console.log('⏹️  [TIMEOUT] Max poll time exceeded (90s)');
+          // Debug logging removed for security (F9)
           this.stopPolling();
           this.state = 'WAITING';
           this.alreadyRunningCount = 0;
@@ -105,30 +105,30 @@ export class MeetingService {
 
           if (response.status === 'already_running') {
             this.alreadyRunningCount++;
-            console.log(`🎯 [STATE] Received "already_running" (count: ${this.alreadyRunningCount})`);
+            // Debug logging removed for security (F9)
 
             if (this.state === 'WAITING') {
               // First "already_running" response - move to FIRST_READY
               this.state = 'FIRST_READY';
-              console.log('🟡 [STATE TRANSITION] WAITING → FIRST_READY');
-              console.log('🟡 [STATE] Server initially ready. Continuing to poll for 2nd confirmation...');
+              // Debug logging removed for security (F9)
+              // Debug logging removed for security (F9)
               // Continue polling - do NOT resolve yet
             } else if (this.state === 'FIRST_READY') {
               // Second "already_running" response - server is truly ready
               this.state = 'OPENED';
-              console.log('🟢 [STATE TRANSITION] FIRST_READY → OPENED');
-              console.log('🟢 [STATE] Server fully ready! Stopping polling and resolving Promise...');
+              // Debug logging removed for security (F9)
+              // Debug logging removed for security (F9)
               this.stopPolling();
               this.alreadyRunningCount = 0;
-              console.log('✅ [RESOLVE] Promise will resolve NOW - window.open() should be called next!');
+              // Debug logging removed for security (F9)
               resolve();
             }
           } else if (response.status === 'starting') {
             // Server is still starting - continue polling
-            console.log('🟠 [STATE] Server still starting, continuing to poll...');
+            // Debug logging removed for security (F9)
           }
         } catch (error) {
-          console.error('❌ [POLL ERROR] Error during polling:', error);
+          // Debug logging removed for security (F9)
           this.stopPolling();
           this.state = 'WAITING';
           this.alreadyRunningCount = 0;
@@ -172,9 +172,9 @@ export class MeetingService {
   getMeetingUrl(roomName: string): string {
     const sanitizedRoom = this.sanitizeMeetingName(roomName);
     const fullUrl = `${JITSI_MEET_URL}/${sanitizedRoom}`;
-    console.log(`🔗 [URL] Room name input: "${roomName}"`);
-    console.log(`🔗 [URL] Sanitized room name: "${sanitizedRoom}"`);
-    console.log(`🔗 [URL] Full meeting URL: "${fullUrl}"`);
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
     return fullUrl;
   }
 

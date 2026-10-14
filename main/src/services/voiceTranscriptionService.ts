@@ -275,7 +275,7 @@ export async function runTranscriptionPipeline(
   // The blob is labeled with whatever container the recording browser
   // actually produced (see VoiceRecorder.tsx) — not necessarily WebM.
   const mimeType = audioBlob.type || 'audio/webm';
-  console.log(`[VoiceService] Starting Voice Pipeline. Recording ID: ${recordingId}, User ID: ${userId}, Source: ${source}, MIME type: ${mimeType}`);
+  // Debug logging removed for security (F9)
 
   try {
     // Step 1: Insert record into speech_transcriptions BEFORE requesting presigned URL

@@ -84,10 +84,7 @@ export class MeetingAnalyticsService {
    * Initialize analytics tracking for a meeting
    */
   async initialize(params: MeetingParams): Promise<boolean> {
-    console.log('[ANALYTICS] ========================================');
-    console.log('[ANALYTICS] Initialize called');
-    console.log('[ANALYTICS] Room:', params.roomName);
-    console.log('[ANALYTICS] MTB ID:', params.mtbId);
+    // Debug logging removed for security (F9)
     
     if (!isSupabaseConfigured()) {
       console.error('[ANALYTICS] ❌ Supabase not configured, analytics disabled');
@@ -115,7 +112,7 @@ export class MeetingAnalyticsService {
     window.addEventListener('pagehide', this.handlePageHide);
 
     this.isTracking = true;
-    console.log('[ANALYTICS] ✓ Tracking initialized');
+    // Debug logging removed for security (F9)
     return true;
   }
 
@@ -133,8 +130,7 @@ export class MeetingAnalyticsService {
    * endpoint rejects a bind without one.
    */
   async onLocalParticipantJoined(participantId: string): Promise<void> {
-    console.log('[ANALYTICS] ----------------------------------------');
-    console.log('[ANALYTICS] onLocalParticipantJoined:', participantId);
+    // Debug logging removed for security (F9)
     
     if (!this.isTracking || !this.params) {
       console.error('[ANALYTICS] ❌ Not tracking or missing params');
@@ -158,7 +154,7 @@ export class MeetingAnalyticsService {
     // Start heartbeat
     this.startHeartbeat();
     
-    console.log('[ANALYTICS] ✓ Local participant tracking started');
+    // Debug logging removed for security (F9)
   }
 
   /**
@@ -172,8 +168,7 @@ export class MeetingAnalyticsService {
       // Calculate threshold: only sessions with heartbeat newer than this are "active"
       const recentThreshold = new Date(Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000).toISOString();
       
-      console.log('[ANALYTICS] Checking for recent active session...');
-      console.log('[ANALYTICS] Threshold:', recentThreshold);
+      // Debug logging removed for security (F9)
       
       // Query for RECENT active session only
       const { data: existingSession, error: fetchError } = await this.supabase
@@ -194,13 +189,13 @@ export class MeetingAnalyticsService {
         // Found a recent active session - join it
         this.meetingSessionId = existingSession.id;
         this.maxParticipants = existingSession.max_participants || 0;
-        console.log('[ANALYTICS] ✓ Joined existing session:', this.meetingSessionId);
+        // Debug logging removed for security (F9)
         return;
       }
 
       // No recent session found - create a new one
       // Note: We do NOT close/modify stale sessions, we just ignore them
-      console.log('[ANALYTICS] No recent session found, creating new one...');
+      // Debug logging removed for security (F9)
       
       const now = new Date().toISOString();
       const { data: newSession, error: insertError } = await this.supabase
@@ -222,7 +217,7 @@ export class MeetingAnalyticsService {
       }
 
       this.meetingSessionId = newSession.id;
-      console.log('[ANALYTICS] ✓ Created new session:', this.meetingSessionId);
+      // Debug logging removed for security (F9)
 
     } catch (error) {
       console.error('[ANALYTICS] ❌ Exception in getOrCreateMeetingSession:', error);
@@ -235,7 +230,7 @@ export class MeetingAnalyticsService {
   private startHeartbeat(): void {
     this.stopHeartbeat(); // Clear any existing
 
-    console.log('[ANALYTICS] Starting heartbeat (every 30s)');
+    // Debug logging removed for security (F9)
     
     // First heartbeat immediately
     this.sendHeartbeat();
@@ -271,7 +266,7 @@ export class MeetingAnalyticsService {
       if (error) {
         console.error('[ANALYTICS] Heartbeat error:', error.message);
       } else {
-        console.log('[ANALYTICS] 💓 Heartbeat');
+        // Debug logging removed for security (F9)
       }
     } catch (error) {
       console.error('[ANALYTICS] Heartbeat exception:', error);
@@ -290,7 +285,7 @@ export class MeetingAnalyticsService {
     if (!this.isTracking || !this.meetingSessionId) return;
     if (participantId === this.currentParticipantId) return; // Skip self
 
-    console.log('[ANALYTICS] Remote participant joined:', participantId);
+    // Debug logging removed for security (F9)
 
     this.participantCount++;
     await this.updateMaxParticipants();
@@ -303,7 +298,7 @@ export class MeetingAnalyticsService {
     if (!this.isTracking || !this.meetingSessionId) return;
     if (participantId === this.currentParticipantId) return; // Skip self
 
-    console.log('[ANALYTICS] Remote participant left:', participantId);
+    // Debug logging removed for security (F9)
 
     await this.markParticipantLeft(participantId, 'normal');
     this.participantCount = Math.max(0, this.participantCount - 1);
@@ -315,13 +310,13 @@ export class MeetingAnalyticsService {
    */
   async onLocalParticipantLeft(reason: string = 'normal'): Promise<void> {
     if (!this.isTracking || this.hasEnded) {
-      console.log('[ANALYTICS] Already ended or not tracking');
+      // Debug logging removed for security (F9)
       return;
     }
     
     this.hasEnded = true;
-    console.log('[ANALYTICS] ========================================');
-    console.log('[ANALYTICS] Local participant leaving:', reason);
+    // Debug logging removed for security (F9)
+    // Debug logging removed for security (F9)
 
     // Stop heartbeat
     this.stopHeartbeat();
@@ -434,10 +429,10 @@ export class MeetingAnalyticsService {
         })
         .eq('id', this.meetingSessionId);
 
-      console.log('[ANALYTICS] ✓ Meeting ended');
-      console.log('[ANALYTICS] Duration:', totalDurationSeconds, 'seconds');
-      console.log('[ANALYTICS] Max participants:', this.maxParticipants);
-      console.log('[ANALYTICS] ========================================');
+      // Debug logging removed for security (F9)
+      // Debug logging removed for security (F9)
+      // Debug logging removed for security (F9)
+      // Debug logging removed for security (F9)
 
     } catch (error) {
       console.error('[ANALYTICS] Error ending session:', error);
@@ -449,7 +444,7 @@ export class MeetingAnalyticsService {
    */
   private handleVisibilityChange(): void {
     if (document.visibilityState === 'hidden' && this.isTracking && !this.hasEnded) {
-      console.log('[ANALYTICS] Tab hidden - sending heartbeat');
+      // Debug logging removed for security (F9)
       this.sendHeartbeat();
     }
   }
@@ -460,7 +455,7 @@ export class MeetingAnalyticsService {
    */
   private handlePageHide(): void {
     if (!this.isTracking || this.hasEnded || !this.meetingSessionId) return;
-    console.log('[ANALYTICS] pagehide - ending session best-effort');
+    // Debug logging removed for security (F9)
     this.hasEnded = true;
     this.stopHeartbeat();
     void this.endMeetingSession();
@@ -470,7 +465,7 @@ export class MeetingAnalyticsService {
    * Cleanup resources
    */
   cleanup(): void {
-    console.log('[ANALYTICS] Cleanup');
+    // Debug logging removed for security (F9)
 
     this.stopHeartbeat();
     document.removeEventListener('visibilitychange', this.handleVisibilityChange);
