@@ -67,6 +67,10 @@ const limitUnavailable = (): Response =>
 /* =========================
    EDGE FUNCTION
 ========================= */
+// In-memory per-IP rate limiting
+// Note: For production with multiple instances, use Redis or similar
+const ipRateLimit = new Map<string, number[]>();
+
 serve(async (req) => {
   // ✅ CORS preflight
   if (req.method === "OPTIONS") {
@@ -108,10 +112,45 @@ serve(async (req) => {
       return json({ error: "Too many OTP requests. Please try again in a few minutes." }, 429);
     }
 
+    // Per-IP rate limit: throttle OTP requests per client IP address.
+    // This prevents one host from flooding many different phone numbers.
+    // Note: In-memory rate limiting (per instance). For production with
+    // multiple instances, use Redis or similar distributed rate limiting.
+    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || req.headers.get("x-real-ip")
+      || "unknown";
+
+    // In-memory rate limit: max 20 requests per IP per hour
+    const ipRateLimitKey = clientIp;
+    const ipWindowMs = 60 * 60 * 1000; // 1 hour
+    const ipMaxRequests = 20;
+    
+    // Clean up old entries periodically (simple in-memory cleanup)
+    if (Math.random() < 0.01) { // 1% chance to clean up
+      for (const [key, timestamps] of ipRateLimit.entries()) {
+        const recent = timestamps.filter((t) => t > Date.now() - ipWindowMs);
+        if (recent.length === 0) {
+          ipRateLimit.delete(key);
+        } else {
+          ipRateLimit.set(key, recent);
+        }
+      }
+    }
+    
+    const ipTimestamps = ipRateLimit.get(ipRateLimitKey) || [];
+    const ipRecent = ipTimestamps.filter((t) => t > Date.now() - ipWindowMs);
+    
+    if (ipRecent.length >= ipMaxRequests) {
+      return json({ error: "Too many requests from your network. Please try again later." }, 429);
+    }
+    
+    ipRecent.push(Date.now());
+    ipRateLimit.set(ipRateLimitKey, ipRecent);
+
     // Login asks for a code only for an account that exists. This used to be
     // a browser read of `profiles` that anyone could make for free. Asking
-    // here keeps the question inside this function, where the planned
-    // per-IP limit will cover it (a refused number writes no OTP row, so the
+    // here keeps the question inside this function, where the per-IP limit
+    // above covers it (a refused number writes no OTP row, so the
     // per-phone limit above does not count it), and no code is sent -- or
     // paid for -- for a number with no account.
     if (body?.purpose === "login") {
