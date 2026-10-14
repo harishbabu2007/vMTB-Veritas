@@ -41,7 +41,7 @@ In `jicofo.conf`, inside the top-level `jicofo { ... }` block:
 ```
 jicofo {
   transcription {
-    url-template = "wss://PROXY_URL/transcribe?sessionId={{MEETING_ID}}&sendBack=true"
+    url-template = "wss://PROXY_URL/transcribe?sessionId={{MEETING_ID}}&sendBack=true&token=YOUR_SHARED_SECRET"
     ping {
       enabled = true
       interval = 10 seconds
@@ -50,6 +50,11 @@ jicofo {
   }
 }
 ```
+
+**Authentication**: The proxy now requires a shared secret for JVB authentication.
+Set the `JVB_AUTH_SECRET` environment variable on the proxy (Cloud Run) and use
+the same secret in the URL template above. If `JVB_AUTH_SECRET` is empty, no
+authentication is required (for local development only).
 
 - `{{MEETING_ID}}` is the Jitsi conference meeting id. This is the value the
   proxy stores as `meeting_id` in Supabase. It is **not** `meeting_sessions.id`
