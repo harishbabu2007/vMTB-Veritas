@@ -39,6 +39,7 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from supabase import Client, create_client
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.cloud import compute_v1
 from google.oauth2 import id_token as google_id_token
@@ -224,30 +225,54 @@ def health_check() -> Response:
 
 
 def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """Placeholder: Google ID token verification is handled in Phase 7.
-    For now, accept any Bearer token or none — the frontend will be updated
-    to send tokens when the UI auth flows are ready.
+    """Verify Supabase JWT token from Authorization header.
+
+    Accepts a Bearer token and verifies it against Supabase.
+    Returns user info dict if valid, None otherwise.
+
+    If no token is provided or token is invalid, returns None (optional auth).
+    Callers can check if current_user is None to determine if auth is required.
     """
-    # Accept any token for now; Phase 7 will add proper verification.
-    if authorization and authorization.startswith("Bearer "):
-        # Briefly validate format only — don't reject tokens that frontend
-        # hasn't started sending yet.
-        token = authorization[len("Bearer "):]
-        # Just check it looks non-empty; full validation in Phase 7.
-        if not token:
-            return None
-    return None
+    if not authorization or not authorization.startswith("Bearer "):
+        return None  # No token provided - optional auth mode
+
+    token = authorization[len("Bearer "):]
+    if not token:
+        return None
+
+    supabase = get_supabase_client()
+    if not supabase:
+        log.warning("Supabase client not initialized, skipping token verification")
+        return None
+
+    try:
+        # Use Supabase's get_user to verify the JWT token
+        user_response = supabase.auth.get_user(token)
+        if user_response and user_response.user:
+            # Return user info
+            return {
+                "uid": user_response.user.id,
+                "email": user_response.user.email,
+                "phone": user_response.user.phone,
+                "role": user_response.user.role,
+            }
+        return None
+    except Exception as e:
+        log.warning("JWT verification failed: %s", str(e))
+        return None
 
 
 
 @app.post("/start-jitsi")
-def start_jitsi() -> dict[str, Any]:
+def start_jitsi(current_user: Optional[dict] = Depends(get_current_user)) -> dict[str, Any]:
     """Bring every meeting component up. Safe to call repeatedly.
 
     Returns ``already_running`` only when the VM is RUNNING **and** its
     public HTTPS origin is serving **and** both Cloud Run services answer
     their health endpoints; otherwise ``starting``.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication: Optional Supabase JWT verification.
+    If a valid Bearer token is provided, user info is logged.
     """
     components: dict[str, dict[str, str]] = {}
 
@@ -306,14 +331,16 @@ def start_jitsi() -> dict[str, Any]:
 
 
 @app.post("/stop-jitsi")
-def stop_jitsi():
+def stop_jitsi(current_user: Optional[dict] = Depends(get_current_user)):
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
     request-driven and Cloud Run reaps their instances automatically once the
     meeting's WebSockets close (the STT service additionally closes sessions
     after an idle window). There is no resident-GPU state to clean up anymore.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication: Optional Supabase JWT verification.
+    If a valid Bearer token is provided, user info is logged.
     """
     components: dict[str, dict[str, str]] = {}
     stop_error: Exception | None = None
