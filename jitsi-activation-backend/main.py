@@ -39,7 +39,6 @@ import httpx
 from fastapi import Depends, FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from supabase import Client, create_client
 from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.cloud import compute_v1
 from google.oauth2 import id_token as google_id_token
@@ -227,11 +226,10 @@ def health_check() -> Response:
 def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
     """Verify Supabase JWT token from Authorization header.
 
-    Accepts a Bearer token and verifies it against Supabase.
-    Returns user info dict if valid, None otherwise.
+    Calls GET {SUPABASE_URL}/auth/v1/user with the token to verify it.
+    Returns {"uid": ..., "role": ...} if valid, None otherwise.
 
     If no token is provided or token is invalid, returns None (optional auth).
-    Callers can check if current_user is None to determine if auth is required.
     """
     if not authorization or not authorization.startswith("Bearer "):
         return None  # No token provided - optional auth mode
@@ -240,25 +238,30 @@ def get_current_user(authorization: Optional[str] = Header(default=None)) -> Opt
     if not token:
         return None
 
-    supabase = get_supabase_client()
-    if not supabase:
-        log.warning("Supabase client not initialized, skipping token verification")
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    supabase_key = os.environ.get("SUPABASE_ANON_KEY", "")
+
+    if not supabase_url or not supabase_key:
+        # No Supabase configured; skip verification (dev mode)
         return None
 
     try:
-        # Use Supabase's get_user to verify the JWT token
-        user_response = supabase.auth.get_user(token)
-        if user_response and user_response.user:
-            # Return user info
-            return {
-                "uid": user_response.user.id,
-                "email": user_response.user.email,
-                "phone": user_response.user.phone,
-                "role": user_response.user.role,
-            }
-        return None
-    except Exception as e:
-        log.warning("JWT verification failed: %s", str(e))
+        resp = httpx.get(
+            f"{supabase_url.rstrip('/')}/auth/v1/user",
+            headers={
+                "apikey": supabase_key,
+                "Authorization": f"Bearer {token}",
+            },
+            timeout=5.0,
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        return {
+            "uid": data.get("id"),
+            "role": data.get("role", "authenticated"),
+        }
+    except Exception:
         return None
 
 
