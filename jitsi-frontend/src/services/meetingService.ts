@@ -17,20 +17,20 @@ export class MeetingService {
   private isCleanedUp = false
   private lastComponents: Record<string, ComponentState> = {}
 
-  async waitForMeetingReady(): Promise<void> {
+  async waitForMeetingReady(joinTicket?: string | null): Promise<void> {
     debugLog('[POLLING] ========================================')
     debugLog('[POLLING] Starting polling sequence')
     debugLog('[POLLING] Backend:', import.meta.env.VITE_JITSI_BACKEND_URL)
     debugLog('[POLLING] Max timeout: 5 minutes (60 × 5s)')
     this.isCleanedUp = false
-    return this.pollUntilReady()
+    return this.pollUntilReady(joinTicket)
   }
 
   getComponents(): Record<string, ComponentState> {
     return this.lastComponents
   }
 
-  private async callStartJitsi(): Promise<StartJitsiResponse> {
+  private async callStartJitsi(joinTicket?: string | null): Promise<StartJitsiResponse> {
     const backendUrl = import.meta.env.VITE_JITSI_BACKEND_URL
     const endpoint = `${backendUrl}/start-jitsi`
 
@@ -40,10 +40,15 @@ export class MeetingService {
     this.abortController = controller
     const timeoutId = setTimeout(() => controller.abort(), 30000)
 
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (joinTicket) {
+      headers['X-Join-Ticket'] = joinTicket
+    }
+
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         signal: controller.signal,
       })
 
@@ -76,7 +81,7 @@ export class MeetingService {
     }
   }
 
-  private async pollUntilReady(): Promise<void> {
+  private async pollUntilReady(joinTicket?: string | null): Promise<void> {
     return new Promise((resolve, reject) => {
       let callCount = 0
       const maxCalls = 60 // 5 minutes
@@ -103,7 +108,7 @@ export class MeetingService {
         }
 
         try {
-          const response = await this.callStartJitsi()
+          const response = await this.callStartJitsi(joinTicket)
           consecutiveErrors = 0 // Reset on success
 
           if (response.status === 'already_running') {

@@ -347,7 +347,7 @@ export default function MeetingPage() {
       }
     }, 2000)
 
-    service.waitForMeetingReady()
+    service.waitForMeetingReady(ticketRef.current)
       .then(async () => {
         debugLog('[INIT] ✓ Server ready!')
         clearInterval(componentPoll)

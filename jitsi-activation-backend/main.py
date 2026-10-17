@@ -223,32 +223,126 @@ def health_check() -> Response:
     return Response(content="OK", status_code=200)
 
 
-def get_current_user(authorization: Optional[str] = Header(default=None)) -> Optional[dict]:
-    """Placeholder: Google ID token verification is handled in Phase 7.
-    For now, accept any Bearer token or none — the frontend will be updated
-    to send tokens when the UI auth flows are ready.
+def verify_join_ticket(ticket: str) -> Optional[dict]:
+    """Verify a join ticket against Supabase meeting_join_tickets table.
+
+    Returns {"user_id": ..., "mtb_id": ...} if valid, None otherwise.
     """
-    # Accept any token for now; Phase 7 will add proper verification.
-    if authorization and authorization.startswith("Bearer "):
-        # Briefly validate format only — don't reject tokens that frontend
-        # hasn't started sending yet.
-        token = authorization[len("Bearer "):]
-        # Just check it looks non-empty; full validation in Phase 7.
-        if not token:
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    service_role_key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
+
+    if not supabase_url or not service_role_key:
+        return None
+
+    try:
+        resp = httpx.get(
+            f"{supabase_url.rstrip('/')}/rest/v1/meeting_join_tickets",
+            params={
+                "select": "user_id,mtb_id,expires_at",
+                "token": f"eq.{ticket}",
+                "limit": "1",
+            },
+            headers={
+                "apikey": service_role_key,
+                "Authorization": f"Bearer {service_role_key}",
+            },
+            timeout=5.0,
+        )
+        if resp.status_code != 200:
             return None
+        data = resp.json()
+        if not data:
+            return None
+        row = data[0]
+        # Check expiry
+        expires_at = row.get("expires_at")
+        if expires_at:
+            from datetime import datetime, timezone
+            exp = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+            if exp <= datetime.now(timezone.utc):
+                return None
+        return {
+            "user_id": row.get("user_id"),
+            "mtb_id": row.get("mtb_id"),
+        }
+    except Exception:
+        return None
+
+
+def verify_google_id_token(token: str) -> Optional[dict]:
+    """Verify a Google ID token from the transcript-worker service account.
+
+    Returns {"email": ..., "sub": ...} if valid, None otherwise.
+    """
+    expected_email = os.environ.get("WORKER_SERVICE_ACCOUNT", "")
+
+    if not expected_email:
+        return None
+
+    try:
+        from google.oauth2 import id_token as google_id_token
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+
+        idinfo = google_id_token.verify_oauth2_token(
+            token,
+            GoogleAuthRequest(),
+        )
+
+        email = idinfo.get("email", "")
+        if email != expected_email:
+            return None
+
+        return {
+            "email": email,
+            "sub": idinfo.get("sub"),
+        }
+    except Exception:
+        return None
+
+
+def get_current_user(
+    authorization: Optional[str] = Header(default=None),
+    x_join_ticket: Optional[str] = Header(default=None),
+) -> Optional[dict]:
+    """Verify caller identity via join ticket or Google ID token.
+
+    Frontend (meet.vmtb.in): sends join ticket in X-Join-Ticket header.
+    Worker: sends Google ID token in Authorization: Bearer header.
+
+    Returns user info dict if valid, None otherwise.
+    """
+    # Check for join ticket (frontend)
+    if x_join_ticket:
+        result = verify_join_ticket(x_join_ticket)
+        if result:
+            return {"type": "join_ticket", **result}
+        return None
+
+    # Check for Google ID token (worker)
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[len("Bearer "):]
+        if token:
+            result = verify_google_id_token(token)
+            if result:
+                return {"type": "google_id_token", **result}
+
     return None
 
 
 
 @app.post("/start-jitsi")
-def start_jitsi() -> dict[str, Any]:
+def start_jitsi(current_user: Optional[dict] = Depends(get_current_user)) -> dict[str, Any]:
     """Bring every meeting component up. Safe to call repeatedly.
 
     Returns ``already_running`` only when the VM is RUNNING **and** its
     public HTTPS origin is serving **and** both Cloud Run services answer
     their health endpoints; otherwise ``starting``.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication: Requires valid join ticket (frontend) or Google ID token (worker).
     """
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     components: dict[str, dict[str, str]] = {}
 
     # 1. Jitsi VM (JVB / Prosody / Jicofo)
@@ -306,15 +400,19 @@ def start_jitsi() -> dict[str, Any]:
 
 
 @app.post("/stop-jitsi")
-def stop_jitsi():
+def stop_jitsi(current_user: Optional[dict] = Depends(get_current_user)):
     """Stop the billable VM.
 
     The Cloud Run services are intentionally left alone: they are
     request-driven and Cloud Run reaps their instances automatically once the
     meeting's WebSockets close (the STT service additionally closes sessions
     after an idle window). There is no resident-GPU state to clean up anymore.
-    For now, no auth check — Phase 7 will add token verification.
+
+    Authentication: Requires valid Google ID token from transcript-worker.
     """
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
     components: dict[str, dict[str, str]] = {}
     stop_error: Exception | None = None
 
@@ -350,8 +448,10 @@ def stop_jitsi():
 
 
 @app.get("/status")
-def status() -> dict[str, Any]:
+def status(current_user: Optional[dict] = Depends(get_current_user)) -> dict[str, Any]:
     """Read-only view of every component (no side effects beyond probes). For debugging."""
+    if current_user is None:
+        raise HTTPException(status_code=401, detail="Authentication required")
     components: dict[str, dict[str, str]] = {}
     try:
         vm = vm_status()
