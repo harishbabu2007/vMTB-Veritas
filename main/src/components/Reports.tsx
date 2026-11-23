@@ -18,11 +18,11 @@ import {
   announceCaseChanged,
   commitCaseEdits,
   getTabId,
-  CommitInput,
 } from '../services/pipelineService';
+import { isDecisionOpen, type PendingEmptyArchive } from '../hooks/documentSaveState';
 import { useCaseRunState } from '../hooks/useCaseRunState';
 import { useRunActions } from '../hooks/useRunActions';
-import { CaseUpdateStatus, SaveProblem } from './CaseUpdateStatus';
+import { CaseUpdateStatus } from './CaseUpdateStatus';
 import { DismissButton } from './DismissButton';
 import { supabase } from '../Supabase/client';
 import { loadPdfjs } from '../utils/pdfjs';
@@ -183,13 +183,6 @@ export async function fetchAdditionalDocument(caseId: string): Promise<Additiona
 // leaving didn't make it.
 const emptyArchiveKey = (caseId: string) => `vmtb:empty-case-archive:${caseId}`;
 
-interface PendingEmptyArchive {
-  sessionId: string;
-  documents: CommitInput['documents'];
-  deleteFiles: string[];
-  additionalData: AdditionalDocument | null;
-}
-
 function readPendingEmptyArchive(caseId: string): PendingEmptyArchive | null {
   try {
     const raw = window.localStorage.getItem(emptyArchiveKey(caseId));
@@ -233,12 +226,16 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
   const [workspaceFor, setWorkspaceFor] = useState<string | null>(null);
   // Saving = the commit_case_edits call is in flight (seconds). After it
   // returns, the changes are saved; processing progress comes from runState.
-  const [committing, setCommitting] = useState(false);
-  const committingRef = useRef(false);
-  const [saveProblem, setSaveProblem] = useState<SaveProblem | null>(null);
+  // The whole save flow lives in the session's reducer now — this is just the
+  // render-facing view of it.
+  const { saveState } = session;
+  const saving = saveState.kind === 'saving';
   // Documents touched by the latest save, for per-document "Updating" chips
   // while that save's run is applying them.
-  const [lastSave, setLastSave] = useState<{ runId: string; filenames: string[] } | null>(null);
+  const lastSave = session.lastSave;
+  // Re-entrancy guard for commitSession. The reducer can't do this job: two
+  // synchronous calls would both read the same pre-dispatch state.
+  const saveInFlightRef = useRef(false);
 
 
   // PDF thumbnail cache, keyed by filename.
@@ -413,16 +410,15 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
    * strip offers "Start processing".
    */
   const commitSession = useCallback(async (options?: { emptyAction?: 'archive' }) => {
-    if (committingRef.current || !caseData.requestId) return;
+    if (saveInFlightRef.current || !caseData.requestId) return;
     const snap: SessionSnapshot = session.snapshot();
     const documents = Object.entries(snap.redactions)
       .filter(([filename, changes]) => changes.length > 0 && !snap.deletes.includes(filename))
       .map(([documentFilename, changes]) => ({ documentFilename, changes: toRedactionChanges(changes) }));
     if (documents.length === 0 && snap.deletes.length === 0 && snap.uploads.length === 0 && !snap.additionalData) return;
 
-    committingRef.current = true;
-    setCommitting(true);
-    setSaveProblem(null);
+    saveInFlightRef.current = true;
+    session.beginSave();
     try {
       if (snap.uploads.length > 0) {
         // Same keys every attempt, so a retried save just overwrites them.
@@ -442,10 +438,12 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
 
       // Saved.
       writePendingEmptyArchive(caseData.id, null);
-      setEmptyPrompt(false);
       session.reset();
       if (snap.additionalData) setAdditionalDocument(snap.additionalData);
-      setLastSave({ runId: run.id, filenames: [...documents.map((d) => d.documentFilename), ...snap.deletes] });
+      session.saveSucceeded({
+        runId: run.id,
+        filenames: [...documents.map((d) => d.documentFilename), ...snap.deletes],
+      });
       announceCaseChanged(caseData.id, getTabId());
       if (run.archived) {
         onCaseChange?.({ archivedAt: new Date().toISOString(), summaryStatus: 'failed' });
@@ -470,15 +468,16 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
       } else if (e?.code === 'CASE_WOULD_BE_EMPTY') {
         // Nothing saved yet: ask what to do, and remember the save so walking
         // away from the question still archives.
-        writePendingEmptyArchive(caseData.id, {
+        const pending: PendingEmptyArchive = {
           sessionId: snap.sessionId,
           documents,
           deleteFiles: snap.deletes,
           additionalData: snap.additionalData,
-        });
-        setEmptyPrompt(true);
+        };
+        writePendingEmptyArchive(caseData.id, pending);
+        session.askEmptyDecision(pending);
       } else {
-        setSaveProblem({
+        session.saveFailed({
           message: e?.message ?? (err instanceof Error ? err.message : "Your changes couldn't be saved."),
           // Retrying makes sense unless the user must act first (sign in,
           // fix a name clash, wait for processing).
@@ -486,8 +485,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
         });
       }
     } finally {
-      committingRef.current = false;
-      setCommitting(false);
+      saveInFlightRef.current = false;
     }
   }, [caseData.id, caseData.requestId, loadReports, onCaseChange, refreshRunState, session, startRunAndTrack]);
 
@@ -495,7 +493,8 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
   // Emptying the case (no documents, no notes left)
   // ============================================================
 
-  const [emptyPrompt, setEmptyPrompt] = useState(false);
+  // The empty-case question is part of the save state now.
+  const emptyPrompt = isDecisionOpen(saveState);
   const accessTokenRef = useRef<string | null>(null);
 
   const archiveEmptyCase = useCallback(() => {
@@ -505,9 +504,9 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
   // The owner chose to add data instead: keep their draft, forget the archive.
   const keepCaseAndAddData = useCallback((then: () => void) => {
     writePendingEmptyArchive(caseData.id, null);
-    setEmptyPrompt(false);
+    session.decideEmpty();
     then();
-  }, [caseData.id]);
+  }, [caseData.id, session]);
 
   // Walking away while the question is open archives. A keepalive request
   // survives the page unloading; if it doesn't arrive, the stored pending
@@ -593,14 +592,14 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
 
   // Leaving or reloading the page with unsaved changes (or mid-save) asks first.
   useEffect(() => {
-    if (!isOwner || (session.pendingCount === 0 && !committing)) return;
+    if (!isOwner || (session.pendingCount === 0 && !saving)) return;
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       e.preventDefault();
       e.returnValue = '';
     };
     window.addEventListener('beforeunload', onBeforeUnload);
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
-  }, [isOwner, session.pendingCount, committing]);
+  }, [isOwner, session.pendingCount, saving]);
 
   const saveAndCloseWorkspace = useCallback(() => {
     setWorkspaceFor(null);
@@ -833,7 +832,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
             {isOwner && (
               <button
                 onClick={() => fileInputRef.current?.click()}
-                disabled={committing}
+                disabled={saving}
                 data-tour="reports-add"
                 className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg text-text-muted bg-surface border border-border hover:bg-bg transition-colors disabled:opacity-50"
               >
@@ -857,12 +856,11 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
               runState={runState.state}
               isOwner={isOwner}
               unsavedCount={session.pendingCount}
-              saving={committing}
-              saveProblem={saveProblem}
+              save={saveState}
               startFailed={runActions.startFailed}
-              busy={committing || runActions.retrying}
+              busy={saving || runActions.retrying}
               onSave={() => commitSession()}
-              onDiscard={() => { session.reset(); setSaveProblem(null); }}
+              onDiscard={() => session.reset()}
               onRetrySave={() => commitSession()}
               onStartRun={runActions.startCurrentRun}
               onRetryRun={runActions.retryFailedRun}
@@ -1046,10 +1044,10 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
               </button>
               <button
                 onClick={archiveEmptyCase}
-                disabled={committing}
+                disabled={saving}
                 className="px-4 py-2 text-sm font-medium rounded-lg text-on-solid bg-neutral-solid hover:bg-neutral-solid-hover disabled:opacity-50"
               >
-                {committing ? 'Archiving…' : 'Archive case'}
+                {saving ? 'Archiving…' : 'Archive case'}
               </button>
             </div>
           </div>

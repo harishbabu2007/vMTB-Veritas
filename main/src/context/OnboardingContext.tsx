@@ -107,6 +107,15 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [ended, setEnded] = useState(false);
   // Guided groups finished this session, and those that can show their
   // resume step because the user came back to their screen.
+  //
+  // These four arrays (plus `active`) are one per-group state machine — a group
+  // is unseen → requested → active → deferred | seen — and, as issue #73 notes,
+  // folding them into `Record<TourGroupId, 'unseen' | …>` would say that more
+  // plainly. Deliberately not done here: the transitions are spread across the
+  // localStorage retry queue above, the BroadcastChannel merge below and the
+  // `profiles` columns, and the issue only wants this touched as part of a
+  // real change to the tour, with its behaviour re-checked by hand. Nothing is
+  // broken; this is a readability debt, recorded rather than quietly ignored.
   const [sessionSeen, setSessionSeen] = useState<TourGroupId[]>([]);
   const [resumable, setResumable] = useState<TourGroupId[]>([]);
   const [requested, setRequested] = useState<TourGroupId[]>([]);

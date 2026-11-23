@@ -11,6 +11,7 @@ import { VoiceRecorder } from './VoiceRecorder';
 import { Avatar } from './Avatar';
 import { DismissButton } from './DismissButton';
 import { useIsMobile } from '../hooks/useMobile';
+import { useOpenDialog } from '../hooks/useDialogs';
 import { supabase } from '../Supabase/client';
 import { sendWhatsAppOTP, verifyWhatsAppOTPForExistingUser } from '../services/whatsappOtp';
 import { uploadProfilePhoto } from '../services/profilePhoto';
@@ -27,10 +28,15 @@ export function Layout({ children, wide = false }: LayoutProps) {
   const rolePrefix = useRolePrefix();
   const { theme, setTheme } = useTheme();
   const { restartTour } = useOnboarding();
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [showNotificationDropdown, setShowNotificationDropdown] = useState(false);
-  const [showProfileModal, setShowProfileModal] = useState(false);
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  // One value for "which overlay is showing", so the user menu, the
+  // notifications list, the profile modal and the feedback modal can't
+  // disagree about it.
+  const dialog = useOpenDialog<'menu' | 'notifications' | 'profile' | 'feedback'>();
+  // Stable, so the click-outside listener below can keep an empty dep list.
+  const { closeIfOpen: closeDialog } = dialog;
+  const showDropdown = dialog.isOpen('menu');
+  const showNotificationDropdown = dialog.isOpen('notifications');
+  const showProfileModal = dialog.isOpen('profile');
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -86,15 +92,15 @@ export function Layout({ children, wide = false }: LayoutProps) {
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setShowDropdown(false);
+        closeDialog('menu');
       }
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
-        setShowNotificationDropdown(false);
+        closeDialog('notifications');
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [closeDialog]);
 
   // Load profile data when modal opens
   useEffect(() => {
@@ -181,7 +187,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
         setProfileSaved(true);
         setTimeout(() => {
           setProfileSaved(false);
-          setShowProfileModal(false);
+          dialog.closeIfOpen('profile');
         }, 1500);
         return;
       }
@@ -230,7 +236,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
       setProfileSaved(true);
       setTimeout(() => {
         setProfileSaved(false);
-        setShowProfileModal(false);
+        dialog.closeIfOpen('profile');
       }, 1500);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to verify OTP';
@@ -302,7 +308,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
       setFeedbackType('');
       setTimeout(() => {
         setFeedbackSent(false);
-        setShowFeedbackModal(false);
+        dialog.closeIfOpen('feedback');
       }, 1500);
     } catch (err) {
       console.error('Failed to send feedback:', err);
@@ -331,8 +337,8 @@ export function Layout({ children, wide = false }: LayoutProps) {
       {/* Mobile Navigation - Only visible on mobile screens */}
       {isMobile && (
         <MobileNav
-          onProfileClick={() => setShowProfileModal(true)}
-          onFeedbackClick={() => setShowFeedbackModal(true)}
+          onProfileClick={() => dialog.show('profile')}
+          onFeedbackClick={() => dialog.show('feedback')}
         />
       )}
 
@@ -394,7 +400,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
               {/* Notification Icon */}
               <div className="relative" ref={notificationRef}>
                 <button
-                  onClick={() => setShowNotificationDropdown(!showNotificationDropdown)}
+                  onClick={() => dialog.toggle('notifications')}
                   className="p-2 rounded-full hover:bg-surface-muted transition-colors relative"
                 >
                   <Bell className="w-5 h-5 text-text-muted" />
@@ -418,7 +424,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
               {/* Profile Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
-                  onClick={() => setShowDropdown(!showDropdown)}
+                  onClick={() => dialog.toggle('menu')}
                   className="flex items-center space-x-2 p-1 rounded-full hover:bg-surface-muted transition-colors"
                 >
                   <Avatar avatarKey={user?.avatarKey} name={user?.name} email={user?.email} sizeClassName="w-9 h-9 text-sm font-semibold" />
@@ -428,20 +434,14 @@ export function Layout({ children, wide = false }: LayoutProps) {
                 {showDropdown && (
                   <div className="absolute right-0 mt-2 w-48 bg-surface rounded-lg shadow-lg border border-border py-1.5 z-50">
                     <button
-                      onClick={() => {
-                        setShowDropdown(false);
-                        setShowProfileModal(true);
-                      }}
+                      onClick={() => dialog.show('profile')}
                       className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
                     >
                       <Settings className="w-4 h-4" />
                       <span>Profile</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setShowDropdown(false);
-                        setShowFeedbackModal(true);
-                      }}
+                      onClick={() => dialog.show('feedback')}
                       className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
                     >
                       <MessageSquare className="w-4 h-4" />
@@ -454,7 +454,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                       <>
                         <button
                           onClick={() => {
-                            setShowDropdown(false);
+                            dialog.closeIfOpen('menu');
                             navigate(`${rolePrefix}/my-cases?view=archived`);
                           }}
                           className="flex items-center space-x-3 w-full px-4 py-2.5 text-sm text-text hover:bg-surface-hover transition-colors"
@@ -464,7 +464,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
                         </button>
                         <button
                           onClick={() => {
-                            setShowDropdown(false);
+                            dialog.closeIfOpen('menu');
                             void restartTour();
                             navigate(`${rolePrefix}/my-cases`);
                           }}
@@ -521,9 +521,9 @@ export function Layout({ children, wide = false }: LayoutProps) {
 
       {/* Profile Modal */}
       <Modal
-        isOpen={showProfileModal}
+        isOpen={dialog.isOpen('profile')}
         onClose={() => {
-          setShowProfileModal(false);
+          dialog.closeIfOpen('profile');
           setProfileError(null);
           resetWhatsappOtpState();
         }}
@@ -718,7 +718,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           <div className="flex justify-end space-x-3 pt-3">
             <button
               onClick={() => {
-                setShowProfileModal(false);
+                dialog.closeIfOpen('profile');
                 setProfileError(null);
                 resetWhatsappOtpState();
               }}
@@ -749,9 +749,9 @@ export function Layout({ children, wide = false }: LayoutProps) {
 
       {/* Feedback Modal */}
       <Modal
-        isOpen={showFeedbackModal}
+        isOpen={dialog.isOpen('feedback')}
         onClose={() => {
-          setShowFeedbackModal(false);
+          dialog.closeIfOpen('feedback');
           setFeedbackType('');
           setFeedbackText('');
         }}
@@ -806,7 +806,7 @@ export function Layout({ children, wide = false }: LayoutProps) {
           <div className="flex justify-end space-x-3 pt-4">
             <button
               onClick={() => {
-                setShowFeedbackModal(false);
+                dialog.closeIfOpen('feedback');
                 setFeedbackType('');
                 setFeedbackText('');
               }}

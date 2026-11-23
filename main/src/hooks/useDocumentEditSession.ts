@@ -1,7 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useReducer, useState } from 'react';
 import { supabase } from '../Supabase/client';
 import type { RedactionBBox, RedactionChange, RedactionStyle } from '../services/redactionService';
 import { generateUUID } from '../utils/uuid';
+import {
+  initialSaveMachine,
+  saveMachineReducer,
+  selectSaveState,
+  type PendingEmptyArchive,
+  type SavedBatch,
+  type SaveProblem,
+  type SaveState,
+} from './documentSaveState';
 
 /**
  * Everything a case owner has changed on the Reports tab that isn't saved
@@ -101,6 +110,9 @@ export function useDocumentEditSession(caseId: string) {
   // unsaved) or already saved (the page was refreshed mid-save).
   const [recovered, setRecovered] = useState<'restored' | 'already-saved' | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  // The save flow (saving / saved / failed / empty-case question) is one
+  // reducer, so its states can't contradict each other.
+  const [machine, dispatchSave] = useReducer(saveMachineReducer, initialSaveMachine);
 
   useEffect(() => {
     setHydrated(false);
@@ -188,6 +200,8 @@ export function useDocumentEditSession(caseId: string) {
     setUploads([]);
     // A "your changes were restored" notice no longer describes anything.
     setRecovered(null);
+    // The draft is gone, so nothing can still be "not saved".
+    dispatchSave({ type: 'reset' });
   }, []);
 
   const snapshot = useCallback((): SessionSnapshot => ({ ...draft, uploads }), [draft, uploads]);
@@ -202,6 +216,18 @@ export function useDocumentEditSession(caseId: string) {
   const viewerChangeCount =
     Object.values(draft.redactions).reduce((n, list) => n + list.length, 0) + draft.deletes.length;
   const viewerDocumentCount = new Set([...Object.keys(draft.redactions).filter((f) => draft.redactions[f].length > 0), ...draft.deletes]).size;
+
+  // The save flow, as one union, for whatever renders it.
+  const saveState: SaveState = selectSaveState(machine, pendingCount);
+
+  const beginSave = useCallback(() => dispatchSave({ type: 'start' }), []);
+  const saveSucceeded = useCallback((batch: SavedBatch) => dispatchSave({ type: 'saved', batch }), []);
+  const saveFailed = useCallback((problem: SaveProblem) => dispatchSave({ type: 'failed', problem }), []);
+  const askEmptyDecision = useCallback(
+    (pending: PendingEmptyArchive) => dispatchSave({ type: 'needs-decision', pending }),
+    []
+  );
+  const decideEmpty = useCallback(() => dispatchSave({ type: 'decided' }), []);
 
   return {
     sessionId: draft.sessionId,
@@ -224,6 +250,17 @@ export function useDocumentEditSession(caseId: string) {
     removeUpload,
     reset,
     snapshot,
+    // Save flow
+    saveState,
+    /** The latest save that landed; its run may still be applying changes. */
+    lastSave: machine.lastSaved,
+    /** The empty-case save waiting on an answer, for the leave-page keepalive. */
+    pendingEmpty: machine.pendingEmpty,
+    beginSave,
+    saveSucceeded,
+    saveFailed,
+    askEmptyDecision,
+    decideEmpty,
   };
 }
 

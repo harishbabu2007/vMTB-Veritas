@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../Supabase/client';
 import { showToast } from '../utils/toast';
 import { sendWhatsAppOTP, verifyWhatsAppOTPForExistingUser } from '../services/whatsappOtp';
-import { useIsMobile } from '../hooks/useMobile';
 
 interface LocationState {
   userId: string;
@@ -35,7 +34,6 @@ export function VerifyWhatsApp() {
   
   // Current phone being verified (either from state or newly entered)
   const [currentPhone, setCurrentPhone] = useState<string | null>(null);
-  const isMobile = useIsMobile();
 
   // Determine initial step based on state
   useEffect(() => {

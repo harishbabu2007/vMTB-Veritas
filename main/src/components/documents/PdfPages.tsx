@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
 import { loadPdfjs, fetchDocumentBytes } from '../../utils/pdfjs';
+import { useRetryable } from '../../hooks/useRetryable';
 import { LazyPage } from './LazyPage';
 import { DocumentError, DocumentLoading } from './DocumentStatus';
 
@@ -20,6 +21,11 @@ interface PageSize {
   height: number;
 }
 
+interface LoadedPdf {
+  pdf: PDFDocumentProxy;
+  sizes: PageSize[];
+}
+
 /**
  * Renders a PDF in-app with pdf.js instead of a cross-origin <iframe>.
  *
@@ -32,59 +38,45 @@ interface PageSize {
  * that don't render PDFs in iframes at all.
  */
 export function PdfPages({ source, width, onPageInfo }: PdfPagesProps) {
-  const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
-  const [sizes, setSizes] = useState<PageSize[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
   const sourceRef = useRef(source);
   sourceRef.current = source;
   const onPageInfoRef = useRef(onPageInfo);
   onPageInfoRef.current = onPageInfo;
 
-  useEffect(() => {
-    let cancelled = false;
-    let loaded: PDFDocumentProxy | null = null;
-    setPdf(null);
-    setSizes([]);
-    setError(null);
+  const load = useCallback(async (): Promise<LoadedPdf> => {
+    const src = sourceRef.current;
+    const data = src.kind === 'file' ? await src.file.arrayBuffer() : await fetchDocumentBytes(await src.getUrl());
+    const pdfjsLib = await loadPdfjs();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const sizes: PageSize[] = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const viewport = (await pdf.getPage(i)).getViewport({ scale: 1 });
+      sizes.push({ width: viewport.width, height: viewport.height });
+    }
+    return { pdf, sizes };
+  }, []);
 
-    (async () => {
-      try {
-        const src = sourceRef.current;
-        const data = src.kind === 'file' ? await src.file.arrayBuffer() : await fetchDocumentBytes(await src.getUrl());
-        if (cancelled) return;
-        const pdfjsLib = await loadPdfjs();
-        loaded = await pdfjsLib.getDocument({ data }).promise;
-        const pageSizes: PageSize[] = [];
-        for (let i = 1; i <= loaded.numPages; i++) {
-          const viewport = (await loaded.getPage(i)).getViewport({ scale: 1 });
-          pageSizes.push({ width: viewport.width, height: viewport.height });
-        }
-        if (cancelled) return;
-        setSizes(pageSizes);
-        setPdf(loaded);
-        onPageInfoRef.current?.(1, loaded.numPages);
-      } catch (err) {
-        console.error('[PdfPages] Failed to open document', err);
-        if (!cancelled) setError(err instanceof Error ? err.message : "This document couldn't be opened.");
-      }
-    })();
+  const { status, data, error, retry } = useRetryable(load, [source.key], {
+    onLoaded: (loaded) => onPageInfoRef.current?.(1, loaded.pdf.numPages),
+    dispose: (loaded) => {
+      void loaded.pdf.destroy();
+    },
+  });
 
-    return () => {
-      cancelled = true;
-      loaded?.destroy();
-    };
-  }, [source.key, attempt]);
-
-  const total = sizes.length;
+  // Stable per page count: LazyPage re-subscribes its visibility observers
+  // whenever this changes, so a new function every render would re-report
+  // visibility. Declared before the early returns below (hooks order).
+  const total = data?.sizes.length ?? 0;
   const handleVisible = useCallback((index: number) => onPageInfoRef.current?.(index + 1, total), [total]);
 
-  if (error) return <DocumentError message={error} onRetry={() => setAttempt((a) => a + 1)} />;
-  if (!pdf || width <= 0) return <DocumentLoading />;
+  if (status === 'error') {
+    return <DocumentError message={error?.message ?? "This document couldn't be opened."} onRetry={retry} />;
+  }
+  if (!data || width <= 0) return <DocumentLoading />;
 
   return (
     <div className="flex flex-col gap-4 py-4">
-      {sizes.map((size, index) => (
+      {data.sizes.map((size, index) => (
         <LazyPage
           key={index}
           pageIndex={index}
@@ -92,7 +84,7 @@ export function PdfPages({ source, width, onPageInfo }: PdfPagesProps) {
           height={Math.round((width * size.height) / size.width)}
           onVisible={handleVisible}
         >
-          {() => <PdfPageCanvas pdf={pdf} pageNumber={index + 1} width={width} />}
+          {() => <PdfPageCanvas pdf={data.pdf} pageNumber={index + 1} width={width} />}
         </LazyPage>
       ))}
     </div>

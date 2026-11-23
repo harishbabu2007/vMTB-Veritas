@@ -1,14 +1,9 @@
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Check, CircleDot, Loader2, RotateCw } from 'lucide-react';
 import type { CaseRunState, PipelineRun } from '../services/pipelineService';
+import type { SaveState } from '../hooks/documentSaveState';
 import { useDismissed } from '../hooks/useDismissed';
 import { DismissButton } from './DismissButton';
-
-export interface SaveProblem {
-  message: string;
-  /** Offer "Try again" (the same save, same id — never saved twice). */
-  canRetry: boolean;
-}
 
 interface CaseUpdateStatusProps {
   /** Scopes a closed notice to this case, so closing it here doesn't hide another case's. */
@@ -17,8 +12,8 @@ interface CaseUpdateStatusProps {
   isOwner: boolean;
   /** Unsaved changes held in this tab. */
   unsavedCount?: number;
-  saving?: boolean;
-  saveProblem?: SaveProblem | null;
+  /** The Reports tab's save flow, as one state. */
+  save?: SaveState;
   /** The last save succeeded but asking the backend to process it failed. */
   startFailed?: boolean;
   busy?: boolean;
@@ -85,7 +80,7 @@ function Button({ onClick, children, primary, disabled }: { onClick?: () => void
  * at a time, in priority order, with the action that moves it forward.
  */
 export function CaseUpdateStatus({
-  caseId, runState, isOwner, unsavedCount = 0, saving, saveProblem, startFailed, busy,
+  caseId, runState, isOwner, unsavedCount = 0, save = { kind: 'clean' }, startFailed, busy,
   onSave, onDiscard, onRetrySave, onStartRun, onRetryRun, className = '',
 }: CaseUpdateStatusProps) {
   const [now, setNow] = useState(Date.now());
@@ -115,18 +110,18 @@ export function CaseUpdateStatus({
     runState.summary_generation === runState.content_generation &&
     runState.verified_generation !== runState.content_generation;
 
-  if (saving) {
+  if (save.kind === 'saving') {
     tone = 'blue';
     icon = <Loader2 className="w-4 h-4 animate-spin" aria-hidden="true" />;
     title = 'Saving…';
-  } else if (saveProblem) {
+  } else if (save.kind === 'failed') {
     tone = 'red';
     icon = <AlertTriangle className="w-4 h-4" aria-hidden="true" />;
     title = 'Not saved';
-    detail = saveProblem.message;
+    detail = save.problem.message;
     // A problem a plain retry won't fix (signed out, case would be empty…)
     // still leaves the draft actionable: fix the cause, then save or discard.
-    actions = saveProblem.canRetry && onRetrySave
+    actions = save.problem.canRetry && onRetrySave
       ? <Button primary onClick={onRetrySave} disabled={busy}>Try again</Button>
       : unsavedCount > 0
         ? (

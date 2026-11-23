@@ -27,8 +27,43 @@ prefix) → POST to `VMTB-Transcribe-Audio`/
 file** — it exists only in the live database, so its schema isn't visible
 in this repo (see `docs/DATABASE_SCHEMA.md`).
 
+**Its real `status` lifecycle (recorded 2026-11-23, issue #73).** The live
+CHECK constraint accepts six values, but only **three** are ever written:
+`pending` (by `voiceTranscriptionService.ts`, which never updates the row
+itself — it only inserts and then polls), and the two terminal states
+`completed` / `failed` (written by the transcribe Lambda, which is not in this
+repo; inferred from the poll loop plus the CHECK). `uploading`, `uploaded` and
+`processing` are never written by any code here or in the live project — they
+are leftovers from an earlier, more granular design. **Do not narrow the
+CHECK.** It is shared live state with a Lambda this repo can't see, so
+narrowing it could reject a write from outside the repo, and none of the three
+unused values can cause a bug: the client treats anything that is not
+`completed`/`failed` as "still pending".
+
 Call sites (`TranscriptionSource` type): `step2` (case creation),
 `general_opinion`, `question`, `answer`, `reply`.
+
+## Columns nothing writes (reserved, not dead)
+
+Values a schema allows that no code ever writes. Recorded rather than removed,
+so the next person changing this area knows the constraint is a decision, not
+an oversight (issue #73, section 6).
+
+- **`feedback.status` — reserved.** The CHECK allows `pending`, `reviewed`,
+  `resolved` and `dismissed`, and there is even an index on it
+  (`idx_feedback_status`, `20260801155807_remote_schema.sql`), but the app
+  only ever **inserts** feedback: `Layout.tsx`'s `handleSendFeedback` writes
+  `{ user_id, content }` and lets `status` take its `pending` default. Nothing
+  reads it, nothing updates it, and there is no triage UI. **Decision: keep the
+  column, keep the CHECK, keep the index; do not narrow it and do not build a
+  triage view as drive-by cleanup.** A minimal triage view would be a small,
+  self-contained feature if the maintainers want one — a read of
+  `feedback` ordered by `created_at`, a `status` control per row calling
+  `update`, and a rule that the update is owner-or-admin — but that is a
+  product decision (who reviews feedback?) rather than cleanup, so it is left
+  open here instead of guessed at. Inserting an explicit
+  `status: 'pending'` instead of relying on the default would also be
+  reasonable, and is equally unnecessary today.
 
 ## Dead / unused code paths
 
