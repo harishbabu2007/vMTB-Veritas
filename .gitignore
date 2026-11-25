@@ -101,3 +101,4 @@ desktop.ini
 
 # foglamp scan (contains edit token)
 .foglamp/
+security-audit/

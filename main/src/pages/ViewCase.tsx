@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
-import { MessageSquare, Edit2, Trash2, CheckCircle, Plus, ArrowLeft, AlertTriangle, Filter, ChevronDown, Check, Lock, Archive, ArchiveRestore, Users, Info } from 'lucide-react';
+import { MessageSquare, Edit2, Trash2, CheckCircle, Plus, ArrowLeft, Filter, ChevronDown, Check, Lock, Archive, ArchiveRestore, Users, Info } from 'lucide-react';
 import { marked } from 'marked';
 import TurndownService from 'turndown';
 import DOMPurify from 'dompurify';
@@ -12,6 +12,7 @@ import { VerifyModal } from '../components/VerifyModal';
 import { OpinionComment } from '../components/OpinionComment';
 import { InlineOpinionInput } from '../components/InlineOpinionInput';
 import { useTourGroup } from '../hooks/useTourGroup';
+import { useConfirmAction } from '../hooks/useDialogs';
 import { TreatmentPlanFollowUp } from '../components/TreatmentPlanFollowUp';
 import { VoiceRecorder } from '../components/VoiceRecorder';
 import { useCases, Case, Opinion, Question, OpinionRow, mapOpinionRow } from '../context/CasesContext';
@@ -58,24 +59,16 @@ export function ViewCase() {
   // tabs doesn't refetch them.
   const [visitedTabs, setVisitedTabs] = useState<Set<TabType>>(() => new Set(['summary', initialTabFromUrl()]));
   const [checkingStatus, setCheckingStatus] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
-  const [deleting, setDeleting] = useState(false);
   // Case Settings: MTB sharing, archive
   const [mtbToRemove, setMtbToRemove] = useState<{ id: string; name: string } | null>(null);
-  const [showAddToMtbModal, setShowAddToMtbModal] = useState(false);
   const [selectedAddMtbIds, setSelectedAddMtbIds] = useState<string[]>([]);
-  const [addingToMtbs, setAddingToMtbs] = useState(false);
-  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
-  const [archiving, setArchiving] = useState(false);
   const [restoring, setRestoring] = useState(false);
   const [removingFromMTB, setRemovingFromMTB] = useState(false);
   const [savingCase, setSavingCase] = useState(false);
   const [editingCase, setEditingCase] = useState(false);
   const [renderedHTML, setRenderedHTML] = useState('');
-  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const [verifyModalMode, setVerifyModalMode] = useState<'confirm' | 'blocked'>('confirm');
-  const [verifyingProgress, setVerifyingProgress] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [patientDetailsError, setPatientDetailsError] = useState<string | null>(null);
   const [patientForm, setPatientForm] = useState({
@@ -86,9 +79,7 @@ export function ViewCase() {
   });
   
   // Opinions page state (inline, no modals)
-  const [showAddQuestionModal, setShowAddQuestionModal] = useState(false);
   const [newQuestionText, setNewQuestionText] = useState('');
-  const [addingQuestion, setAddingQuestion] = useState(false);
   const questionTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   // Auto-resize for Add Question textarea up to ~20 lines
@@ -187,7 +178,6 @@ export function ViewCase() {
   };
 
   const isOwner = caseData?.ownerId === effectiveOwnerId;
-  const viewMode = isOwner ? 'owner' : 'visitor';
   // A brand-new case has summaryStatus undefined/'processing' with no summary
   // text yet at all — the null/undefined check alone catches that. An edit
   // that re-triggers summarization instead leaves the OLD summary text in
@@ -415,7 +405,7 @@ export function ViewCase() {
   }, [id, activeOpinionMtbId, role, realtimeToken, onOpinionsResync]);
 
   // Live questions: the owner posting a new question for experts. Without
-  // this, handleAddQuestion only updates the poster's own state, so a member
+  // this, the add-question action only updates the poster's own state, so a member
   // or MTB Expert with the Opinions tab open never sees the question they're
   // being asked to answer. INSERT only -- nothing in the app edits or deletes
   // a question (no UI calls either path), so there is nothing else to mirror.
@@ -585,6 +575,27 @@ export function ViewCase() {
     }
   };
 
+  // Verifying always closes the dialog afterwards: on success the case has
+  // moved on, and on failure the toast plus a refresh say why.
+  const verifyAction = useConfirmAction(
+    async () => {
+      if (!id || !isOwner) return;
+      try {
+        // The version shown on screen is the one being verified; if the case has
+        // moved on since, the backend refuses rather than verifying unseen content.
+        const updated = await verifySummary(id, caseData?.contentGeneration ?? 0);
+        mergeCaseRow(updated);
+      } catch (err) {
+        console.error('Failed to verify summary:', err);
+        showToast.error(err instanceof Error ? err.message : 'Failed to verify this case. Please try again.');
+        if (id) refreshCase(id).then(mergeCaseRow).catch(() => undefined);
+        runState.refresh();
+        throw err;
+      }
+    },
+    { closeOn: 'always' }
+  );
+
   const handleSaveCase = () => {
     void saveCaseChanges(false);
   };
@@ -593,7 +604,7 @@ export function ViewCase() {
     const saved = await saveCaseChanges(true);
     if (!saved) return;
     setVerifyModalMode('confirm');
-    setShowVerifyModal(true);
+    verifyAction.ask();
   };
 
   const handleRegenerateSummary = async () => {
@@ -614,33 +625,13 @@ export function ViewCase() {
     }
   };
 
-  const handleVerifySummary = async () => {
-    if (!id || !isOwner) return;
-    setVerifyingProgress(true);
-    try {
-      // The version shown on screen is the one being verified; if the case has
-      // moved on since, the backend refuses rather than verifying unseen content.
-      const updated = await verifySummary(id, caseData?.contentGeneration ?? 0);
-      setShowVerifyModal(false);
-      mergeCaseRow(updated);
-    } catch (err) {
-      console.error('Failed to verify summary:', err);
-      showToast.error(err instanceof Error ? err.message : 'Failed to verify this case. Please try again.');
-      setShowVerifyModal(false);
-      if (id) refreshCase(id).then(mergeCaseRow).catch(() => undefined);
-      runState.refresh();
-    } finally {
-      setVerifyingProgress(false);
-    }
-  };
-
   const handleVerifyClick = () => {
     if (!caseData) return;
     // Age/sex are AI-extracted now, not manually entered, so they may not
     // have been detected — verifying without them isn't allowed.
     const missingPatientDetails = caseData.age == null || !caseData.sex;
     setVerifyModalMode(missingPatientDetails ? 'blocked' : 'confirm');
-    setShowVerifyModal(true);
+    verifyAction.ask();
   };
 
   const appendOpinion = (opinion: Opinion) => {
@@ -675,7 +666,7 @@ export function ViewCase() {
     appendOpinion(await addOpinion(id, content, questionId, parentId, activeOpinionMtbId));
   };
 
-  const handleAddQuestion = async () => {
+  const addQuestionAction = useConfirmAction(async () => {
     if (!id || !newQuestionText.trim()) return;
     // Defense-in-depth alongside the RESTRICTIVE RLS policy on
     // case_questions -- a Site Data Coordinator never adds questions.
@@ -684,7 +675,6 @@ export function ViewCase() {
       return;
     }
 
-    setAddingQuestion(true);
     try {
       const { data, error } = await supabase
         .from('case_questions')
@@ -700,28 +690,28 @@ export function ViewCase() {
       setCaseData(prev => (prev ? { ...prev, questions: [...(prev.questions || []), question] } : prev));
 
       setNewQuestionText('');
-      setShowAddQuestionModal(false);
     } catch (err) {
       console.error('Failed to add question:', err);
       showToast.error('Failed to add question. Please try again.');
-    } finally {
-      setAddingQuestion(false);
+      throw err;
     }
-  };
+  });
 
-  const handleDeleteCase = async () => {
-    if (!id || !isOwner) return;
-    setDeleting(true);
-    try {
-      await deleteCase(id);
-      navigate(`${rolePrefix}/my-cases`);
-    } catch (err) {
-      console.error('Failed to delete case:', err);
-    } finally {
-      setDeleting(false);
-      setShowDeleteConfirm(false);
-    }
-  };
+  // The dialog closes either way: a deleted case has navigated away, and a
+  // failed delete leaves nothing for a second click to do (as before).
+  const deleteCaseAction = useConfirmAction(
+    async () => {
+      if (!id || !isOwner) return;
+      try {
+        await deleteCase(id);
+        navigate(`${rolePrefix}/my-cases`);
+      } catch (err) {
+        console.error('Failed to delete case:', err);
+        throw err;
+      }
+    },
+    { closeOn: 'always' }
+  );
 
   // Defense-in-depth: the Opinions tab is removed entirely for a Site Data
   // Coordinator (see the tab-array filter above), but this flag also gates
@@ -782,9 +772,8 @@ export function ViewCase() {
     }
   };
 
-  const handleAddToMtbs = async () => {
+  const addToMtbsAction = useConfirmAction(async () => {
     if (!id || selectedAddMtbIds.length === 0) return;
-    setAddingToMtbs(true);
     try {
       await addCaseToMTBs(id, selectedAddMtbIds);
       const added = mtbs
@@ -796,30 +785,29 @@ export function ViewCase() {
         void loadOpinionsForMtb(added[0].id);
       }
       showToast.success(`Added to ${added.length} MTB${added.length === 1 ? '' : 's'}`);
-      setShowAddToMtbModal(false);
       setSelectedAddMtbIds([]);
     } catch (err) {
       console.error('Failed to add case to MTBs:', err);
       showToast.error('Failed to add the case to MTBs. Please try again.');
-    } finally {
-      setAddingToMtbs(false);
+      throw err;
     }
-  };
+  });
 
-  const handleArchiveCase = async () => {
-    if (!id) return;
-    setArchiving(true);
-    try {
-      await archiveCase(id);
-      showToast.success('Case archived');
-      navigate(`${rolePrefix}/my-cases?view=archived`);
-    } catch (err) {
-      console.error('Failed to archive case:', err);
-      showToast.error(err instanceof Error ? err.message : 'Failed to archive the case. Please try again.');
-      setArchiving(false);
-      setShowArchiveConfirm(false);
-    }
-  };
+  const archiveCaseAction = useConfirmAction(
+    async () => {
+      if (!id) return;
+      try {
+        await archiveCase(id);
+        showToast.success('Case archived');
+        navigate(`${rolePrefix}/my-cases?view=archived`);
+      } catch (err) {
+        console.error('Failed to archive case:', err);
+        showToast.error(err instanceof Error ? err.message : 'Failed to archive the case. Please try again.');
+        throw err;
+      }
+    },
+    { closeOn: 'always' }
+  );
 
   const handleRestoreCase = async () => {
     if (!id) return;
@@ -1288,7 +1276,7 @@ export function ViewCase() {
                         <button
                           onClick={() => {
                             setSelectedAddMtbIds([]);
-                            setShowAddToMtbModal(true);
+                            addToMtbsAction.ask();
                           }}
                           disabled={!canShareToMtbs}
                           className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
@@ -1356,7 +1344,7 @@ export function ViewCase() {
                       </button>
                     ) : (
                       <button
-                        onClick={() => setShowArchiveConfirm(true)}
+                        onClick={archiveCaseAction.ask}
                         className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium border border-border text-text rounded-lg hover:bg-bg transition-colors flex-shrink-0"
                       >
                         <Archive className="w-4 h-4" />
@@ -1382,7 +1370,7 @@ export function ViewCase() {
                       <button
                         onClick={() => {
                           setDeleteConfirmText('');
-                          setShowDeleteConfirm(true);
+                          deleteCaseAction.ask();
                         }}
                         className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors flex-shrink-0"
                       >
@@ -1503,7 +1491,7 @@ export function ViewCase() {
 
                       {isOwner && role !== 'site_data_coordinator' && (
                         <button
-                          onClick={() => setShowAddQuestionModal(true)}
+                          onClick={addQuestionAction.ask}
                           data-tour="ask-question"
                           className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg text-on-solid hover:opacity-90 transition-opacity bg-primary-solid"
                         >
@@ -1594,8 +1582,8 @@ export function ViewCase() {
 
       {/* Delete Confirmation Modal */}
       <Modal
-        isOpen={showDeleteConfirm}
-        onClose={() => setShowDeleteConfirm(false)}
+        isOpen={deleteCaseAction.open}
+        onClose={deleteCaseAction.cancel}
         title="Delete Case"
       >
         <div className="space-y-4">
@@ -1612,24 +1600,24 @@ export function ViewCase() {
               value={deleteConfirmText}
               onChange={(e) => setDeleteConfirmText(e.target.value)}
               autoComplete="off"
-              disabled={deleting}
+              disabled={deleteCaseAction.pending}
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-danger disabled:opacity-50"
             />
           </div>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setShowDeleteConfirm(false)}
-              disabled={deleting}
+              onClick={deleteCaseAction.cancel}
+              disabled={deleteCaseAction.pending}
               className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleDeleteCase}
-              disabled={deleting || deleteConfirmText.trim().toLowerCase() !== 'permanently delete'}
+              onClick={deleteCaseAction.confirm}
+              disabled={deleteCaseAction.pending || deleteConfirmText.trim().toLowerCase() !== 'permanently delete'}
               className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {deleting ? 'Deleting...' : 'Delete Case'}
+              {deleteCaseAction.pending ? 'Deleting...' : 'Delete Case'}
             </button>
           </div>
         </div>
@@ -1638,12 +1626,12 @@ export function ViewCase() {
       {/* Verify Summary Modal */}
       {verifyModalMode === 'blocked' ? (
         <VerifyModal
-          isOpen={showVerifyModal}
+          isOpen={verifyAction.open}
           onConfirm={() => {
-            setShowVerifyModal(false);
+            verifyAction.cancel();
             startEditingCase();
           }}
-          onCancel={() => setShowVerifyModal(false)}
+          onCancel={verifyAction.cancel}
           isLoading={false}
           title="Add patient details to verify"
           description="Age and sex couldn't be detected from the uploaded documents, so this case can't be verified yet."
@@ -1654,10 +1642,10 @@ export function ViewCase() {
         />
       ) : (
         <VerifyModal
-          isOpen={showVerifyModal}
-          onConfirm={handleVerifySummary}
-          onCancel={() => setShowVerifyModal(false)}
-          isLoading={verifyingProgress}
+          isOpen={verifyAction.open}
+          onConfirm={verifyAction.confirm}
+          onCancel={verifyAction.cancel}
+          isLoading={verifyAction.pending}
           reviewContent={
             caseData && (
               <div className="grid grid-cols-2 gap-3 text-sm p-3 bg-bg rounded-lg">
@@ -1683,9 +1671,9 @@ export function ViewCase() {
 
       {/* Add Question Modal */}
       <Modal
-        isOpen={showAddQuestionModal}
+        isOpen={addQuestionAction.open}
         onClose={() => {
-          setShowAddQuestionModal(false);
+          addQuestionAction.cancel();
           setNewQuestionText('');
         }}
         title="Add New Question"
@@ -1713,20 +1701,20 @@ export function ViewCase() {
           <div className="flex justify-end space-x-3">
             <button
               onClick={() => {
-                setShowAddQuestionModal(false);
+                addQuestionAction.cancel();
                 setNewQuestionText('');
               }}
-              disabled={addingQuestion}
+              disabled={addQuestionAction.pending}
               className="px-4 py-2 border border-border rounded-lg text-text hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleAddQuestion}
-              disabled={addingQuestion || !newQuestionText.trim()}
+              onClick={addQuestionAction.confirm}
+              disabled={addQuestionAction.pending || !newQuestionText.trim()}
               className="px-4 py-2 bg-info-solid text-on-solid rounded-lg hover:bg-info-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {addingQuestion ? 'Adding...' : 'Add Question'}
+              {addQuestionAction.pending ? 'Adding...' : 'Add Question'}
             </button>
           </div>
         </div>
@@ -1763,8 +1751,8 @@ export function ViewCase() {
 
       {/* Add to MTBs Modal */}
       <Modal
-        isOpen={showAddToMtbModal}
-        onClose={() => !addingToMtbs && setShowAddToMtbModal(false)}
+        isOpen={addToMtbsAction.open}
+        onClose={addToMtbsAction.cancel}
         title="Add to MTBs"
       >
         {addableMtbs.length === 0 ? (
@@ -1818,18 +1806,18 @@ export function ViewCase() {
             <div className="flex items-center justify-end gap-3 pt-3 border-t border-border">
               <div className="flex gap-3">
                 <button
-                  onClick={() => setShowAddToMtbModal(false)}
-                  disabled={addingToMtbs}
+                  onClick={addToMtbsAction.cancel}
+                  disabled={addToMtbsAction.pending}
                   className="px-4 py-2 text-sm font-medium border border-border rounded-lg text-text hover:bg-bg transition-colors disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
-                  onClick={handleAddToMtbs}
-                  disabled={addingToMtbs || selectedAddMtbIds.length === 0}
+                  onClick={addToMtbsAction.confirm}
+                  disabled={addToMtbsAction.pending || selectedAddMtbIds.length === 0}
                   className="px-4 py-2 text-sm whitespace-nowrap font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
                 >
-                  {addingToMtbs
+                  {addToMtbsAction.pending
                     ? 'Adding…'
                     : selectedAddMtbIds.length > 0
                     ? `Add to ${selectedAddMtbIds.length} MTB${selectedAddMtbIds.length === 1 ? '' : 's'}`
@@ -1843,8 +1831,8 @@ export function ViewCase() {
 
       {/* Archive Confirmation Modal */}
       <Modal
-        isOpen={showArchiveConfirm}
-        onClose={() => !archiving && setShowArchiveConfirm(false)}
+        isOpen={archiveCaseAction.open}
+        onClose={archiveCaseAction.cancel}
         title="Archive case"
       >
         <div className="space-y-4">
@@ -1861,18 +1849,18 @@ export function ViewCase() {
           )}
           <div className="flex justify-end gap-3">
             <button
-              onClick={() => setShowArchiveConfirm(false)}
-              disabled={archiving}
+              onClick={archiveCaseAction.cancel}
+              disabled={archiveCaseAction.pending}
               className="px-4 py-2 text-sm font-medium border border-border rounded-lg text-text hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleArchiveCase}
-              disabled={archiving}
+              onClick={archiveCaseAction.confirm}
+              disabled={archiveCaseAction.pending}
               className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 bg-primary-solid"
             >
-              {archiving ? 'Archiving…' : 'Archive case'}
+              {archiveCaseAction.pending ? 'Archiving…' : 'Archive case'}
             </button>
           </div>
         </div>

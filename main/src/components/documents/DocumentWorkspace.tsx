@@ -8,6 +8,7 @@ import { fetchFreshReportUrl } from '../../services/redactionService';
 import type { DocumentEditSession, LocalChange } from '../../hooks/useDocumentEditSession';
 import { fetchDocumentBytes } from '../../utils/pdfjs';
 import { useIsMobile } from '../../hooks/useMobile';
+import { useRetryable } from '../../hooks/useRetryable';
 import { useTourGroup } from '../../hooks/useTourGroup';
 import { PdfPages, PdfSource } from './PdfPages';
 import { PageThumbnailRail } from './PageThumbnailRail';
@@ -835,27 +836,20 @@ function RedactionsPanel({ onClose, onDiscard, pages: originalPages, regions, ch
 }
 
 function useFreshUrl(doc: WorkspaceDocument, requestId: string) {
-  const [state, setState] = useState<{ url: string | null; error: string | null }>({ url: null, error: null });
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    let cancelled = false;
-    let objectUrl: string | null = null;
-    setState({ url: null, error: null });
-    if (doc.file) {
-      objectUrl = URL.createObjectURL(doc.file);
-      setState({ url: objectUrl, error: null });
-    } else {
-      (doc.getUrl ? doc.getUrl() : fetchFreshReportUrl(requestId, doc.filename))
-        .then((url) => !cancelled && setState({ url, error: null }))
-        .catch((err) => !cancelled && setState({ url: null, error: err instanceof Error ? err.message : "This document couldn't be opened." }));
+  const { status, data, error, retry } = useRetryable(
+    async () => {
+      if (doc.file) return URL.createObjectURL(doc.file);
+      return doc.getUrl ? doc.getUrl() : fetchFreshReportUrl(requestId, doc.filename);
+    },
+    [doc.filename, doc.file, requestId],
+    {
+      // Only object URLs hold a buffer alive; a signed https URL needs no cleanup.
+      dispose: (url) => {
+        if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+      },
     }
-    return () => {
-      cancelled = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doc.filename, doc.file, requestId, attempt]);
-  return { ...state, retry: () => setAttempt((a) => a + 1) };
+  );
+  return { url: data, error: status === 'error' ? (error?.message ?? "This document couldn't be opened.") : null, retry };
 }
 
 function ImageDocument({ doc, requestId, width }: { doc: WorkspaceDocument; requestId: string; width: number }) {
@@ -873,27 +867,29 @@ function ImageDocument({ doc, requestId, width }: { doc: WorkspaceDocument; requ
 }
 
 function TextDocument({ doc, requestId, width }: { doc: WorkspaceDocument; requestId: string; width: number }) {
-  const { url, error, retry } = useFreshUrl(doc, requestId);
-  const [text, setText] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  useEffect(() => {
-    if (!url) return;
-    let cancelled = false;
-    setText(null);
-    setLoadError(null);
-    fetchDocumentBytes(url)
-      .then((buf) => !cancelled && setText(new TextDecoder().decode(buf)))
-      .catch((err) => !cancelled && setLoadError(err instanceof Error ? err.message : "This file couldn't be loaded."));
-    return () => {
-      cancelled = true;
-    };
-  }, [url]);
-  if (error || loadError) return <DocumentError message={error || loadError || ''} onRetry={retry} />;
-  if (text === null) return <DocumentLoading />;
+  const { url, error, retry: retryUrl } = useFreshUrl(doc, requestId);
+  const textLoad = useRetryable(
+    async () => new TextDecoder().decode(await fetchDocumentBytes(url as string)),
+    [url],
+    { enabled: Boolean(url) }
+  );
+
+  if (url === null) {
+    // The URL itself failed, or it is still being signed. No point looking at
+    // the text loader until there is a URL to fetch.
+    return error ? <DocumentError message={error} onRetry={retryUrl} /> : <DocumentLoading />;
+  }
+  if (textLoad.status === 'error') {
+    // Re-signing the URL is enough: a fresh one re-triggers the text load on
+    // its own, so `textLoad.retry()` here would be one wasted request for a
+    // URL that has probably expired anyway.
+    return <DocumentError message={textLoad.error?.message ?? "This file couldn't be loaded."} onRetry={retryUrl} />;
+  }
+  if (textLoad.data === null) return <DocumentLoading />;
   return (
     <div className="py-4">
       <pre className="mx-auto bg-surface shadow-sm ring-1 ring-border p-8 whitespace-pre-wrap text-sm leading-relaxed" style={{ width, color: INK }}>
-        {text}
+        {textLoad.data}
       </pre>
     </div>
   );

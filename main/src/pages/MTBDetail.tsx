@@ -11,6 +11,7 @@ import { useRolePrefix } from '../components/RoleRoute';
 import { showToast } from '../utils/toast';
 import { useIsMobile } from '../hooks/useMobile';
 import { useTourGroup } from '../hooks/useTourGroup';
+import { useConfirmAction } from '../hooks/useDialogs';
 import { getMtbCaseStatusMeta } from '../utils/summaryStatus';
 import { useActiveMeeting } from '../hooks/useActiveMeeting';
 import { useRealtimeResync } from '../hooks/useRealtimeResync';
@@ -27,21 +28,15 @@ export function MTBDetail() {
   const rolePrefix = useRolePrefix();
   const isMobile = useIsMobile();
   const [activeTab, setActiveTab] = useState<MTBDetailTab>('cases');
-  const [showAddCaseModal, setShowAddCaseModal] = useState(false);
   const [selectedCaseIds, setSelectedCaseIds] = useState<string[]>([]);
   const [mtbCases, setMtbCases] = useState<Case[]>([]);
   const [loading, setLoading] = useState(false);
   const loadedMtbIdRef = useRef<string | null>(null);
-  const [addingCases, setAddingCases] = useState(false);
   const [copied, setCopied] = useState(false);
   const [reviewedSet, setReviewedSet] = useState<Set<string>>(new Set());
   const [opinionCounts, setOpinionCounts] = useState<Record<string, number>>({});
   const [statsLoading, setStatsLoading] = useState(false);
-  const [leavingMTB, setLeavingMTB] = useState(false);
-  const [showRenameModal, setShowRenameModal] = useState(false);
   const [newMtbName, setNewMtbName] = useState('');
-  const [renamingMTB, setRenamingMTB] = useState(false);
-  const [showLeaveConfirmModal, setShowLeaveConfirmModal] = useState(false);
   const [togglingNotification, setTogglingNotification] = useState(false);
 
   // Drag-to-scroll state
@@ -265,24 +260,47 @@ export function MTBDetail() {
     );
   };
 
-  const handleAddCases = async () => {
+  const addCasesAction = useConfirmAction(async () => {
     if (!id) return;
-    setAddingCases(true);
     try {
       for (const caseId of selectedCaseIds) {
         await addCaseToMTB(id, caseId);
       }
       setSelectedCaseIds([]);
-      setShowAddCaseModal(false);
       // addCaseToMTB updates this board's case list in context, which
       // refreshes the table via the effect above.
     } catch (err) {
       console.error('Failed to add cases to MTB:', err);
       showToast.error('Failed to add cases. Please try again.');
-    } finally {
-      setAddingCases(false);
+      throw err;
     }
-  };
+  });
+
+  // A failed rename keeps the modal (and the typed name) open for a retry.
+  const renameAction = useConfirmAction(async () => {
+    if (!id || !newMtbName.trim()) return;
+    try {
+      await updateMTBName(id, newMtbName.trim());
+      showToast.success('MTB renamed successfully');
+    } catch (err) {
+      console.error('Failed to rename MTB:', err);
+      showToast.error(err instanceof Error ? err.message : 'Failed to rename MTB. Please try again.');
+      throw err;
+    }
+  });
+
+  const leaveAction = useConfirmAction(async () => {
+    if (!id) return;
+    try {
+      await leaveMTB(id);
+      showToast.success('You have left the MTB');
+      navigate(`${rolePrefix}/mtbs`);
+    } catch (err) {
+      console.error('Failed to leave MTB:', err);
+      showToast.error('Failed to leave MTB. Please try again.');
+      throw err;
+    }
+  });
 
   if (!mtb && mtbsLoading) {
     return (
@@ -316,7 +334,7 @@ export function MTBDetail() {
                   <button
                     onClick={() => {
                       setNewMtbName(mtb.name);
-                      setShowRenameModal(true);
+                      renameAction.ask();
                     }}
                     className="text-text-subtle hover:text-info transition-colors"
                     title="Rename MTB"
@@ -363,14 +381,14 @@ export function MTBDetail() {
             <div className={`flex items-center ${isMobile ? 'w-full justify-end gap-2' : 'gap-3'}`}>
               {!isOwner && (
                 <button
-                  onClick={() => setShowLeaveConfirmModal(true)}
-                  disabled={leavingMTB}
+                  onClick={leaveAction.ask}
+                  disabled={leaveAction.pending}
                   className={`flex items-center justify-center gap-2 border border-danger-border text-danger rounded-lg hover:bg-danger-bg transition-colors disabled:opacity-50 ${
                     isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
                   }`}
                 >
                   <LogOut className="w-4 h-4" />
-                  <span>{leavingMTB ? 'Leaving...' : 'Leave'}</span>
+                  <span>{leaveAction.pending ? 'Leaving...' : 'Leave'}</span>
                 </button>
               )}
               {/* Site Data Coordinators have no meeting access at all (no
@@ -409,7 +427,7 @@ export function MTBDetail() {
                   too, via a RESTRICTIVE RLS policy on mtb_cases). */}
               {role !== 'mtb_expert' && (
                 <button
-                  onClick={() => setShowAddCaseModal(true)}
+                  onClick={addCasesAction.ask}
                   data-tour="mtb-add-case"
                   className={`flex items-center justify-center gap-2 text-on-solid rounded-lg hover:opacity-90 transition-opacity bg-primary-solid ${
                     isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-2'
@@ -469,7 +487,7 @@ export function MTBDetail() {
               </p>
               {role !== 'mtb_expert' && (
                 <button
-                  onClick={() => setShowAddCaseModal(true)}
+                  onClick={addCasesAction.ask}
                   className="inline-flex items-center justify-center gap-2 text-on-solid rounded-lg px-4 py-2 font-medium hover:opacity-90 transition-opacity bg-primary-solid"
                 >
                   <Plus className="w-4 h-4" />
@@ -641,8 +659,8 @@ export function MTBDetail() {
       </div>
 
       <Modal
-        isOpen={showAddCaseModal}
-        onClose={() => setShowAddCaseModal(false)}
+        isOpen={addCasesAction.open}
+        onClose={addCasesAction.cancel}
         title="Add Cases to MTB"
       >
         {availableCases.length === 0 ? (
@@ -692,17 +710,17 @@ export function MTBDetail() {
             
             <div className="flex justify-end gap-3 pt-2 border-t border-border">
               <button
-                onClick={() => setShowAddCaseModal(false)}
+                onClick={addCasesAction.cancel}
                 className="px-4 py-2 border border-border rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
               >
                 Cancel
               </button>
               <button
-                onClick={handleAddCases}
-                disabled={selectedCaseIds.length === 0 || addingCases}
+                onClick={addCasesAction.confirm}
+                disabled={selectedCaseIds.length === 0 || addCasesAction.pending}
                 className="px-4 py-2 text-sm font-medium text-on-solid rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed bg-primary-solid"
               >
-                {addingCases ? 'Adding…' : `Add ${selectedCaseIds.length > 0 ? `${selectedCaseIds.length} ` : ''}Case${selectedCaseIds.length !== 1 ? 's' : ''}`}
+                {addCasesAction.pending ? 'Adding…' : `Add ${selectedCaseIds.length > 0 ? `${selectedCaseIds.length} ` : ''}Case${selectedCaseIds.length !== 1 ? 's' : ''}`}
               </button>
             </div>
           </div>
@@ -710,8 +728,8 @@ export function MTBDetail() {
       </Modal>
 
       <Modal
-        isOpen={showRenameModal}
-        onClose={() => setShowRenameModal(false)}
+        isOpen={renameAction.open}
+        onClose={renameAction.cancel}
         title="Rename MTB"
       >
         <div className="space-y-4">
@@ -730,31 +748,18 @@ export function MTBDetail() {
           </div>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setShowRenameModal(false)}
-              disabled={renamingMTB}
+              onClick={renameAction.cancel}
+              disabled={renameAction.pending}
               className="px-4 py-2 border border-border rounded-lg text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={async () => {
-                if (!id || !newMtbName.trim()) return;
-                setRenamingMTB(true);
-                try {
-                  await updateMTBName(id, newMtbName.trim());
-                  showToast.success('MTB renamed successfully');
-                  setShowRenameModal(false);
-                } catch (err: any) {
-                  console.error('Failed to rename MTB:', err);
-                  showToast.error(err?.message || 'Failed to rename MTB. Please try again.');
-                } finally {
-                  setRenamingMTB(false);
-                }
-              }}
-              disabled={renamingMTB || !newMtbName.trim()}
+              onClick={renameAction.confirm}
+              disabled={renameAction.pending || !newMtbName.trim()}
               className="px-4 py-2 bg-info-solid text-on-solid rounded-lg hover:bg-info-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {renamingMTB ? 'Saving...' : 'Save'}
+              {renameAction.pending ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
@@ -762,8 +767,8 @@ export function MTBDetail() {
 
       {/* Leave MTB Confirmation Modal */}
       <Modal
-        isOpen={showLeaveConfirmModal}
-        onClose={() => setShowLeaveConfirmModal(false)}
+        isOpen={leaveAction.open}
+        onClose={leaveAction.cancel}
         title="Leave MTB"
       >
         <div className="space-y-4">
@@ -772,32 +777,18 @@ export function MTBDetail() {
           </p>
           <div className="flex justify-end space-x-3">
             <button
-              onClick={() => setShowLeaveConfirmModal(false)}
-              disabled={leavingMTB}
+              onClick={leaveAction.cancel}
+              disabled={leaveAction.pending}
               className="px-4 py-2 border border-border rounded-lg text-text hover:bg-surface-hover transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={async () => {
-                if (!id) return;
-                setLeavingMTB(true);
-                try {
-                  await leaveMTB(id);
-                  showToast.success('You have left the MTB');
-                  setShowLeaveConfirmModal(false);
-                  navigate(`${rolePrefix}/mtbs`);
-                } catch (err) {
-                  console.error('Failed to leave MTB:', err);
-                  showToast.error('Failed to leave MTB. Please try again.');
-                } finally {
-                  setLeavingMTB(false);
-                }
-              }}
-              disabled={leavingMTB}
+              onClick={leaveAction.confirm}
+              disabled={leaveAction.pending}
               className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {leavingMTB ? 'Leaving...' : 'Leave MTB'}
+              {leaveAction.pending ? 'Leaving...' : 'Leave MTB'}
             </button>
           </div>
         </div>

@@ -3,11 +3,33 @@ import { Stage, Layer, Image as KonvaImage, Rect, Line } from 'react-konva';
 import type Konva from 'konva';
 import type { RedactionBBox, RedactionRecord, RedactionStyle } from '../../services/redactionService';
 import type { LocalChange } from '../../hooks/useDocumentEditSession';
+import { useRetryable } from '../../hooks/useRetryable';
 import type { RedactionSource } from './useRedactionSource';
 import { LazyPage } from './LazyPage';
 import { REGION_COLORS, REVEALED_FILL, nextLocalId, styleFill } from './redactionStyles';
 
 export type RedactionTool = 'box' | 'freehand';
+
+interface DragRect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * What is currently being drawn, if anything. This used to be three pieces of
+ * state (`drawing`, `drawRect`, `drawPoints`) that could all be non-default at
+ * once — e.g. switching tool mid-drag left the other tool's geometry behind.
+ *
+ * There is deliberately no separate `start` point on the box: `rect.x/rect.y`
+ * already are the press point, and a second copy of it is exactly the kind of
+ * duplicate that drifts.
+ */
+type DrawState =
+  | { kind: 'idle' }
+  | { kind: 'box'; rect: DragRect }
+  | { kind: 'freehand'; points: number[] };
 
 function clamp01(v: number) {
   return Math.max(0, Math.min(1, v));
@@ -90,37 +112,32 @@ function RedactionPage({
   pageNumber, url, regions, interactive, changes, onChange, tool, style, width, hoveredId, onHover, onAspect, onPageImageError,
 }: RedactionPageProps) {
   const stageRef = useRef<Konva.Stage>(null);
-  const [image, setImage] = useState<HTMLImageElement | null>(null);
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
-  const [drawRect, setDrawRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
-  const [drawPoints, setDrawPoints] = useState<number[]>([]);
-  const [drawing, setDrawing] = useState(false);
+  const [draw, setDraw] = useState<DrawState>({ kind: 'idle' });
 
-  useEffect(() => {
-    let cancelled = false;
-    const img = new window.Image();
-    img.onload = () => {
-      if (cancelled) return;
-      setImage(img);
-      onAspect(pageNumber, img.naturalHeight / img.naturalWidth);
-    };
-    img.onerror = () => {
-      if (cancelled) return;
-      if (!onPageImageError?.()) setFailed(true);
-    };
-    img.src = url;
-    return () => {
-      cancelled = true;
-    };
-  }, [url, pageNumber, onAspect, onPageImageError, attempt]);
+  const loadImage = useCallback(
+    () =>
+      new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new window.Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error("This page couldn't be loaded."));
+        img.src = url;
+      }),
+    [url]
+  );
 
-  if (failed) {
+  const { status: imageStatus, data: image, retry: retryImage } = useRetryable(loadImage, [url, pageNumber], {
+    onLoaded: (img) => onAspect(pageNumber, img.naturalHeight / img.naturalWidth),
+    // An expired signed URL: let the caller re-sign (the canvas remounts with
+    // fresh URLs) instead of showing a failure the owner would only retry.
+    onLoadError: () => onPageImageError?.() ?? false,
+  });
+
+  if (imageStatus === 'error') {
     return (
       <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-sm text-text-muted">
         <p>This page couldn't be loaded.</p>
         <button
-          onClick={() => { setFailed(false); setAttempt((a) => a + 1); }}
+          onClick={retryImage}
           className="px-3 py-1.5 text-sm font-medium rounded-lg border border-border text-text bg-surface hover:bg-surface-hover"
         >
           Try again
@@ -168,39 +185,44 @@ function RedactionPage({
     if (!interactive || !onPage) return;
     const pos = pointer();
     if (!pos) return;
-    setDrawing(true);
-    if (tool === 'box') setDrawRect({ x: pos.x, y: pos.y, width: 0, height: 0 });
-    else setDrawPoints([pos.x, pos.y]);
+    setDraw(
+      tool === 'box'
+        ? { kind: 'box', rect: { x: pos.x, y: pos.y, width: 0, height: 0 } }
+        : { kind: 'freehand', points: [pos.x, pos.y] }
+    );
   };
 
   const handleMove = () => {
-    if (!drawing) return;
     const pos = pointer();
     if (!pos) return;
-    if (tool === 'box') setDrawRect((r) => (r ? { ...r, width: pos.x - r.x, height: pos.y - r.y } : r));
-    else setDrawPoints((p) => [...p, pos.x, pos.y]);
+    setDraw((current) => {
+      if (current.kind === 'box') {
+        return { kind: 'box', rect: { ...current.rect, width: pos.x - current.rect.x, height: pos.y - current.rect.y } };
+      }
+      if (current.kind === 'freehand') {
+        return { kind: 'freehand', points: [...current.points, pos.x, pos.y] };
+      }
+      return current;
+    });
   };
 
   const handleUp = () => {
-    if (!drawing) return;
-    setDrawing(false);
+    if (draw.kind === 'idle') return;
     let x0: number, y0: number, x1: number, y1: number;
-    if (tool === 'box' && drawRect) {
-      x0 = Math.min(drawRect.x, drawRect.x + drawRect.width);
-      y0 = Math.min(drawRect.y, drawRect.y + drawRect.height);
-      x1 = Math.max(drawRect.x, drawRect.x + drawRect.width);
-      y1 = Math.max(drawRect.y, drawRect.y + drawRect.height);
-    } else if (tool === 'freehand' && drawPoints.length >= 4) {
-      const xs = drawPoints.filter((_, i) => i % 2 === 0);
-      const ys = drawPoints.filter((_, i) => i % 2 === 1);
+    if (draw.kind === 'box') {
+      x0 = Math.min(draw.rect.x, draw.rect.x + draw.rect.width);
+      y0 = Math.min(draw.rect.y, draw.rect.y + draw.rect.height);
+      x1 = Math.max(draw.rect.x, draw.rect.x + draw.rect.width);
+      y1 = Math.max(draw.rect.y, draw.rect.y + draw.rect.height);
+    } else if (draw.points.length >= 4) {
+      const xs = draw.points.filter((_, i) => i % 2 === 0);
+      const ys = draw.points.filter((_, i) => i % 2 === 1);
       x0 = Math.min(...xs); x1 = Math.max(...xs); y0 = Math.min(...ys); y1 = Math.max(...ys);
     } else {
-      setDrawRect(null);
-      setDrawPoints([]);
+      setDraw({ kind: 'idle' });
       return;
     }
-    setDrawRect(null);
-    setDrawPoints([]);
+    setDraw({ kind: 'idle' });
     // Ignore accidental clicks/taps: under ~6 screen px in either direction.
     if ((x1 - x0) * scale < 6 || (y1 - y0) * scale < 6) return;
     onChange([
@@ -303,11 +325,11 @@ function RedactionPage({
           );
         })}
 
-        {drawing && tool === 'box' && drawRect && (
-          <Rect {...drawRect} stroke={REGION_COLORS.pendingAdd} strokeWidth={2} strokeScaleEnabled={false} dash={[4, 4]} fill={styleFill(style)} opacity={0.85} />
+        {draw.kind === 'box' && (
+          <Rect {...draw.rect} stroke={REGION_COLORS.pendingAdd} strokeWidth={2} strokeScaleEnabled={false} dash={[4, 4]} fill={styleFill(style)} opacity={0.85} />
         )}
-        {drawing && tool === 'freehand' && drawPoints.length >= 4 && (
-          <Line points={drawPoints} stroke={REGION_COLORS.pendingAdd} strokeWidth={2} strokeScaleEnabled={false} />
+        {draw.kind === 'freehand' && draw.points.length >= 4 && (
+          <Line points={draw.points} stroke={REGION_COLORS.pendingAdd} strokeWidth={2} strokeScaleEnabled={false} />
         )}
       </Layer>
     </Stage>

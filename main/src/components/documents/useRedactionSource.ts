@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback } from 'react';
 import {
   OriginalPage,
   RedactionRecord,
@@ -6,6 +6,7 @@ import {
   fetchRedactions,
   toDocumentName,
 } from '../../services/redactionService';
+import { useRetryable } from '../../hooks/useRetryable';
 
 export interface RedactionSource {
   pages: OriginalPage[];
@@ -22,11 +23,20 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 // A transient failure (network blip, cold start) shouldn't surface as an
 // error the user has to dismiss with "Try again": retry quietly first.
 const RETRY_DELAYS_MS = [600, 1800];
+/** The initial attempt plus one per delay above. */
+const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 const cache = new Map<string, { at: number; source: RedactionSource }>();
 
+const cacheKey = (caseId: string, filename: string) => `${caseId}:${filename}`;
+
 export function invalidateRedactionSource(caseId: string, filename: string) {
-  cache.delete(`${caseId}:${filename}`);
+  cache.delete(cacheKey(caseId, filename));
+}
+
+function cachedSource(caseId: string, filename: string): RedactionSource | null {
+  const cached = cache.get(cacheKey(caseId, filename));
+  return cached && Date.now() - cached.at < CACHE_TTL_MS ? cached.source : null;
 }
 
 async function loadSource(requestId: string, caseId: string, filename: string): Promise<RedactionSource> {
@@ -44,67 +54,39 @@ async function loadSource(requestId: string, caseId: string, filename: string): 
  * editing window closed, or it predates the editor).
  */
 export function useRedactionSource(requestId: string, caseId: string, filename: string | null, enabled: boolean) {
-  const [source, setSource] = useState<RedactionSource | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+  const active = enabled && filename !== null;
 
-  useEffect(() => {
-    if (!enabled || !filename) return;
-    const key = `${caseId}:${filename}`;
-    const cached = cache.get(key);
-    if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-      setSource(cached.source);
-      setError(null);
-      setLoading(false);
-      return;
+  const { status, data, error, retry } = useRetryable(
+    () => loadSource(requestId, caseId, filename as string),
+    [requestId, caseId, filename],
+    {
+      enabled: active,
+      peek: () => (filename ? cachedSource(caseId, filename) : null),
+      attempts: MAX_ATTEMPTS,
+      retryDelaysMs: RETRY_DELAYS_MS,
+      onLoaded: (loaded) => {
+        if (filename) cache.set(cacheKey(caseId, filename), { at: Date.now(), source: loaded });
+      },
+      // Same diagnostics as the hand-rolled retry loop this replaced: a line
+      // per failed attempt, and one clear line when we stop trying.
+      onLoadError: (err, attempt) => {
+        console.warn(`[useRedactionSource] load attempt ${attempt} failed for ${filename}`, err);
+        if (attempt >= MAX_ATTEMPTS) console.error(`[useRedactionSource] giving up on ${filename}`, err);
+      },
     }
-    let cancelled = false;
-    setSource(null);
-    setError(null);
-    setLoading(true);
-    (async () => {
-      let lastError: unknown = null;
-      for (let i = 0; i <= RETRY_DELAYS_MS.length; i++) {
-        if (i > 0) await new Promise((r) => window.setTimeout(r, RETRY_DELAYS_MS[i - 1]));
-        if (cancelled) return;
-        const startedAt = Date.now();
-        try {
-          const loaded = await loadSource(requestId, caseId, filename);
-          cache.set(key, { at: startedAt, source: loaded });
-          if (!cancelled) {
-            setSource(loaded);
-            setLoading(false);
-          }
-          return;
-        } catch (err) {
-          lastError = err;
-          console.warn(`[useRedactionSource] load attempt ${i + 1} failed for ${filename}`, err);
-        }
-      }
-      console.error(`[useRedactionSource] giving up on ${filename}`, lastError);
-      if (!cancelled) {
-        const reason = lastError instanceof Error ? lastError.message : String(lastError);
-        setError(`This document couldn't be loaded for editing. ${reason}`);
-        setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [requestId, caseId, filename, enabled, attempt]);
+  );
 
   /** Discard any cached load (e.g. its signed URLs expired) and fetch again. */
   const refresh = useCallback(() => {
     if (filename) invalidateRedactionSource(caseId, filename);
-    setAttempt((a) => a + 1);
-  }, [caseId, filename]);
+    retry();
+  }, [caseId, filename, retry]);
 
   return {
-    source,
-    error,
-    loading,
-    unavailable: Boolean(source && source.pages.length === 0),
+    source: data,
+    error: error ? `This document couldn't be loaded for editing. ${error.message}` : null,
+    loading: active && status === 'loading',
+    unavailable: Boolean(data && data.pages.length === 0),
     retry: refresh,
     refresh,
   };

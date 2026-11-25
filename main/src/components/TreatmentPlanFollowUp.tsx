@@ -3,6 +3,7 @@ import { Plus, Edit2, Trash2, X, Save } from 'lucide-react';
 import { supabase } from '../Supabase/client';
 import { showToast } from '../utils/toast';
 import { Modal } from './Modal';
+import { useConfirmAction } from '../hooks/useDialogs';
 
 // Types matching Supabase schema
 interface TreatmentPlan {
@@ -127,8 +128,6 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
   const [followUpForm, setFollowUpForm] = useState(defaultFollowUpForm);
   const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(null);
   const [savingFollowUp, setSavingFollowUp] = useState(false);
-  const [deleteFollowUpId, setDeleteFollowUpId] = useState<string | null>(null);
-  const [deletingFollowUp, setDeletingFollowUp] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -367,27 +366,25 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
     }
   };
 
-  const handleDeleteFollowUp = async () => {
-    if (!isOwner || !deleteFollowUpId) return;
-
-    setDeletingFollowUp(true);
+  // Which follow-up is being deleted is the dialog's argument, so there is no
+  // separate id state to keep in step with "is the dialog open".
+  const deleteFollowUpAction = useConfirmAction(async (followUpId: string) => {
+    if (!isOwner) return;
     try {
       const { error } = await supabase
         .from('case_treatment_followups')
         .delete()
-        .eq('id', deleteFollowUpId);
+        .eq('id', followUpId);
 
       if (error) throw error;
-      setFollowUps(prev => prev.filter(f => f.id !== deleteFollowUpId));
+      setFollowUps(prev => prev.filter(f => f.id !== followUpId));
       showToast.success('Follow-up deleted');
-      setDeleteFollowUpId(null);
     } catch (err) {
       console.error('Failed to delete follow-up:', err);
       showToast.error('Failed to delete follow-up');
-    } finally {
-      setDeletingFollowUp(false);
+      throw err;
     }
-  };
+  });
 
   if (loading) {
     return (
@@ -847,7 +844,7 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => setDeleteFollowUpId(fu.id)}
+                              onClick={() => deleteFollowUpAction.ask(fu.id)}
                               className="p-1 text-text-muted hover:text-danger transition-colors"
                               title="Delete"
                             >
@@ -959,8 +956,8 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
 
       {/* Delete Follow-Up Confirmation Modal */}
       <Modal
-        isOpen={!!deleteFollowUpId}
-        onClose={() => setDeleteFollowUpId(null)}
+        isOpen={deleteFollowUpAction.open}
+        onClose={deleteFollowUpAction.cancel}
         title="Delete Follow-Up"
       >
         <div className="space-y-4">
@@ -969,18 +966,18 @@ export function TreatmentPlanFollowUp({ caseId, isOwner }: TreatmentPlanFollowUp
           </p>
           <div className="flex justify-end gap-3">
             <button
-              onClick={() => setDeleteFollowUpId(null)}
-              disabled={deletingFollowUp}
+              onClick={deleteFollowUpAction.cancel}
+              disabled={deleteFollowUpAction.pending}
               className="px-4 py-2 border border-border rounded-lg text-text-muted hover:bg-bg transition-colors disabled:opacity-50"
             >
               Cancel
             </button>
             <button
-              onClick={handleDeleteFollowUp}
-              disabled={deletingFollowUp}
+              onClick={deleteFollowUpAction.confirm}
+              disabled={deleteFollowUpAction.pending}
               className="px-4 py-2 bg-danger-solid text-on-solid rounded-lg hover:bg-danger-solid-hover transition-colors disabled:opacity-50"
             >
-              {deletingFollowUp ? 'Deleting...' : 'Delete'}
+              {deleteFollowUpAction.pending ? 'Deleting...' : 'Delete'}
             </button>
           </div>
         </div>
