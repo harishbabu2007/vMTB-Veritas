@@ -23,6 +23,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 // A transient failure (network blip, cold start) shouldn't surface as an
 // error the user has to dismiss with "Try again": retry quietly first.
 const RETRY_DELAYS_MS = [600, 1800];
+/** The initial attempt plus one per delay above. */
+const MAX_ATTEMPTS = RETRY_DELAYS_MS.length + 1;
 
 const cache = new Map<string, { at: number; source: RedactionSource }>();
 
@@ -60,15 +62,16 @@ export function useRedactionSource(requestId: string, caseId: string, filename: 
     {
       enabled: active,
       peek: () => (filename ? cachedSource(caseId, filename) : null),
-      attempts: RETRY_DELAYS_MS.length + 1,
+      attempts: MAX_ATTEMPTS,
       retryDelaysMs: RETRY_DELAYS_MS,
       onLoaded: (loaded) => {
         if (filename) cache.set(cacheKey(caseId, filename), { at: Date.now(), source: loaded });
       },
-      // Keep the diagnostics the old hand-rolled loop had: each failed attempt
-      // is worth a line in the console, an exhausted one surfaced to the user.
-      onLoadError: (err) => {
-        console.warn(`[useRedactionSource] load failed for ${filename}`, err);
+      // Same diagnostics as the hand-rolled retry loop this replaced: a line
+      // per failed attempt, and one clear line when we stop trying.
+      onLoadError: (err, attempt) => {
+        console.warn(`[useRedactionSource] load attempt ${attempt} failed for ${filename}`, err);
+        if (attempt >= MAX_ATTEMPTS) console.error(`[useRedactionSource] giving up on ${filename}`, err);
       },
     }
   );

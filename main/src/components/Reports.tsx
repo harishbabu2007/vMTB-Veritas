@@ -19,7 +19,7 @@ import {
   commitCaseEdits,
   getTabId,
 } from '../services/pipelineService';
-import { isDecisionOpen, type PendingEmptyArchive } from '../hooks/documentSaveState';
+import type { PendingEmptyArchive } from '../hooks/documentSaveState';
 import { useCaseRunState } from '../hooks/useCaseRunState';
 import { useRunActions } from '../hooks/useRunActions';
 import { CaseUpdateStatus } from './CaseUpdateStatus';
@@ -493,8 +493,12 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
   // Emptying the case (no documents, no notes left)
   // ============================================================
 
-  // The empty-case question is part of the save state now.
-  const emptyPrompt = isDecisionOpen(saveState);
+  // Open from the refusal until it is answered or the archive lands —
+  // including the whole time the archive request is in flight, so the dialog
+  // (and the keepalive effect below, which is keyed on it) stays up while
+  // "Archiving…" is showing, exactly as before. `pendingEmpty` is set by
+  // `needs-decision` and cleared only by `saved` and `decided`.
+  const emptyPrompt = session.pendingEmpty !== null;
   const accessTokenRef = useRef<string | null>(null);
 
   const archiveEmptyCase = useCallback(() => {

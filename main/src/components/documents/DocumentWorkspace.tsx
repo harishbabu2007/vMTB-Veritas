@@ -874,21 +874,16 @@ function TextDocument({ doc, requestId, width }: { doc: WorkspaceDocument; reque
     { enabled: Boolean(url) }
   );
 
-  const retryText = () => {
-    // Re-sign the URL as well as re-reading it: a text fetch usually failed
-    // because the URL had expired, and re-fetching the same one would just
-    // fail again.
-    retryUrl();
-    textLoad.retry();
-  };
-
   if (url === null) {
     // The URL itself failed, or it is still being signed. No point looking at
     // the text loader until there is a URL to fetch.
     return error ? <DocumentError message={error} onRetry={retryUrl} /> : <DocumentLoading />;
   }
   if (textLoad.status === 'error') {
-    return <DocumentError message={textLoad.error?.message ?? "This file couldn't be loaded."} onRetry={retryText} />;
+    // Re-signing the URL is enough: a fresh one re-triggers the text load on
+    // its own, so `textLoad.retry()` here would be one wasted request for a
+    // URL that has probably expired anyway.
+    return <DocumentError message={textLoad.error?.message ?? "This file couldn't be loaded."} onRetry={retryUrl} />;
   }
   if (textLoad.data === null) return <DocumentLoading />;
   return (

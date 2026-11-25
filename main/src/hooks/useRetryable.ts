@@ -39,11 +39,12 @@ export interface RetryableOptions<T> {
   /** Called on each successful load, before the result is shown. */
   onLoaded?: (data: T) => void;
   /**
-   * Called on each failed attempt. Return true when the failure was handled
-   * elsewhere (e.g. expired signed URLs are being re-signed, and the caller
-   * will change the deps): the error is then not surfaced and the load waits.
+   * Called on each failed attempt, with the 1-based attempt number. Return
+   * true when the failure was handled elsewhere (e.g. expired signed URLs are
+   * being re-signed, and the caller will change the deps): the error is then
+   * not surfaced and the load waits.
    */
-  onLoadError?: (error: Error) => boolean | void;
+  onLoadError?: (error: Error, attempt: number) => boolean | void;
   /** Release a result when it is replaced or the caller unmounts. */
   dispose?: (data: T) => void;
 }
@@ -106,7 +107,7 @@ export function useRetryable<T>(load: () => Promise<T>, deps: unknown[], options
           return;
         } catch (err) {
           lastError = asError(err);
-          if (optionsRef.current.onLoadError?.(lastError)) return;
+          if (optionsRef.current.onLoadError?.(lastError, i + 1)) return;
         }
       }
 

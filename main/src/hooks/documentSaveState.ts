@@ -20,12 +20,14 @@ import type { CommitInput } from '../services/pipelineService';
  *
  *   - `needs-decision`: the save was refused because the case would be left
  *     with no documents and no notes, and the owner must pick "add data" or
- *     "archive".
+ *     "archive". Whether that question is on screen is `pendingEmpty` itself,
+ *     not this union: it has to stay up while the archive it triggered is
+ *     still in flight, when this union reads `saving`.
  *   - `saved` carrying the run id: the last save's changes may still be being
- *     applied by the backend, which is what drives the per-document
- *     "Updating…" chips. `lastSaved` deliberately outlives a later failed
- *     attempt, so a retry that fails doesn't blank out the previous save's
- *     progress.
+ *     applied by the backend. `lastSaved` deliberately outlives a later
+ *     failed attempt, so a retry that fails doesn't blank out the previous
+ *     save's progress. The per-document "Updating…" chips read it straight
+ *     from the session rather than through this union.
  */
 
 /** What went wrong with the last save attempt, in the form the strip shows it. */
@@ -56,15 +58,7 @@ export type SaveState =
   | { kind: 'dirty' }
   | { kind: 'saving' }
   | { kind: 'saved'; runId: string; filenames: string[] }
-  | {
-      kind: 'failed';
-      problem: SaveProblem;
-      /**
-       * The "this case would be empty" question was open when this attempt
-       * failed, so it stays open (the overlay is all the owner can see).
-       */
-      decisionPending: boolean;
-    }
+  | { kind: 'failed'; problem: SaveProblem }
   /** The empty-case question is open; nothing is in flight. */
   | { kind: 'needs-decision' };
 
@@ -123,20 +117,18 @@ export function saveMachineReducer(state: SaveMachineState, action: SaveAction):
  * The one union `Reports.tsx` and `CaseUpdateStatus` read.
  * `pendingCount` is the session's unsaved-change count, which is data, not
  * flow — so it is an argument rather than reducer state.
+ *
+ * Unsaved changes are checked before `lastSaved`, so making an edit after a
+ * save reads as `dirty` rather than claiming the tab is still `saved`.
  */
 export function selectSaveState(state: SaveMachineState, pendingCount: number): SaveState {
   if (state.attempt === 'saving') return { kind: 'saving' };
-  if (state.attempt === 'failed' && state.problem) {
-    return { kind: 'failed', problem: state.problem, decisionPending: state.pendingEmpty !== null };
-  }
-  // A failed save that is also waiting on the empty-case question still shows
-  // the question: `decisionPending` above, handled by Reports.
+  if (state.attempt === 'failed' && state.problem) return { kind: 'failed', problem: state.problem };
+  // The empty-case question outranks everything below it: while it is open
+  // the draft is neither plain-dirty nor plain-saved. Whether it is *on
+  // screen* is `state.pendingEmpty` directly — it stays open while an
+  // in-flight archive is running, which `attempt: 'saving'` would hide.
   if (state.pendingEmpty) return { kind: 'needs-decision' };
-  if (state.lastSaved) return { kind: 'saved', ...state.lastSaved };
-  return pendingCount > 0 ? { kind: 'dirty' } : { kind: 'clean' };
-}
-
-/** Whether the empty-case question is on screen in this state. */
-export function isDecisionOpen(state: SaveState): boolean {
-  return state.kind === 'needs-decision' || (state.kind === 'failed' && state.decisionPending);
+  if (pendingCount > 0) return { kind: 'dirty' };
+  return state.lastSaved ? { kind: 'saved', ...state.lastSaved } : { kind: 'clean' };
 }
