@@ -54,6 +54,8 @@ export interface CaseRunState {
   verified_generation: number | null;
   summary_status: 'processing' | 'unverified' | 'verified' | 'failed';
   report_status: string | null;
+  /** Latest run still owes an anonymize step (computed server-side). */
+  reports_pending: boolean;
   archived_at: string | null;
   run: PipelineRun | null;
   replaced_runs: number;

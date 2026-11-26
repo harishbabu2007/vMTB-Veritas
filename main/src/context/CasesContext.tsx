@@ -14,7 +14,7 @@ import {
 } from '../services/pipelineService';
 
 export type SummaryStatus = 'processing' | 'unverified' | 'verified' | 'failed';
-export type ReportStatus = 'not_ready' | 'unverified' | 'verified';
+export type ReportStatus = 'not_ready' | 'verified';
 
 export interface Question {
   id: string;

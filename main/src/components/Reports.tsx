@@ -292,7 +292,7 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
 
   const loadReports = useCallback(async () => {
     const status = caseData.reportStatus;
-    if (status !== 'unverified' && status !== 'verified' && status !== 'not_ready') return;
+    if (status !== 'verified' && status !== 'not_ready') return;
 
     if (!caseData.requestId || caseData.requestId.trim() === '') {
       setError('Reports are not available for this case.');
@@ -761,7 +761,6 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
 
   const isProcessing = caseData.reportStatus === 'not_ready';
   const hasCachedReports = reports.length > 0;
-  const showBlockingProcessing = isProcessing && !hasCachedReports;
 
   const statusLine = (filename: string, pending: boolean) => {
     if (pending) return { text: 'Added, not uploaded yet', className: 'text-warning' };
@@ -789,30 +788,28 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
         </div>
       )}
 
-      {showBlockingProcessing && (
-        <div className="bg-info-bg border border-info-border rounded-lg p-6 text-center">
-          <Loader2 className="w-8 h-8 text-info mx-auto mb-3 animate-spin" />
-          <p className="text-sm text-info-text font-medium">
-            Documents are being anonymized. They'll appear here shortly.
-          </p>
+      {isProcessing && !hasCachedReports && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg border border-info-border bg-info-bg text-sm text-info-text" role="status">
+          <Loader2 className="w-4 h-4 shrink-0 animate-spin text-info" />
+          <p>Documents are being anonymized. They'll appear here shortly.</p>
         </div>
       )}
 
-      {error && !showBlockingProcessing && (
+      {error && (
         <div className="bg-danger-bg border border-danger-border rounded-lg p-4 text-center">
           <AlertTriangle className="w-6 h-6 text-danger mx-auto mb-2" />
           <p className="text-sm text-danger-text">{error}</p>
         </div>
       )}
 
-      {loading && !showBlockingProcessing && (
+      {loading && (
         <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
           <Loader2 className="w-8 h-8 text-info mx-auto mb-3 animate-spin" />
           <p className="text-sm text-text-muted">Loading reports…</p>
         </div>
       )}
 
-      {!showBlockingProcessing && !loading && !error && (
+      {!loading && !error && (
         <div className="flex flex-col gap-3">
           {/* Header */}
           <div className="flex items-center justify-between gap-3 flex-wrap">
