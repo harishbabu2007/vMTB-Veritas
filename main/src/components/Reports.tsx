@@ -990,12 +990,12 @@ export function Reports({ caseData, isOwner, onCaseChange, snapshotGeneration = 
                 </button>
               )}
             </div>
-          ) : (
+          ) : !isProcessing ? (
             <div className="bg-surface rounded-xl shadow-sm border border-border p-8 text-center">
               <FileText className={`text-text-faint mx-auto mb-4 ${isMobile ? 'w-12 h-12' : 'w-16 h-16'}`} />
               <p className="text-text-muted font-medium">No reports available for this case.</p>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
